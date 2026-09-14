@@ -1,0 +1,337 @@
+"use client";
+
+import { useState } from "react";
+import { ChevronDown, ChevronUp, Plus, Trash2 } from "lucide-react";
+import { useTranslation } from "@/lib/i18n/LanguageContext";
+import type { ContributionTaxonomies } from "@/lib/contribute/taxonomies";
+import { runBenchmarkQueryBatch, type BenchmarkFormInput, type BenchmarkResponse } from "./actions";
+import { Select } from "./Select";
+import { ComparisonDetail, LABEL_STYLE } from "./ComparisonDetail";
+import { classifyPerformance, formatMetricValue, formatPercentDiff, computePercentDiff, isContextualPosition } from "@/lib/comparison/classify";
+import { computeCampaignAggregate, type CampaignMetricSummary } from "@/lib/comparison/campaign";
+import { DiagnosticSection } from "./DiagnosticSection";
+import type { RelaxableDimension } from "@/lib/benchmark/cohortRules";
+
+// Only metrics with a real, seeded definition in the metrics registry
+// (unit_type + benchmark_direction) are offered here — per Phase 7
+// item 4, no invented metric mappings. CVR (Conversion Rate) is
+// deliberately excluded: Phase 3 decided not to calculate it because
+// its denominator ("Relevant Traffic") isn't defined as a single
+// approved raw metric — see lib/metrics/derive.ts.
+const CAMPAIGN_METRICS = ["cpm", "ctr", "cpc", "cpa", "roas", "frequency", "reach", "cpv"];
+
+interface CohortDraft {
+  platform: string;
+  objective: string;
+  vertical: string;
+  country: string;
+  audienceStrategy: string;
+  funnelStage: string;
+  businessModel: string;
+  spendBand: string;
+  durationBand: string;
+  timeWindow: string;
+}
+
+const DEFAULT_COHORT: CohortDraft = {
+  platform: "",
+  objective: "",
+  vertical: "",
+  country: "",
+  audienceStrategy: "",
+  funnelStage: "",
+  businessModel: "",
+  spendBand: "",
+  durationBand: "",
+  timeWindow: "last_12_months",
+};
+
+interface MetricRow {
+  metric: string;
+  value: string;
+}
+
+interface CampaignResultRow extends CampaignMetricSummary {
+  response: BenchmarkResponse;
+  userValue: number;
+}
+
+export function CampaignExplorer({ taxonomies }: { taxonomies: ContributionTaxonomies }) {
+  const { t } = useTranslation();
+  const [cohort, setCohort] = useState<CohortDraft>(DEFAULT_COHORT);
+  const [rows, setRows] = useState<MetricRow[]>([{ metric: "cpm", value: "" }]);
+  const [loading, setLoading] = useState(false);
+  const [results, setResults] = useState<CampaignResultRow[] | null>(null);
+  const [expanded, setExpanded] = useState<string | null>(null);
+
+  function updateCohort<K extends keyof CohortDraft>(key: K, value: CohortDraft[K]) {
+    setCohort((c) => ({ ...c, [key]: value }));
+    setResults(null);
+  }
+
+  function updateRow(index: number, patch: Partial<MetricRow>) {
+    setRows((r) => r.map((row, i) => (i === index ? { ...row, ...patch } : row)));
+  }
+
+  function addRow() {
+    const unused = CAMPAIGN_METRICS.find((m) => !rows.some((r) => r.metric === m)) ?? CAMPAIGN_METRICS[0];
+    setRows((r) => [...r, { metric: unused, value: "" }]);
+  }
+
+  function removeRow(index: number) {
+    setRows((r) => r.filter((_, i) => i !== index));
+  }
+
+  const canSubmit =
+    cohort.platform && cohort.objective && cohort.vertical && cohort.country &&
+    rows.length > 0 &&
+    rows.every((r) => {
+      const n = Number(r.value);
+      // Input validation (Phase 7 item 13): reject NaN/Infinity/empty;
+      // zero is a valid value for metrics where it's mathematically
+      // sensible (e.g. a CPA of 0 conversions cost isn't meaningful,
+      // but we don't second-guess the user's raw entry here — the
+      // engine/classification layer already treats each value on its
+      // own terms).
+      return r.value.trim() !== "" && Number.isFinite(n);
+    });
+
+  async function handleCompare() {
+    if (!canSubmit) return;
+    setLoading(true);
+    setExpanded(null);
+
+    const baseInput: BenchmarkFormInput = {
+      metric: rows[0].metric,
+      platform: cohort.platform,
+      objective: cohort.objective,
+      vertical: cohort.vertical,
+      country: cohort.country,
+      audienceStrategy: cohort.audienceStrategy || null,
+      funnelStage: cohort.funnelStage || null,
+      businessModel: cohort.businessModel || null,
+      spendBand: cohort.spendBand || null,
+      durationBand: cohort.durationBand || null,
+      timeWindow: cohort.timeWindow,
+      relaxedDimensions: [] as RelaxableDimension[],
+    };
+
+    // Reuses the existing multi-metric batch path (Phase 5/6) — each
+    // metric still gets its own independent engine call, its own
+    // sample size, its own sufficiency check. No parallel comparison
+    // logic, no combined/pooled datasets, per Phase 7 item 2/5.
+    const responses = await runBenchmarkQueryBatch(baseInput, rows.map((r) => r.metric));
+
+    const rowResults: CampaignResultRow[] = responses.map((response, i) => {
+      const userValue = Number(rows[i].value);
+      const { p25, median, p75 } = response.statistics;
+      const classification =
+        response.status === "success" && p25 !== null && median !== null && p75 !== null
+          ? classifyPerformance(userValue, { p25, median, p75 }, response.benchmarkDirection)
+          : null;
+      return { metric: response.metric, status: response.status, classification, response, userValue };
+    });
+
+    setResults(rowResults);
+    setLoading(false);
+  }
+
+  const aggregate = results ? computeCampaignAggregate(results) : null;
+
+  const platformLabel = taxonomies.platforms.find((p) => p.internal_key === cohort.platform)?.display_label ?? cohort.platform;
+  const objectiveLabel = taxonomies.objectives.find((o) => o.internal_key === cohort.objective)?.display_label ?? cohort.objective;
+  const verticalLabel = taxonomies.verticals.find((v) => v.internal_key === cohort.vertical)?.display_label ?? cohort.vertical;
+  const countryLabel = taxonomies.countries.find((c) => c.iso_code === cohort.country)?.display_label ?? cohort.country;
+
+  return (
+    <div className="space-y-6">
+      <section className="rounded-2xl border border-line bg-surface p-6 shadow-sm">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+          <Select label={t("contribute.platform")} value={cohort.platform} onChange={(v) => updateCohort("platform", v)} allowEmpty required
+            options={taxonomies.platforms.map((p) => ({ value: p.internal_key, label: p.display_label }))} />
+          <Select label={t("contribute.objective")} value={cohort.objective} onChange={(v) => updateCohort("objective", v)} allowEmpty required
+            options={taxonomies.objectives.map((o) => ({ value: o.internal_key, label: o.display_label }))} />
+          <Select label={t("contribute.vertical")} value={cohort.vertical} onChange={(v) => updateCohort("vertical", v)} allowEmpty required
+            options={taxonomies.verticals.map((v) => ({ value: v.internal_key, label: v.display_label }))} />
+          <Select label={t("contribute.country")} value={cohort.country} onChange={(v) => updateCohort("country", v)} allowEmpty required
+            options={taxonomies.countries.map((c) => ({ value: c.iso_code, label: c.display_label }))} />
+          <Select label={t("contribute.audienceStrategy")} value={cohort.audienceStrategy} onChange={(v) => updateCohort("audienceStrategy", v)} allowEmpty
+            options={taxonomies.audienceStrategies.map((a) => ({ value: a.internal_key, label: a.display_label }))} />
+          <Select label={t("contribute.funnelStage")} value={cohort.funnelStage} onChange={(v) => updateCohort("funnelStage", v)} allowEmpty
+            options={taxonomies.funnelStages.map((f) => ({ value: f.internal_key, label: f.display_label }))} />
+          <Select label={t("contribute.businessModel")} value={cohort.businessModel} onChange={(v) => updateCohort("businessModel", v)} allowEmpty
+            options={taxonomies.businessModels.map((b) => ({ value: b.internal_key, label: b.display_label }))} />
+          <Select label={t("finder.spendRange")} value={cohort.spendBand} onChange={(v) => updateCohort("spendBand", v)} allowEmpty
+            options={[
+              { value: "under_500", label: "< USD 500" }, { value: "500_2000", label: "USD 500-2,000" },
+              { value: "2000_10000", label: "USD 2,000-10,000" }, { value: "10000_50000", label: "USD 10,000-50,000" },
+              { value: "50000_100000", label: "USD 50,000-100,000" }, { value: "100000_plus", label: "USD 100,000+" },
+            ]} />
+          <Select label={t("finder.duration")} value={cohort.durationBand} onChange={(v) => updateCohort("durationBand", v)} allowEmpty
+            options={[
+              { value: "1_7", label: "1-7" }, { value: "8_14", label: "8-14" }, { value: "15_30", label: "15-30" },
+              { value: "31_60", label: "31-60" }, { value: "61_90", label: "61-90" }, { value: "91_180", label: "91-180" },
+              { value: "181_365", label: "181-365" }, { value: "365_plus", label: "365+" },
+            ]} />
+        </div>
+
+        <div className="mt-5 space-y-2">
+          <p className="text-xs font-medium text-ink-600">{t("benchmarkLive.campaignMetrics")}</p>
+          {rows.map((row, i) => (
+            <div key={i} className="flex items-center gap-2">
+              <div className="w-32">
+                <Select label="" value={row.metric} onChange={(v) => updateRow(i, { metric: v })}
+                  options={CAMPAIGN_METRICS.map((m) => ({ value: m, label: m.toUpperCase() }))} />
+              </div>
+              <input
+                type="number"
+                step="0.01"
+                value={row.value}
+                onChange={(e) => updateRow(i, { value: e.target.value })}
+                placeholder={t("benchmarkLive.yourResultPlaceholder")}
+                className="flex-1 rounded-xl border border-line bg-canvas px-3 py-2.5 text-sm text-ink-900 outline-none focus-visible:border-primary"
+              />
+              {rows.length > 1 && (
+                <button onClick={() => removeRow(i)} className="rounded-full p-2 text-ink-400 hover:text-caution" aria-label="remove">
+                  <Trash2 size={16} />
+                </button>
+              )}
+            </div>
+          ))}
+          <button onClick={addRow} className="flex items-center gap-1 text-xs font-medium text-primary hover:underline">
+            <Plus size={14} /> {t("benchmarkLive.addMetric")}
+          </button>
+        </div>
+
+        <button
+          onClick={handleCompare}
+          disabled={!canSubmit || loading}
+          className="mt-5 w-full rounded-full bg-primary py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-40"
+        >
+          {loading ? t("benchmarkLive.loading") : t("benchmarkLive.compareCampaignButton")}
+        </button>
+      </section>
+
+      {results && aggregate && (
+        <section className="rounded-2xl border border-line bg-surface p-6 shadow-sm">
+          <p className="text-xs font-semibold uppercase tracking-wide text-ink-600">{t("benchmarkLive.campaignSummaryTitle")}</p>
+
+          <div className="mt-3 space-y-2">
+            {results.map((row) => (
+              <CampaignRow
+                key={row.metric}
+                row={row}
+                t={t}
+                expanded={expanded === row.metric}
+                onToggle={() => setExpanded(expanded === row.metric ? null : row.metric)}
+                platformLabel={platformLabel}
+                objectiveLabel={objectiveLabel}
+                verticalLabel={verticalLabel}
+                countryLabel={countryLabel}
+              />
+            ))}
+          </div>
+
+          {aggregate.directionalTotal > 0 && (
+            <p className="mt-4 rounded-xl bg-primary-soft px-3 py-2 text-sm font-medium text-primary">
+              {t("benchmarkLive.campaignAggregate", { n: aggregate.competitiveOrBetterCount, total: aggregate.directionalTotal })}
+            </p>
+          )}
+
+          <CampaignInsight results={results} t={t} />
+        </section>
+      )}
+
+      {results && <DiagnosticSection rows={results} t={t} />}
+    </div>
+  );
+}
+
+function CampaignRow({
+  row, t, expanded, onToggle, platformLabel, objectiveLabel, verticalLabel, countryLabel,
+}: {
+  row: CampaignResultRow;
+  t: (key: string, vars?: Record<string, string | number>) => string;
+  expanded: boolean;
+  onToggle: () => void;
+  platformLabel: string;
+  objectiveLabel: string;
+  verticalLabel: string;
+  countryLabel: string;
+}) {
+  const { response, userValue, classification, status } = row;
+  const median = response.statistics.median;
+  const percentDiff = median !== null ? computePercentDiff(userValue, median) : null;
+  const contextual = classification !== null && isContextualPosition(classification);
+
+  return (
+    <div className="rounded-xl border border-line">
+      <button onClick={onToggle} className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left">
+        <div className="flex flex-1 flex-wrap items-center gap-x-3 gap-y-1">
+          <span className="w-24 shrink-0 font-display text-sm font-semibold text-ink-900">{row.metric.toUpperCase()}</span>
+          <span className="text-sm text-ink-700">
+            {t("benchmarkLive.yourResult")}: {formatMetricValue(userValue, response.unit)}
+          </span>
+          {status === "success" && median !== null && (
+            <span className="text-sm text-ink-600">{t("benchmarkLive.vsMedian")}: {formatMetricValue(median, response.unit)}</span>
+          )}
+          {status === "success" && !contextual && percentDiff !== null && (
+            <span className="text-sm font-semibold text-ink-700">{formatPercentDiff(percentDiff)}</span>
+          )}
+          {status === "success" && classification !== null && (
+            <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${LABEL_STYLE[classification]}`}>
+              {t(`benchmarkLive.labels.${classification}`)}
+            </span>
+          )}
+          {status !== "success" && (
+            <span className="rounded-full bg-surface2 px-2.5 py-0.5 text-xs font-medium text-ink-600">
+              {t(`benchmarkLive.statusShort.${status}`)}
+            </span>
+          )}
+          {status === "success" && (
+            <span className="text-xs text-ink-400">n = {response.sampleSize}</span>
+          )}
+        </div>
+        {status === "success" && (expanded ? <ChevronUp size={16} className="text-ink-400" /> : <ChevronDown size={16} className="text-ink-400" />)}
+      </button>
+
+      {expanded && status === "success" && (
+        <div className="border-t border-line px-4 pb-4 pt-3">
+          <ComparisonDetail
+            response={response}
+            userValue={userValue}
+            t={t}
+            platformLabel={platformLabel}
+            objectiveLabel={objectiveLabel}
+            verticalLabel={verticalLabel}
+            countryLabel={countryLabel}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Deterministic, grouped-by-classification campaign insight — no free
+// text generation, no causal claims, no recommendations (Phase 7 item
+// 11). Only lists metrics; never assigns a score.
+function CampaignInsight({ results, t }: { results: CampaignResultRow[]; t: (key: string, vars?: Record<string, string | number>) => string }) {
+  const groups = new Map<string, string[]>();
+  for (const r of results) {
+    if (r.status !== "success" || r.classification === null) continue;
+    const key = r.classification;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key)!.push(r.metric.toUpperCase());
+  }
+  if (groups.size === 0) return null;
+
+  return (
+    <div className="mt-4 space-y-1 text-sm text-ink-700">
+      {Array.from(groups.entries()).map(([classification, metrics]) => (
+        <p key={classification}>
+          <span className="font-semibold">{metrics.join(", ")}</span>: {t(`benchmarkLive.labels.${classification}`).toLowerCase()}
+        </p>
+      ))}
+    </div>
+  );
+}

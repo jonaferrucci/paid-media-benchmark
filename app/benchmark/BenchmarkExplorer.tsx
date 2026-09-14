@@ -1,0 +1,472 @@
+"use client";
+
+import { useState } from "react";
+import { AppHeader } from "@/components/dashboard/AppHeader";
+import { DashboardSidebar } from "@/components/dashboard/DashboardSidebar";
+import { SearchOverlay } from "@/components/dashboard/SearchOverlay";
+import { useTranslation } from "@/lib/i18n/LanguageContext";
+import type { ContributionTaxonomies } from "@/lib/contribute/taxonomies";
+import { runBenchmarkQuery, type BenchmarkFormInput, type BenchmarkResponse } from "./actions";
+import { Select } from "./Select";
+import type { RelaxableDimension } from "@/lib/benchmark/cohortRules";
+import { formatMetricValue } from "@/lib/comparison/classify";
+import { ComparisonDetail } from "./ComparisonDetail";
+import { CampaignExplorer } from "./CampaignExplorer";
+
+const PRIMARY_METRICS = ["cpm", "ctr", "cpc", "reach", "frequency", "cpv"];
+
+interface Draft {
+  metric: string;
+  platform: string;
+  objective: string;
+  vertical: string;
+  country: string;
+  audienceStrategy: string;
+  funnelStage: string;
+  businessModel: string;
+  spendBand: string;
+  durationBand: string;
+  timeWindow: string;
+}
+
+const DEFAULT_DRAFT: Draft = {
+  metric: "cpm",
+  platform: "",
+  objective: "",
+  vertical: "",
+  country: "",
+  audienceStrategy: "",
+  funnelStage: "",
+  businessModel: "",
+  spendBand: "",
+  durationBand: "",
+  timeWindow: "last_12_months",
+};
+
+export function BenchmarkExplorer({ taxonomies }: { taxonomies: ContributionTaxonomies }) {
+  const { t } = useTranslation();
+  const [mode, setMode] = useState<"single" | "campaign">("single");
+  const [draft, setDraft] = useState<Draft>(DEFAULT_DRAFT);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [response, setResponse] = useState<BenchmarkResponse | null>(null);
+  const [relaxed, setRelaxed] = useState<RelaxableDimension[]>([]);
+
+  function update<K extends keyof Draft>(key: K, value: Draft[K]) {
+    setDraft((d) => ({ ...d, [key]: value }));
+    setResponse(null);
+    setRelaxed([]);
+  }
+
+  const isReach = draft.metric === "reach";
+  const canSubmit = draft.platform && draft.objective && draft.vertical && draft.country;
+
+  async function handleSubmit(overrideRelaxed?: RelaxableDimension[]) {
+    if (!canSubmit) return;
+    setLoading(true);
+    const activeRelaxed = overrideRelaxed ?? relaxed;
+
+    const input: BenchmarkFormInput = {
+      metric: draft.metric,
+      platform: draft.platform,
+      objective: draft.objective,
+      vertical: draft.vertical,
+      country: draft.country,
+      audienceStrategy: draft.audienceStrategy || null,
+      funnelStage: draft.funnelStage || null,
+      businessModel: draft.businessModel || null,
+      spendBand: draft.spendBand || null,
+      durationBand: draft.durationBand || null,
+      timeWindow: draft.timeWindow,
+      relaxedDimensions: activeRelaxed,
+    };
+
+    try {
+      const result = await runBenchmarkQuery(input);
+      setResponse(result);
+    } catch {
+      // Defensive second layer: the server action itself already
+      // catches engine failures (see actions.ts), but a transport-level
+      // failure calling the action could still throw here. Never show
+      // the raw error — same generic "error" status either way.
+      setResponse({
+        metric: draft.metric,
+        value: null,
+        unit: "count",
+        benchmarkDirection: "contextual",
+        statistics: { p25: null, median: null, p75: null, mean: null },
+        sampleSize: 0,
+        cohortSampleSize: 0,
+        cohort: { requested: {}, applied: {}, relaxed: [] },
+        status: "error",
+        message: "generic_error",
+      });
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function applyRelaxationSuggestion() {
+    if (!response?.relaxationSuggestion) return;
+    const nextRelaxed = [...relaxed, response.relaxationSuggestion.dimension];
+    setRelaxed(nextRelaxed);
+    handleSubmit(nextRelaxed);
+  }
+
+  const platformLabel = (key: string) => taxonomies.platforms.find((p) => p.internal_key === key)?.display_label ?? key;
+  const objectiveLabel = (key: string) => taxonomies.objectives.find((o) => o.internal_key === key)?.display_label ?? key;
+  const verticalLabel = (key: string) => taxonomies.verticals.find((v) => v.internal_key === key)?.display_label ?? key;
+  const countryLabel = (key: string) => taxonomies.countries.find((c) => c.iso_code === key)?.display_label ?? key;
+
+  return (
+    <div className="min-h-screen bg-canvas">
+      <AppHeader onSearchClick={() => setSearchOpen(true)} />
+      {searchOpen && <SearchOverlay onClose={() => setSearchOpen(false)} onApply={() => {}} />}
+      <DashboardSidebar />
+      <div className="md:pl-56">
+        <main className="mx-auto max-w-2xl space-y-6 px-4 py-8 md:px-8">
+          <div>
+            <h1 className="font-display text-xl font-semibold text-ink-900">{t("benchmarkLive.title")}</h1>
+            <p className="mt-1 text-sm text-ink-600">{t("benchmarkLive.subtitle")}</p>
+          </div>
+
+          <div className="flex gap-2 rounded-full bg-surface2 p-1">
+            <button
+              onClick={() => setMode("single")}
+              className={`flex-1 rounded-full py-2 text-sm font-medium transition-colors ${mode === "single" ? "bg-surface text-ink-900 shadow-sm" : "text-ink-600"}`}
+            >
+              {t("benchmarkLive.modeSingle")}
+            </button>
+            <button
+              onClick={() => setMode("campaign")}
+              className={`flex-1 rounded-full py-2 text-sm font-medium transition-colors ${mode === "campaign" ? "bg-surface text-ink-900 shadow-sm" : "text-ink-600"}`}
+            >
+              {t("benchmarkLive.modeCampaign")}
+            </button>
+          </div>
+
+          {mode === "campaign" ? (
+            <CampaignExplorer taxonomies={taxonomies} />
+          ) : (
+            <>
+          <section className="rounded-2xl border border-line bg-surface p-6 shadow-sm">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+              <Select
+                label={t("benchmarkLive.metric")}
+                value={draft.metric}
+                onChange={(v) => update("metric", v)}
+                options={PRIMARY_METRICS.map((m) => ({ value: m, label: m.toUpperCase() }))}
+              />
+              <Select
+                label={t("contribute.platform")}
+                value={draft.platform}
+                onChange={(v) => update("platform", v)}
+                allowEmpty
+                required
+                options={taxonomies.platforms.map((p) => ({ value: p.internal_key, label: p.display_label }))}
+              />
+              <Select
+                label={t("contribute.objective")}
+                value={draft.objective}
+                onChange={(v) => update("objective", v)}
+                allowEmpty
+                required
+                options={taxonomies.objectives.map((o) => ({ value: o.internal_key, label: o.display_label }))}
+              />
+              <Select
+                label={t("contribute.vertical")}
+                value={draft.vertical}
+                onChange={(v) => update("vertical", v)}
+                allowEmpty
+                required
+                options={taxonomies.verticals.map((v) => ({ value: v.internal_key, label: v.display_label }))}
+              />
+              <Select
+                label={t("contribute.country")}
+                value={draft.country}
+                onChange={(v) => update("country", v)}
+                allowEmpty
+                required
+                options={taxonomies.countries.map((c) => ({ value: c.iso_code, label: c.display_label }))}
+              />
+              <Select
+                label={t("contribute.audienceStrategy")}
+                value={draft.audienceStrategy}
+                onChange={(v) => update("audienceStrategy", v)}
+                allowEmpty
+                options={taxonomies.audienceStrategies.map((a) => ({ value: a.internal_key, label: a.display_label }))}
+              />
+              <Select
+                label={t("contribute.funnelStage")}
+                value={draft.funnelStage}
+                onChange={(v) => update("funnelStage", v)}
+                allowEmpty
+                options={taxonomies.funnelStages.map((f) => ({ value: f.internal_key, label: f.display_label }))}
+              />
+              <Select
+                label={t("contribute.businessModel")}
+                value={draft.businessModel}
+                onChange={(v) => update("businessModel", v)}
+                allowEmpty
+                options={taxonomies.businessModels.map((b) => ({ value: b.internal_key, label: b.display_label }))}
+              />
+            </div>
+
+            {/* Spend Range / Duration Band — visually emphasized/required for Reach, optional for everything else (Phase 5 item 5) */}
+            <div className={`mt-3 grid grid-cols-2 gap-3 rounded-xl p-3 ${isReach ? "border-2 border-coral/50 bg-coral-soft/40" : ""}`}>
+              <Select
+                label={t("finder.spendRange")}
+                value={draft.spendBand}
+                onChange={(v) => update("spendBand", v)}
+                allowEmpty
+                required={isReach}
+                options={[
+                  { value: "under_500", label: "< USD 500" },
+                  { value: "500_2000", label: "USD 500-2,000" },
+                  { value: "2000_10000", label: "USD 2,000-10,000" },
+                  { value: "10000_50000", label: "USD 10,000-50,000" },
+                  { value: "50000_100000", label: "USD 50,000-100,000" },
+                  { value: "100000_plus", label: "USD 100,000+" },
+                ]}
+              />
+              <Select
+                label={t("finder.duration")}
+                value={draft.durationBand}
+                onChange={(v) => update("durationBand", v)}
+                allowEmpty
+                required={isReach}
+                options={[
+                  { value: "1_7", label: "1-7" },
+                  { value: "8_14", label: "8-14" },
+                  { value: "15_30", label: "15-30" },
+                  { value: "31_60", label: "31-60" },
+                  { value: "61_90", label: "61-90" },
+                  { value: "91_180", label: "91-180" },
+                  { value: "181_365", label: "181-365" },
+                  { value: "365_plus", label: "365+" },
+                ]}
+              />
+            </div>
+
+            <button
+              onClick={() => handleSubmit()}
+              disabled={!canSubmit || loading}
+              className="mt-4 w-full rounded-full bg-primary py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-40"
+            >
+              {loading ? t("benchmarkLive.loading") : t("benchmarkLive.getBenchmark")}
+            </button>
+          </section>
+
+          {response && (
+            <ResultView
+              response={response}
+              t={t}
+              onApplySuggestion={applyRelaxationSuggestion}
+              platformLabel={platformLabel(draft.platform)}
+              objectiveLabel={objectiveLabel(draft.objective)}
+              verticalLabel={verticalLabel(draft.vertical)}
+              countryLabel={countryLabel(draft.country)}
+            />
+          )}
+
+          {response && process.env.NODE_ENV !== "production" && (
+            <details className="rounded-2xl border border-dashed border-line bg-surface2 p-4 text-xs">
+              <summary className="cursor-pointer font-medium text-ink-600">
+                Debug: requested cohort / applied cohort / sample size / status (dev-only, never shown in production)
+              </summary>
+              <pre className="mt-2 overflow-x-auto whitespace-pre-wrap text-[11px] text-ink-700">
+                {JSON.stringify(response, null, 2)}
+              </pre>
+            </details>
+          )}
+            </>
+          )}
+        </main>
+      </div>
+    </div>
+  );
+}
+
+function ResultView({
+  response,
+  t,
+  onApplySuggestion,
+  platformLabel,
+  objectiveLabel,
+  verticalLabel,
+  countryLabel,
+}: {
+  response: BenchmarkResponse;
+  t: (key: string, vars?: Record<string, string | number>) => string;
+  onApplySuggestion: () => void;
+  platformLabel: string;
+  objectiveLabel: string;
+  verticalLabel: string;
+  countryLabel: string;
+}) {
+  if (response.status === "error") {
+    return (
+      <section className="rounded-2xl border border-caution/30 bg-caution-soft p-6 text-center">
+        <p className="font-display text-base font-semibold text-ink-900">{t("benchmarkLive.errorTitle")}</p>
+        <p className="mt-2 text-sm text-ink-700">{t("benchmarkLive.errorBody")}</p>
+      </section>
+    );
+  }
+
+  if (response.status === "methodology_block") {
+    return (
+      <section className="rounded-2xl border border-caution/30 bg-caution-soft p-6">
+        <p className="font-display text-base font-semibold text-ink-900">{t("benchmarkLive.reachBlockTitle")}</p>
+        <p className="mt-2 text-sm text-ink-700">{t("benchmarkLive.reachBlockBody")}</p>
+      </section>
+    );
+  }
+
+  if (response.status === "no_data") {
+    return (
+      <section className="rounded-2xl border border-dashed border-line bg-surface p-6 text-center">
+        <p className="font-display text-base font-semibold text-ink-900">{t("benchmarkLive.noDataTitle")}</p>
+        <p className="mt-2 text-sm text-ink-600">{t("benchmarkLive.noDataBody")}</p>
+      </section>
+    );
+  }
+
+  if (response.status === "insufficient_sample") {
+    return (
+      <section className="rounded-2xl border border-caution/30 bg-caution-soft p-6">
+        <p className="font-display text-base font-semibold text-ink-900">{t("benchmarkLive.insufficientTitle")}</p>
+        <p className="mt-2 text-sm text-ink-700">{t("benchmarkLive.insufficientBody")}</p>
+        <p className="mt-1 text-xs text-ink-600">
+          n = {response.sampleSize} (cohort: {response.cohortSampleSize})
+        </p>
+        {response.relaxationSuggestion && (
+          <button
+            onClick={onApplySuggestion}
+            className="mt-3 rounded-full border border-line bg-surface px-4 py-2 text-xs font-medium text-ink-900 hover:border-primary hover:text-primary"
+          >
+            {t("benchmarkLive.applySuggestion")}: {t(`benchmarkLive.dimensionLabels.${response.relaxationSuggestion.dimension}`)} (
+            ~{response.relaxationSuggestion.estimatedSampleSize})
+          </button>
+        )}
+      </section>
+    );
+  }
+
+  // status === "success"
+  const { p25, median, p75 } = response.statistics;
+
+  return (
+    <section className="rounded-2xl border border-line bg-surface p-6 shadow-sm">
+      <p className="text-xs font-semibold uppercase tracking-wide text-ink-600">
+        {platformLabel} · {objectiveLabel}
+      </p>
+      <p className="mt-1 font-display text-lg font-semibold text-primary">{verticalLabel}</p>
+      <p className="text-sm text-ink-600">{countryLabel}</p>
+
+      <p className="mt-4 font-display text-3xl font-semibold text-ink-900">
+        {response.metric.toUpperCase()}: {median !== null ? formatMetricValue(median, response.unit) : "\u2014"}
+      </p>
+
+      {/* Sample size: given real visual prominence per Phase 6, not
+          buried as secondary metadata. */}
+      <p className="mt-2 rounded-xl bg-primary-soft px-3 py-2 text-sm font-medium text-primary">
+        {t("benchmarkLive.sampleSizeProminent", { n: response.sampleSize })}
+      </p>
+
+      {(response.cohort.applied as { spendBand?: string; durationBand?: string }).spendBand && (
+        <p className="mt-2 text-xs font-medium text-coral">
+          {t("benchmarkLive.scaleContext")}: {(response.cohort.applied as { spendBand?: string }).spendBand} ·{" "}
+          {(response.cohort.applied as { durationBand?: string }).durationBand}
+        </p>
+      )}
+
+      {response.cohort.relaxed.length > 0 && (
+        <div className="mt-3 rounded-xl bg-primary-soft p-3 text-xs text-ink-700">
+          <p className="font-semibold text-primary">{t("benchmarkLive.relaxedNotice")}</p>
+          {response.cohort.relaxed.map((dim) => (
+            <p key={dim} className="mt-1">
+              {t("benchmarkLive.relaxedExplain", { dimension: t(`benchmarkLive.dimensionLabels.${dim}`) })}
+            </p>
+          ))}
+        </div>
+      )}
+
+      {p25 !== null && p75 !== null && median !== null && (
+        <ComparisonSection
+          response={response}
+          t={t}
+          platformLabel={platformLabel}
+          objectiveLabel={objectiveLabel}
+          verticalLabel={verticalLabel}
+          countryLabel={countryLabel}
+        />
+      )}
+    </section>
+  );
+}
+
+function ComparisonSection({
+  response,
+  t,
+  platformLabel,
+  objectiveLabel,
+  verticalLabel,
+  countryLabel,
+}: {
+  response: BenchmarkResponse;
+  t: (key: string, vars?: Record<string, string | number>) => string;
+  platformLabel: string;
+  objectiveLabel: string;
+  verticalLabel: string;
+  countryLabel: string;
+}) {
+  const [inputValue, setInputValue] = useState("");
+  const [compared, setCompared] = useState<number | null>(null);
+
+  function handleCompare() {
+    const parsed = Number(inputValue);
+    if (inputValue.trim() === "" || !Number.isFinite(parsed)) return;
+    setCompared(parsed);
+  }
+
+  return (
+    <div className="mt-6 border-t border-line pt-5">
+      <label className="flex flex-col gap-1 sm:flex-row sm:items-end sm:gap-3">
+        <span className="flex-1">
+          <span className="text-xs font-medium text-ink-600">{t("benchmarkLive.yourResult")}</span>
+          <input
+            type="number"
+            step="0.01"
+            value={inputValue}
+            onChange={(e) => {
+              setInputValue(e.target.value);
+              setCompared(null);
+            }}
+            placeholder={t("benchmarkLive.yourResultPlaceholder")}
+            className="mt-1 w-full rounded-xl border border-line bg-canvas px-3 py-2 text-sm text-ink-900 outline-none focus-visible:border-primary sm:w-40"
+          />
+        </span>
+        <button
+          onClick={handleCompare}
+          className="mt-2 rounded-full bg-ink-900 px-5 py-2 text-sm font-medium text-white hover:opacity-90 sm:mt-0"
+        >
+          {t("benchmarkLive.compareButton")}
+        </button>
+      </label>
+
+      {compared !== null && (
+        <div className="mt-3">
+          <ComparisonDetail
+            response={response}
+            userValue={compared}
+            t={t}
+            platformLabel={platformLabel}
+            objectiveLabel={objectiveLabel}
+            verticalLabel={verticalLabel}
+            countryLabel={countryLabel}
+          />
+        </div>
+      )}
+    </div>
+  );
+}

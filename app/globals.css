@@ -1,0 +1,91 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font-display: "Space Grotesk", sans-serif;
+  --font-body: "IBM Plex Sans", sans-serif;
+  --font-mono: "IBM Plex Mono", monospace;
+
+  /* Light theme (default) — Phase 1.5 approved palette.
+     Text/background legibility note: the spec's pistachio (#A7D8B8) and
+     vanilla (#FFD66B) are pastel tones meant as soft backgrounds, not
+     body text — used here as the "-soft" tiles, paired with a deeper
+     hue of the same family for text/icons drawn on top of them, so
+     contrast stays readable. */
+  --color-background: #F8F7F4;
+  --color-surface: #FFFFFF;
+  --color-surface-2: #F1EEE7;
+  --color-text-primary: #23232B;
+  --color-text-secondary: #73737F;
+  --color-text-tertiary: #9A98A3;
+  --color-border: #EAE7E2;
+  --color-primary: #6C63FF;
+  --color-primary-soft: #ECEAFF;
+  --color-coral: #FF8E72;
+  --color-coral-soft: #FFEBE5;
+  --color-pistachio: #4F8F63;
+  --color-pistachio-soft: #A7D8B8;
+  --color-vanilla: #8A6A16;
+  --color-vanilla-soft: #FFD66B;
+  --color-caution: #9A5A3F;
+  --color-caution-soft: #F5E7DE;
+  --color-success: #3F9142;
+  --color-warning: #B4682B;
+
+  /* Fixed brand tone — intentionally identical in both themes, so the
+     sidebar rail stays a consistent dark tone regardless of the active
+     theme. Kept narrow/secondary per Phase 1.5 (not the dominant
+     interface treatment — it only appears in the Result view). */
+  --color-sidebar: #211C38;
+}
+
+/* Dark theme — deep charcoal / blue-violet, never pure black, no neon.
+   Toggled via [data-theme="dark"] on <html>, set by ThemeProvider. */
+[data-theme="dark"] {
+  --color-background: #1A1730;
+  --color-surface: #241F3E;
+  --color-surface-2: #2C2650;
+  --color-text-primary: #F2EFFB;
+  --color-text-secondary: #B6AECF;
+  --color-text-tertiary: #8880A0;
+  --color-border: #3A335E;
+  --color-primary: #8F88FF;
+  --color-primary-soft: #362F5C;
+  --color-coral: #FFA98F;
+  --color-coral-soft: #47302E;
+  --color-pistachio: #9FD8B0;
+  --color-pistachio-soft: #2E3D33;
+  --color-vanilla: #FFDD85;
+  --color-vanilla-soft: #3D341C;
+  --color-caution: #D89A7C;
+  --color-caution-soft: #3E2E27;
+  --color-success: #7FD583;
+  --color-warning: #E3AE73;
+}
+
+html {
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  background-color: var(--color-background);
+  color: var(--color-text-primary);
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+/* Tabular figures everywhere numbers are compared, so digits align */
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+::selection {
+  background-color: var(--color-primary);
+  color: #ffffff;
+}
+
+/* Visible focus state for keyboard navigation (accessibility requirement) */
+:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
