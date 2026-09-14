@@ -37,6 +37,13 @@ Migrations are numbered and must be applied in order:
 0008_add_business_models.sql        business_models taxonomy,
                                      performance_datasets.business_model_id
                                      (Phase 2.2, purely additive)
+0009_profile_sync.sql               security-definer trigger on auth.users
+                                     syncing to public.profiles
+0010_taxonomy_read_grants.sql       explicit SELECT grants for anon/
+                                     authenticated on public taxonomy
+                                     tables (Phase 9, defensive — RLS
+                                     policies remain the real row-level
+                                     boundary; see file header)
 ```
 
 `seed.sql` (repo root of this directory) is reference/taxonomy data only —
