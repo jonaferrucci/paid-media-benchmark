@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { ChevronDown, ChevronUp, Plus, Trash2, Info, ShieldAlert, AlertCircle } from "lucide-react";
 import { useTranslation } from "@/lib/i18n/LanguageContext";
 import type { ContributionTaxonomies } from "@/lib/contribute/taxonomies";
@@ -10,6 +10,8 @@ import { ComparisonDetail, LABEL_STYLE, LABEL_ICON } from "./ComparisonDetail";
 import { classifyPerformance, formatMetricValue, formatPercentDiff, computePercentDiff, isContextualPosition } from "@/lib/comparison/classify";
 import { computeCampaignAggregate, type CampaignMetricSummary } from "@/lib/comparison/campaign";
 import { DiagnosticSection } from "./DiagnosticSection";
+import { SaveComparisonButton } from "@/app/comparisons/SaveComparisonButton";
+import type { SavedComparison } from "@/app/comparisons/actions";
 import type { RelaxableDimension } from "@/lib/benchmark/cohortRules";
 
 // Only metrics with a real, seeded definition in the metrics registry
@@ -56,13 +58,40 @@ interface CampaignResultRow extends CampaignMetricSummary {
   userValue: number;
 }
 
-export function CampaignExplorer({ taxonomies }: { taxonomies: ContributionTaxonomies }) {
+export function CampaignExplorer({ taxonomies, initialSaved }: { taxonomies: ContributionTaxonomies; initialSaved?: SavedComparison | null }) {
   const { t } = useTranslation();
   const [cohort, setCohort] = useState<CohortDraft>(DEFAULT_COHORT);
   const [rows, setRows] = useState<MetricRow[]>([{ metric: "cpm", value: "" }]);
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<CampaignResultRow[] | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
+
+  // Phase 14 reopen flow: BenchmarkExplorer already fetched the saved
+  // comparison and switched mode to "campaign" — this just restores
+  // this component's own local state from it and re-runs the current
+  // engine (never trusts any persisted result value as truth).
+  useEffect(() => {
+    if (!initialSaved || initialSaved.comparisonType !== "campaign") return;
+    const restoredCohort: CohortDraft = {
+      platform: initialSaved.platform,
+      objective: initialSaved.objective,
+      vertical: initialSaved.vertical,
+      country: initialSaved.country,
+      audienceStrategy: initialSaved.audienceStrategy ?? "",
+      funnelStage: initialSaved.funnelStage ?? "",
+      businessModel: initialSaved.businessModel ?? "",
+      spendBand: initialSaved.spendBand ?? "",
+      durationBand: initialSaved.durationBand ?? "",
+      timeWindow: initialSaved.timeWindow ?? DEFAULT_COHORT.timeWindow,
+    };
+    const restoredRows: MetricRow[] = initialSaved.campaignRows?.length
+      ? initialSaved.campaignRows.map((r) => ({ metric: r.metric, value: r.value }))
+      : [{ metric: "cpm", value: "" }];
+    setCohort(restoredCohort);
+    setRows(restoredRows);
+    handleCompare(restoredCohort, restoredRows);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialSaved]);
 
   function updateCohort<K extends keyof CohortDraft>(key: K, value: CohortDraft[K]) {
     setCohort((c) => ({ ...c, [key]: value }));
@@ -96,23 +125,32 @@ export function CampaignExplorer({ taxonomies }: { taxonomies: ContributionTaxon
       return r.value.trim() !== "" && Number.isFinite(n);
     });
 
-  async function handleCompare() {
-    if (!canSubmit) return;
+  async function handleCompare(overrideCohort?: CohortDraft, overrideRows?: MetricRow[]) {
+    const effectiveCohort = overrideCohort ?? cohort;
+    const effectiveRows = overrideRows ?? rows;
+    const effectiveCanSubmit =
+      effectiveCohort.platform && effectiveCohort.objective && effectiveCohort.vertical && effectiveCohort.country &&
+      effectiveRows.length > 0 &&
+      effectiveRows.every((r) => {
+        const n = Number(r.value);
+        return r.value.trim() !== "" && Number.isFinite(n);
+      });
+    if (!effectiveCanSubmit) return;
     setLoading(true);
     setExpanded(null);
 
     const baseInput: BenchmarkFormInput = {
-      metric: rows[0].metric,
-      platform: cohort.platform,
-      objective: cohort.objective,
-      vertical: cohort.vertical,
-      country: cohort.country,
-      audienceStrategy: cohort.audienceStrategy || null,
-      funnelStage: cohort.funnelStage || null,
-      businessModel: cohort.businessModel || null,
-      spendBand: cohort.spendBand || null,
-      durationBand: cohort.durationBand || null,
-      timeWindow: cohort.timeWindow,
+      metric: effectiveRows[0].metric,
+      platform: effectiveCohort.platform,
+      objective: effectiveCohort.objective,
+      vertical: effectiveCohort.vertical,
+      country: effectiveCohort.country,
+      audienceStrategy: effectiveCohort.audienceStrategy || null,
+      funnelStage: effectiveCohort.funnelStage || null,
+      businessModel: effectiveCohort.businessModel || null,
+      spendBand: effectiveCohort.spendBand || null,
+      durationBand: effectiveCohort.durationBand || null,
+      timeWindow: effectiveCohort.timeWindow,
       relaxedDimensions: [] as RelaxableDimension[],
     };
 
@@ -120,10 +158,10 @@ export function CampaignExplorer({ taxonomies }: { taxonomies: ContributionTaxon
     // metric still gets its own independent engine call, its own
     // sample size, its own sufficiency check. No parallel comparison
     // logic, no combined/pooled datasets, per Phase 7 item 2/5.
-    const responses = await runBenchmarkQueryBatch(baseInput, rows.map((r) => r.metric));
+    const responses = await runBenchmarkQueryBatch(baseInput, effectiveRows.map((r) => r.metric));
 
     const rowResults: CampaignResultRow[] = responses.map((response, i) => {
-      const userValue = Number(rows[i].value);
+      const userValue = Number(effectiveRows[i].value);
       const { p25, median, p75 } = response.statistics;
       const classification =
         response.status === "success" && p25 !== null && median !== null && p75 !== null
@@ -204,7 +242,7 @@ export function CampaignExplorer({ taxonomies }: { taxonomies: ContributionTaxon
         </div>
 
         <button
-          onClick={handleCompare}
+          onClick={() => handleCompare()}
           disabled={!canSubmit || loading}
           aria-busy={loading}
           className="mt-5 w-full rounded-full bg-brandGradient py-2.5 text-sm font-semibold text-[#23232B] transition-opacity hover:opacity-90 disabled:opacity-40"
@@ -249,6 +287,28 @@ export function CampaignExplorer({ taxonomies }: { taxonomies: ContributionTaxon
           )}
 
           <CampaignInsight results={results} t={t} />
+
+          {results.some((r) => r.status === "success") && (
+            <div className="mt-4 border-t border-line pt-4">
+              <SaveComparisonButton
+                defaultName={`${t("comparisons.typeCampaign")} ${platformLabel} · ${countryLabel}`}
+                buildPayload={() => ({
+                  comparisonType: "campaign",
+                  platform: cohort.platform,
+                  objective: cohort.objective,
+                  vertical: cohort.vertical,
+                  country: cohort.country,
+                  audienceStrategy: cohort.audienceStrategy || null,
+                  funnelStage: cohort.funnelStage || null,
+                  businessModel: cohort.businessModel || null,
+                  spendBand: cohort.spendBand || null,
+                  durationBand: cohort.durationBand || null,
+                  timeWindow: cohort.timeWindow || null,
+                  campaignRows: rows,
+                })}
+              />
+            </div>
+          )}
           </div>
         </section>
       )}

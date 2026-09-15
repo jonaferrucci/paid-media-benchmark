@@ -1,14 +1,11 @@
-"use client";
-import { PlaceholderPage } from "@/components/dashboard/PlaceholderPage";
-import { useTranslation } from "@/lib/i18n/LanguageContext";
+import { listSavedComparisonsAction } from "./actions";
+import { getContributionTaxonomies } from "@/lib/contribute/taxonomies";
+import { SavedComparisonsList } from "./SavedComparisonsList";
 
-export default function ComparisonsPage() {
-  const { t } = useTranslation();
-  return (
-    <PlaceholderPage
-      title={t("stubPages.comparisonsTitle")}
-      description={t("stubPages.comparisonsDesc")}
-      plannedPhase={t("stubPages.phase7")}
-    />
-  );
+export default async function ComparisonsPage() {
+  const [comparisons, taxonomies] = await Promise.all([
+    listSavedComparisonsAction(),
+    getContributionTaxonomies(),
+  ]);
+  return <SavedComparisonsList initialComparisons={comparisons} taxonomies={taxonomies} />;
 }

@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import { AlertCircle, ShieldAlert, Info } from "lucide-react";
 import { AppHeader } from "@/components/dashboard/AppHeader";
 import { DashboardSidebar } from "@/components/dashboard/DashboardSidebar";
@@ -13,6 +14,8 @@ import type { RelaxableDimension } from "@/lib/benchmark/cohortRules";
 import { formatMetricValue } from "@/lib/comparison/classify";
 import { ComparisonDetail } from "./ComparisonDetail";
 import { CampaignExplorer } from "./CampaignExplorer";
+import { SaveComparisonButton } from "@/app/comparisons/SaveComparisonButton";
+import { getSavedComparisonAction, type SavedComparison } from "@/app/comparisons/actions";
 
 const PRIMARY_METRICS = ["cpm", "ctr", "cpc", "reach", "frequency", "cpv"];
 
@@ -46,12 +49,63 @@ const DEFAULT_DRAFT: Draft = {
 
 export function BenchmarkExplorer({ taxonomies }: { taxonomies: ContributionTaxonomies }) {
   const { t } = useTranslation();
+  const searchParams = useSearchParams();
   const [mode, setMode] = useState<"single" | "campaign">("single");
   const [draft, setDraft] = useState<Draft>(DEFAULT_DRAFT);
   const [searchOpen, setSearchOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [response, setResponse] = useState<BenchmarkResponse | null>(null);
   const [relaxed, setRelaxed] = useState<RelaxableDimension[]>([]);
+  const [initialUserValue, setInitialUserValue] = useState<number | null>(null);
+  const [campaignInit, setCampaignInit] = useState<SavedComparison | null>(null);
+  const [reopenError, setReopenError] = useState<string | null>(null);
+  const [reopenLoading, setReopenLoading] = useState(false);
+
+  // Phase 14 reopen flow: /benchmark?saved=<id>. Explicit, robust,
+  // handles missing/deleted/other-owner cases with a user-facing
+  // message (getSavedComparisonAction already returns null for all of
+  // those — RLS makes another user's row simply not exist from this
+  // session's point of view, no distinction needed or leaked).
+  useEffect(() => {
+    const savedId = searchParams.get("saved");
+    if (!savedId) return;
+
+    let cancelled = false;
+    setReopenLoading(true);
+    getSavedComparisonAction(savedId).then((saved) => {
+      if (cancelled) return;
+      setReopenLoading(false);
+      if (!saved) {
+        setReopenError(t("comparisons.reopenNotFound"));
+        return;
+      }
+      if (saved.comparisonType === "campaign") {
+        setMode("campaign");
+        setCampaignInit(saved);
+        return;
+      }
+      const restoredDraft: Draft = {
+        metric: saved.metric ?? DEFAULT_DRAFT.metric,
+        platform: saved.platform,
+        objective: saved.objective,
+        vertical: saved.vertical,
+        country: saved.country,
+        audienceStrategy: saved.audienceStrategy ?? "",
+        funnelStage: saved.funnelStage ?? "",
+        businessModel: saved.businessModel ?? "",
+        spendBand: saved.spendBand ?? "",
+        durationBand: saved.durationBand ?? "",
+        timeWindow: saved.timeWindow ?? DEFAULT_DRAFT.timeWindow,
+      };
+      setMode("single");
+      setDraft(restoredDraft);
+      setInitialUserValue(saved.userValue);
+      handleSubmit(undefined, restoredDraft);
+    });
+
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
   function update<K extends keyof Draft>(key: K, value: Draft[K]) {
     setDraft((d) => ({ ...d, [key]: value }));
@@ -62,23 +116,26 @@ export function BenchmarkExplorer({ taxonomies }: { taxonomies: ContributionTaxo
   const isReach = draft.metric === "reach";
   const canSubmit = draft.platform && draft.objective && draft.vertical && draft.country;
 
-  async function handleSubmit(overrideRelaxed?: RelaxableDimension[]) {
-    if (!canSubmit) return;
+  async function handleSubmit(overrideRelaxed?: RelaxableDimension[], overrideDraft?: Draft) {
+    const effectiveDraft = overrideDraft ?? draft;
+    const effectiveCanSubmit =
+      effectiveDraft.platform && effectiveDraft.objective && effectiveDraft.vertical && effectiveDraft.country;
+    if (!effectiveCanSubmit) return;
     setLoading(true);
     const activeRelaxed = overrideRelaxed ?? relaxed;
 
     const input: BenchmarkFormInput = {
-      metric: draft.metric,
-      platform: draft.platform,
-      objective: draft.objective,
-      vertical: draft.vertical,
-      country: draft.country,
-      audienceStrategy: draft.audienceStrategy || null,
-      funnelStage: draft.funnelStage || null,
-      businessModel: draft.businessModel || null,
-      spendBand: draft.spendBand || null,
-      durationBand: draft.durationBand || null,
-      timeWindow: draft.timeWindow,
+      metric: effectiveDraft.metric,
+      platform: effectiveDraft.platform,
+      objective: effectiveDraft.objective,
+      vertical: effectiveDraft.vertical,
+      country: effectiveDraft.country,
+      audienceStrategy: effectiveDraft.audienceStrategy || null,
+      funnelStage: effectiveDraft.funnelStage || null,
+      businessModel: effectiveDraft.businessModel || null,
+      spendBand: effectiveDraft.spendBand || null,
+      durationBand: effectiveDraft.durationBand || null,
+      timeWindow: effectiveDraft.timeWindow,
       relaxedDimensions: activeRelaxed,
     };
 
@@ -91,7 +148,7 @@ export function BenchmarkExplorer({ taxonomies }: { taxonomies: ContributionTaxo
       // failure calling the action could still throw here. Never show
       // the raw error — same generic "error" status either way.
       setResponse({
-        metric: draft.metric,
+        metric: effectiveDraft.metric,
         value: null,
         unit: "count",
         benchmarkDirection: "contextual",
@@ -146,8 +203,17 @@ export function BenchmarkExplorer({ taxonomies }: { taxonomies: ContributionTaxo
             </button>
           </div>
 
+          {reopenLoading && (
+            <p className="mb-4 text-center text-xs text-ink-500">{t("comparisons.reopenLoading")}</p>
+          )}
+          {reopenError && (
+            <div className="mb-4 rounded-2xl border border-caution/30 bg-caution-soft p-4 text-center">
+              <p className="text-sm text-ink-800">{reopenError}</p>
+            </div>
+          )}
+
           {mode === "campaign" ? (
-            <CampaignExplorer taxonomies={taxonomies} />
+            <CampaignExplorer taxonomies={taxonomies} initialSaved={campaignInit} />
           ) : (
             <>
           <div className={response ? "lg:flex lg:items-start lg:gap-8" : ""}>
@@ -304,6 +370,8 @@ export function BenchmarkExplorer({ taxonomies }: { taxonomies: ContributionTaxo
                 objectiveLabel={objectiveLabel(draft.objective)}
                 verticalLabel={verticalLabel(draft.vertical)}
                 countryLabel={countryLabel(draft.country)}
+                draft={draft}
+                initialUserValue={initialUserValue}
               />
 
               {process.env.NODE_ENV !== "production" && (
@@ -335,6 +403,8 @@ export function ResultView({
   objectiveLabel,
   verticalLabel,
   countryLabel,
+  draft,
+  initialUserValue,
 }: {
   response: BenchmarkResponse;
   t: (key: string, vars?: Record<string, string | number>) => string;
@@ -343,6 +413,8 @@ export function ResultView({
   objectiveLabel: string;
   verticalLabel: string;
   countryLabel: string;
+  draft?: Draft;
+  initialUserValue?: number | null;
 }) {
   if (response.status === "error") {
     return (
@@ -450,6 +522,8 @@ export function ResultView({
           objectiveLabel={objectiveLabel}
           verticalLabel={verticalLabel}
           countryLabel={countryLabel}
+          draft={draft}
+          initialUserValue={initialUserValue}
         />
       )}
       </div>
@@ -480,6 +554,8 @@ function ComparisonSection({
   objectiveLabel,
   verticalLabel,
   countryLabel,
+  draft,
+  initialUserValue,
 }: {
   response: BenchmarkResponse;
   t: (key: string, vars?: Record<string, string | number>) => string;
@@ -487,9 +563,11 @@ function ComparisonSection({
   objectiveLabel: string;
   verticalLabel: string;
   countryLabel: string;
+  draft?: Draft;
+  initialUserValue?: number | null;
 }) {
-  const [inputValue, setInputValue] = useState("");
-  const [compared, setCompared] = useState<number | null>(null);
+  const [inputValue, setInputValue] = useState(initialUserValue != null ? String(initialUserValue) : "");
+  const [compared, setCompared] = useState<number | null>(initialUserValue ?? null);
   const inputId = "your-result-input";
   const example = METRIC_EXAMPLES[response.metric] ?? "1.00";
   const median = response.statistics.median;
@@ -559,6 +637,28 @@ function ComparisonSection({
             verticalLabel={verticalLabel}
             countryLabel={countryLabel}
           />
+          {draft && (
+            <div className="mt-4 border-t border-line pt-4">
+              <SaveComparisonButton
+                defaultName={`${platformLabel} · ${objectiveLabel} · ${countryLabel}`}
+                buildPayload={() => ({
+                  comparisonType: "single_metric",
+                  platform: draft.platform,
+                  objective: draft.objective,
+                  vertical: draft.vertical,
+                  country: draft.country,
+                  audienceStrategy: draft.audienceStrategy || null,
+                  funnelStage: draft.funnelStage || null,
+                  businessModel: draft.businessModel || null,
+                  spendBand: draft.spendBand || null,
+                  durationBand: draft.durationBand || null,
+                  timeWindow: draft.timeWindow || null,
+                  metric: draft.metric,
+                  userValue: compared,
+                })}
+              />
+            </div>
+          )}
         </div>
       )}
     </div>

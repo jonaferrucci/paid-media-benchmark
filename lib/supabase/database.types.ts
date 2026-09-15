@@ -737,6 +737,80 @@ export interface Database {
           }
         ];
       };
+      saved_comparisons: {
+        Row: {
+          id: string;
+          owner_user_id: string;
+          name: string;
+          comparison_type: "single_metric" | "campaign";
+          platform: string;
+          objective: string;
+          vertical: string;
+          country: string;
+          audience_strategy: string | null;
+          funnel_stage: string | null;
+          business_model: string | null;
+          spend_band: string | null;
+          duration_band: string | null;
+          time_window: string | null;
+          metric: string | null;
+          user_value: number | null;
+          campaign_rows: { metric: string; value: string }[] | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          owner_user_id: string;
+          name: string;
+          comparison_type: "single_metric" | "campaign";
+          platform: string;
+          objective: string;
+          vertical: string;
+          country: string;
+          audience_strategy?: string | null;
+          funnel_stage?: string | null;
+          business_model?: string | null;
+          spend_band?: string | null;
+          duration_band?: string | null;
+          time_window?: string | null;
+          metric?: string | null;
+          user_value?: number | null;
+          campaign_rows?: { metric: string; value: string }[] | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          owner_user_id?: string;
+          name?: string;
+          comparison_type?: "single_metric" | "campaign";
+          platform?: string;
+          objective?: string;
+          vertical?: string;
+          country?: string;
+          audience_strategy?: string | null;
+          funnel_stage?: string | null;
+          business_model?: string | null;
+          spend_band?: string | null;
+          duration_band?: string | null;
+          time_window?: string | null;
+          metric?: string | null;
+          user_value?: number | null;
+          campaign_rows?: { metric: string; value: string }[] | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "saved_comparisons_owner_user_id_fkey";
+            columns: ["owner_user_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          }
+        ];
+      };
       dataset_metric_values: {
         Row: {
           id: string;

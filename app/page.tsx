@@ -10,6 +10,7 @@ import { Hero } from "@/components/dashboard/Hero";
 import { GlobalInsights } from "@/components/dashboard/GlobalInsights";
 import { MiniTrend } from "@/components/dashboard/MiniTrend";
 import { FeaturedModules } from "@/components/dashboard/FeaturedModules";
+import { RecentWork } from "@/components/dashboard/RecentWork";
 import { ExploreMarket } from "@/components/dashboard/ExploreMarket";
 import { DiscoveryWizard, WizardDraft } from "@/components/dashboard/wizard/DiscoveryWizard";
 import { PLATFORM_CARDS } from "@/lib/mock/taxonomies";
@@ -131,6 +132,7 @@ export default function OverviewPage() {
                 funnelStage: null, minAge: null, maxAge: null, campaignType: null, spendBand: null, durationBand: null,
               })} />
               <GlobalInsights onExplore={handleExploreFromInsight} />
+              <RecentWork />
               <FeaturedModules onQuickBenchmark={handleQuickBenchmark} />
             </div>
           ) : (
