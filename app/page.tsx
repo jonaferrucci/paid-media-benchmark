@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { ArrowLeft, Globe2 } from "lucide-react";
 import { DashboardSidebar } from "@/components/dashboard/DashboardSidebar";
 import { AppHeader } from "@/components/dashboard/AppHeader";
@@ -89,7 +90,7 @@ export default function OverviewPage() {
         <div>
           <Hero />
 
-          <div className="mx-auto mb-8 flex max-w-xs items-center gap-1 rounded-full border border-line bg-surface p-1">
+          <div className="mx-auto mb-3 flex max-w-xs items-center gap-1 rounded-full border border-line bg-surface p-1">
             <button
               onClick={() => setMode("find")}
               className={`flex-1 rounded-full px-3 py-2 text-xs font-semibold transition-colors ${
@@ -108,6 +109,12 @@ export default function OverviewPage() {
             </button>
           </div>
 
+          <p className="mb-8 text-center text-xs text-ink-500">
+            <Link href="/benchmark" className="font-medium text-ink-700 hover:text-primary hover:underline">
+              {t("modeTabs.compareCampaign")}
+            </Link>
+          </p>
+
           {mode === "find" ? (
             <div className="space-y-10">
               <DiscoveryWizard
@@ -118,7 +125,11 @@ export default function OverviewPage() {
                   setStage("result");
                 }}
               />
-              <MiniTrend />
+              <MiniTrend onViewBenchmark={() => handleQuickBenchmark({
+                platform: "meta_ads", country: "AR", timeWindow: "last_12_months",
+                verticalId: "beauty_personal_care", objective: "traffic", audienceStrategy: "broad",
+                funnelStage: null, minAge: null, maxAge: null, campaignType: null, spendBand: null, durationBand: null,
+              })} />
               <GlobalInsights onExplore={handleExploreFromInsight} />
               <FeaturedModules onQuickBenchmark={handleQuickBenchmark} />
             </div>

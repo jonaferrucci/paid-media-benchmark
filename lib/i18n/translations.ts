@@ -575,9 +575,10 @@ const es = {
   modeTabs: {
     findBenchmark: "Encontrá tu benchmark",
     exploreMarket: "Explorar mercado",
+    compareCampaign: "¿Ya tenés una campaña? Comparar mi campaña",
   },
   market: {
-    sectionTitle: "Qué está pasando en medios",
+    sectionTitle: "Pulso del mercado",
     card1Title: "Meta Ads muestra el CPM más competitivo",
     card1Context: "Beauty & Personal Care · Argentina · Últimos 12 meses",
     card2Title: "Video está ganando eficiencia",
@@ -592,6 +593,7 @@ const es = {
     medianCtr: "Mediana CTR",
     medianCpc: "Mediana CPC",
     trendTitle: "CPM mediano — últimos 6 meses",
+    snapshotTitle: "Vista rápida del benchmark",
     rankingTitle: "Plataformas con CPM más competitivo",
     featuredVerticalTitle: "Explorá una vertical",
     featuredPlatformTitle: "Plataforma destacada",
@@ -1169,9 +1171,10 @@ const en: typeof es = {
   modeTabs: {
     findBenchmark: "Find your benchmark",
     exploreMarket: "Explore market",
+    compareCampaign: "Already have a campaign? Compare my campaign",
   },
   market: {
-    sectionTitle: "What's happening in media",
+    sectionTitle: "Market Pulse",
     card1Title: "Meta Ads shows the most competitive CPM",
     card1Context: "Beauty & Personal Care · Argentina · Last 12 Months",
     card2Title: "Video is gaining efficiency",
@@ -1186,6 +1189,7 @@ const en: typeof es = {
     medianCtr: "Median CTR",
     medianCpc: "Median CPC",
     trendTitle: "Median CPM — last 6 months",
+    snapshotTitle: "Quick benchmark view",
     rankingTitle: "Platforms with the most competitive CPM",
     featuredVerticalTitle: "Explore a vertical",
     featuredPlatformTitle: "Featured platform",

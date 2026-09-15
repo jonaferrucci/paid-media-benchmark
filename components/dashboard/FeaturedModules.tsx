@@ -46,7 +46,7 @@ export function FeaturedModules({ onQuickBenchmark }: FeaturedModulesProps) {
   };
 
   return (
-    <section className="mx-auto grid max-w-2xl grid-cols-1 gap-3 px-4 sm:grid-cols-2">
+    <section className="mx-auto grid max-w-4xl grid-cols-1 gap-3 px-4 sm:grid-cols-2">
       <button
         onClick={() => onQuickBenchmark(featuredVerticalFilters)}
         className="rounded-2xl border border-line bg-surface p-4 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md"
