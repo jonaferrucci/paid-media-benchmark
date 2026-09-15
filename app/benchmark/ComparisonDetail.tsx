@@ -60,43 +60,65 @@ export function ComparisonDetail({
   const contextual = isContextualPosition(classification);
 
   return (
-    <div>
-      <div className="flex flex-wrap items-center gap-2">
+    <div aria-live="polite">
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+        <div>
+          <p className="text-[11px] font-medium uppercase tracking-wide text-ink-500">{t("benchmarkLive.yourResultLabel")}</p>
+          <p className="tabular font-display text-xl font-semibold text-ink-900">{formatMetricValue(userValue, response.unit)}</p>
+        </div>
+        <div>
+          <p className="text-[11px] font-medium uppercase tracking-wide text-ink-500">{t("benchmarkLive.marketMedianLabel")}</p>
+          <p className="tabular font-display text-xl font-semibold text-ink-700">{formatMetricValue(median, response.unit)}</p>
+        </div>
         {!contextual && percentDiff !== null && (
-          <span className="text-sm font-semibold text-ink-700">{formatPercentDiff(percentDiff)} {t("benchmarkLive.vsMedian")}</span>
+          <div>
+            <p className="text-[11px] font-medium uppercase tracking-wide text-ink-500">{t("benchmarkLive.differenceLabel")}</p>
+            <p className="tabular font-display text-xl font-semibold text-ink-900">{formatPercentDiff(percentDiff)}</p>
+          </div>
         )}
-        <span className={`rounded-full px-3 py-1 text-xs font-semibold ${LABEL_STYLE[classification]}`}>
-          {t(`benchmarkLive.labels.${classification}`)}
-        </span>
-        <span className="text-sm text-ink-600">
-          {formatMetricValue(userValue, response.unit)} {t("benchmarkLive.vsMedian")} {formatMetricValue(median, response.unit)}
-        </span>
+        <div>
+          <p className="text-[11px] font-medium uppercase tracking-wide text-ink-500">{t("benchmarkLive.classificationLabel")}</p>
+          <span className={`mt-0.5 inline-block rounded-full px-3 py-1 text-xs font-semibold ${LABEL_STYLE[classification]}`}>
+            {t(`benchmarkLive.labels.${classification}`)}
+          </span>
+        </div>
       </div>
 
-      <div className="relative mt-6 pt-3">
-        <div className="relative h-2 rounded-full bg-surface2">
+      <div className="relative mt-8 pt-3">
+        <span className="sr-only">
+          {t("benchmarkLive.trackScreenReaderSummary", {
+            p25: formatMetricValue(p25, response.unit),
+            median: formatMetricValue(median, response.unit),
+            p75: formatMetricValue(p75, response.unit),
+            value: formatMetricValue(userValue, response.unit),
+          })}
+        </span>
+        <div className="relative h-2 rounded-full bg-surface2" aria-hidden="true">
           <div className="absolute h-2 rounded-full bg-primary-soft" style={{ left: "30%", width: "40%" }} />
           <div
             className="absolute top-1/2 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-surface bg-primary shadow"
             style={{ left: "50%" }}
             title="Median"
           />
-          <div className="absolute -top-3 flex -translate-x-1/2 flex-col items-center" style={{ left: `${markerPosition}%` }}>
+          <div
+            className="absolute -top-3 flex -translate-x-1/2 flex-col items-center transition-[left] duration-300 ease-out"
+            style={{ left: `${markerPosition}%` }}
+          >
             <span className="whitespace-nowrap rounded-full bg-ink-900 px-2 py-0.5 text-[10px] font-medium text-white">
               {t("benchmarkLive.yourResultMarker")}
             </span>
             <span className="h-5 w-0.5 bg-ink-900" />
           </div>
         </div>
-        <div className="mt-1 flex justify-between text-[11px] text-ink-400">
+        <div aria-hidden="true" className="mt-1 flex justify-between text-[11px] text-ink-400">
           <span>P25: {formatMetricValue(p25, response.unit)}</span>
-          <span>{t("benchmarkLive.vsMedian").replace("vs. ", "")}: {formatMetricValue(median, response.unit)}</span>
+          <span>{t("benchmarkLive.marketMedianLabel")}: {formatMetricValue(median, response.unit)}</span>
           <span>P75: {formatMetricValue(p75, response.unit)}</span>
         </div>
       </div>
 
       <p className="mt-4 text-sm leading-relaxed text-ink-700">
-        {t(`contribute.insight.${insightKey}`, {
+        {t(`benchmarkLive.insight.${insightKey}`, {
           metric: response.metric.toUpperCase(),
           platform: platformLabel,
           objective: objectiveLabel,

@@ -36,7 +36,23 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
 
   function t(path: string, vars?: Record<string, string | number>): string {
     const value = resolvePath(dictionaries[locale], path);
-    let text = typeof value === "string" ? value : path;
+
+    let text: string;
+    if (typeof value === "string") {
+      text = value;
+    } else {
+      // Defense-in-depth: a missing/mismatched translation key must
+      // never render as a raw dotted path like "contribute.insight.
+      // lower_requiere_atencion" to a real user — that's exactly the
+      // Phase 10 production bug this guards against for any future
+      // mismatch. Still logged (not silently hidden) so the real
+      // underlying bug stays visible to developers in the console;
+      // the user just never sees a string that looks like source code.
+      console.warn(`[i18n] Missing translation for path: "${path}"`);
+      const lastSegment = path.split(".").pop() ?? path;
+      text = lastSegment.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
+    }
+
     if (vars) {
       for (const [key, val] of Object.entries(vars)) {
         text = text.replace(`{${key}}`, String(val));

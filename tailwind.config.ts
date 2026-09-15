@@ -8,6 +8,7 @@ const config: Config = {
         canvas: "var(--color-background)",
         surface: "var(--color-surface)",
         surface2: "var(--color-surface-2)",
+        surfaceElevated: "var(--color-surface-elevated)",
         ink: {
           900: "var(--color-text-primary)",
           700: "var(--color-text-primary)",

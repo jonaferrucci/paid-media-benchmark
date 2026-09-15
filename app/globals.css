@@ -2,6 +2,29 @@
 @tailwind components;
 @tailwind utilities;
 
+/* =============================================================================
+   CUCURUCHO DESIGN SYSTEM — Phase 10
+   Formalizing the token system already established in Phase 1.3/1.5 rather
+   than replacing it. Every screen should read colors/spacing through these
+   tokens (or their Tailwind class equivalents — bg-surface, text-ink-600,
+   border-line, etc. — see tailwind.config.ts) rather than one-off hex values.
+
+   Categories:
+   - Surface: background < surface < surface-2 < elevated (stacking order,
+     each one step "closer" to the user — elevated is for popovers/modals/
+     anything that should read as floating above a card).
+   - Text: primary (headlines, key numbers) < secondary (body copy) <
+     tertiary (captions, muted metadata).
+   - Brand: primary (violet, the dominant interactive color — buttons,
+     links, the median marker) and coral (secondary accent — used
+     sparingly, e.g. the "your result" marker, never for large fills).
+   - Semantic/state: pistachio (favorable), vanilla (mixed/neutral-warning),
+     caution (unfavorable) — deliberately NOT named "green/red" since
+     metric directionality varies (Phase 6); "success"/"warning" remain as
+     a separate, more generic pair for non-benchmark UI (form validation,
+     etc.), not to be confused with the classification colors above.
+   ============================================================================= */
+
 :root {
   --font-display: "Space Grotesk", sans-serif;
   --font-body: "IBM Plex Sans", sans-serif;
@@ -16,6 +39,7 @@
   --color-background: #F8F7F4;
   --color-surface: #FFFFFF;
   --color-surface-2: #F1EEE7;
+  --color-surface-elevated: #FFFFFF;
   --color-text-primary: #23232B;
   --color-text-secondary: #73737F;
   --color-text-tertiary: #9A98A3;
@@ -46,6 +70,7 @@
   --color-background: #1A1730;
   --color-surface: #241F3E;
   --color-surface-2: #2C2650;
+  --color-surface-elevated: #322B54;
   --color-text-primary: #F2EFFB;
   --color-text-secondary: #B6AECF;
   --color-text-tertiary: #8880A0;
@@ -89,3 +114,22 @@ body {
   outline: 2px solid var(--color-primary);
   outline-offset: 2px;
 }
+
+/* Motion: restrained by default, and fully disabled for users who have
+   asked the OS for it. Every transition/animation in the app should be
+   short (150-300ms) and purposeful (state change, not decoration) — see
+   Phase 10 "Microinteractions". */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+

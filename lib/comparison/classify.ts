@@ -138,9 +138,9 @@ export function formatPercentDiff(diff: number | null): string {
  * Resolves the deterministic i18n key for the insight sentence, given
  * only the metric's direction and the already-computed classification.
  * This is a pure lookup table, not text generation — the actual
- * sentences live in lib/i18n/translations.ts (`contribute.insight.*`,
- * despite the namespace name — see BenchmarkExplorer.tsx) and get
- * filled in via the existing t(key, vars) substitution mechanism with
+ * sentences live in lib/i18n/translations.ts under
+ * `benchmarkLive.insight.*` and get filled in via the existing
+ * t(key, vars) substitution mechanism with
  * {metric}/{platform}/{objective}/{vertical}/{country}/{absDiff}.
  */
 export function getInsightKey(

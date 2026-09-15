@@ -150,110 +150,145 @@ export function BenchmarkExplorer({ taxonomies }: { taxonomies: ContributionTaxo
           ) : (
             <>
           <section className="rounded-2xl border border-line bg-surface p-6 shadow-sm">
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-              <Select
-                label={t("benchmarkLive.metric")}
-                value={draft.metric}
-                onChange={(v) => update("metric", v)}
-                options={PRIMARY_METRICS.map((m) => ({ value: m, label: m.toUpperCase() }))}
-              />
-              <Select
-                label={t("contribute.platform")}
-                value={draft.platform}
-                onChange={(v) => update("platform", v)}
-                allowEmpty
-                required
-                options={taxonomies.platforms.map((p) => ({ value: p.internal_key, label: p.display_label }))}
-              />
-              <Select
-                label={t("contribute.objective")}
-                value={draft.objective}
-                onChange={(v) => update("objective", v)}
-                allowEmpty
-                required
-                options={taxonomies.objectives.map((o) => ({ value: o.internal_key, label: o.display_label }))}
-              />
-              <Select
-                label={t("contribute.vertical")}
-                value={draft.vertical}
-                onChange={(v) => update("vertical", v)}
-                allowEmpty
-                required
-                options={taxonomies.verticals.map((v) => ({ value: v.internal_key, label: v.display_label }))}
-              />
-              <Select
-                label={t("contribute.country")}
-                value={draft.country}
-                onChange={(v) => update("country", v)}
-                allowEmpty
-                required
-                options={taxonomies.countries.map((c) => ({ value: c.iso_code, label: c.display_label }))}
-              />
-              <Select
-                label={t("contribute.audienceStrategy")}
-                value={draft.audienceStrategy}
-                onChange={(v) => update("audienceStrategy", v)}
-                allowEmpty
-                options={taxonomies.audienceStrategies.map((a) => ({ value: a.internal_key, label: a.display_label }))}
-              />
-              <Select
-                label={t("contribute.funnelStage")}
-                value={draft.funnelStage}
-                onChange={(v) => update("funnelStage", v)}
-                allowEmpty
-                options={taxonomies.funnelStages.map((f) => ({ value: f.internal_key, label: f.display_label }))}
-              />
-              <Select
-                label={t("contribute.businessModel")}
-                value={draft.businessModel}
-                onChange={(v) => update("businessModel", v)}
-                allowEmpty
-                options={taxonomies.businessModels.map((b) => ({ value: b.internal_key, label: b.display_label }))}
-              />
+            {/* Section 1 — "¿Qué querés comparar?" (Metric + Platform) */}
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-ink-500">{t("benchmarkLive.section1Title")}</p>
+              <div className="mt-3 grid grid-cols-2 gap-3">
+                <Select
+                  label={t("benchmarkLive.metric")}
+                  value={draft.metric}
+                  onChange={(v) => update("metric", v)}
+                  options={PRIMARY_METRICS.map((m) => ({ value: m, label: m.toUpperCase() }))}
+                />
+                <Select
+                  label={t("contribute.platform")}
+                  value={draft.platform}
+                  onChange={(v) => update("platform", v)}
+                  allowEmpty
+                  required
+                  options={taxonomies.platforms.map((p) => ({ value: p.internal_key, label: p.display_label }))}
+                />
+              </div>
             </div>
 
-            {/* Spend Range / Duration Band — visually emphasized/required for Reach, optional for everything else (Phase 5 item 5) */}
-            <div className={`mt-3 grid grid-cols-2 gap-3 rounded-xl p-3 ${isReach ? "border-2 border-coral/50 bg-coral-soft/40" : ""}`}>
-              <Select
-                label={t("finder.spendRange")}
-                value={draft.spendBand}
-                onChange={(v) => update("spendBand", v)}
-                allowEmpty
-                required={isReach}
-                options={[
-                  { value: "under_500", label: "< USD 500" },
-                  { value: "500_2000", label: "USD 500-2,000" },
-                  { value: "2000_10000", label: "USD 2,000-10,000" },
-                  { value: "10000_50000", label: "USD 10,000-50,000" },
-                  { value: "50000_100000", label: "USD 50,000-100,000" },
-                  { value: "100000_plus", label: "USD 100,000+" },
-                ]}
-              />
-              <Select
-                label={t("finder.duration")}
-                value={draft.durationBand}
-                onChange={(v) => update("durationBand", v)}
-                allowEmpty
-                required={isReach}
-                options={[
-                  { value: "1_7", label: "1-7" },
-                  { value: "8_14", label: "8-14" },
-                  { value: "15_30", label: "15-30" },
-                  { value: "31_60", label: "31-60" },
-                  { value: "61_90", label: "61-90" },
-                  { value: "91_180", label: "91-180" },
-                  { value: "181_365", label: "181-365" },
-                  { value: "365_plus", label: "365+" },
-                ]}
-              />
+            {/* Section 2 — "Mercado" (Objective + Vertical + Country) */}
+            <div className="mt-6 border-t border-line pt-5">
+              <p className="text-xs font-semibold uppercase tracking-wide text-ink-500">{t("benchmarkLive.section2Title")}</p>
+              <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
+                <Select
+                  label={t("contribute.objective")}
+                  value={draft.objective}
+                  onChange={(v) => update("objective", v)}
+                  allowEmpty
+                  required
+                  options={taxonomies.objectives.map((o) => ({ value: o.internal_key, label: o.display_label }))}
+                />
+                <Select
+                  label={t("contribute.vertical")}
+                  value={draft.vertical}
+                  onChange={(v) => update("vertical", v)}
+                  allowEmpty
+                  required
+                  options={taxonomies.verticals.map((v) => ({ value: v.internal_key, label: v.display_label }))}
+                />
+                <Select
+                  label={t("contribute.country")}
+                  value={draft.country}
+                  onChange={(v) => update("country", v)}
+                  allowEmpty
+                  required
+                  options={taxonomies.countries.map((c) => ({ value: c.iso_code, label: c.display_label }))}
+                />
+              </div>
             </div>
+
+            {/* Section 3 — "Refinar comparación" (collapsible, secondary controls).
+                Native <details> — free keyboard/a11y support, no extra state.
+                Reach's Spend Range/Duration Band stay visually emphasized and
+                marked required exactly as before; nothing about which fields
+                are methodologically required has changed. */}
+            <details className="mt-6 border-t border-line pt-5" open={isReach}>
+              <summary className="cursor-pointer text-xs font-semibold uppercase tracking-wide text-ink-500 hover:text-primary">
+                {t("benchmarkLive.section3Title")}
+              </summary>
+              <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
+                <Select
+                  label={t("contribute.audienceStrategy")}
+                  value={draft.audienceStrategy}
+                  onChange={(v) => update("audienceStrategy", v)}
+                  allowEmpty
+                  options={taxonomies.audienceStrategies.map((a) => ({ value: a.internal_key, label: a.display_label }))}
+                />
+                <Select
+                  label={t("contribute.funnelStage")}
+                  value={draft.funnelStage}
+                  onChange={(v) => update("funnelStage", v)}
+                  allowEmpty
+                  options={taxonomies.funnelStages.map((f) => ({ value: f.internal_key, label: f.display_label }))}
+                />
+                <Select
+                  label={t("contribute.businessModel")}
+                  value={draft.businessModel}
+                  onChange={(v) => update("businessModel", v)}
+                  allowEmpty
+                  options={taxonomies.businessModels.map((b) => ({ value: b.internal_key, label: b.display_label }))}
+                />
+              </div>
+
+              {/* Spend Range / Duration Band — visually emphasized/required for Reach, optional for everything else (Phase 5 item 5) */}
+              <div className={`mt-3 grid grid-cols-2 gap-3 rounded-xl p-3 ${isReach ? "border-2 border-coral/50 bg-coral-soft/40" : ""}`}>
+                {isReach && (
+                  <p className="col-span-2 text-xs font-medium text-coral">{t("benchmarkLive.reachScaleRequired")}</p>
+                )}
+                <Select
+                  label={t("finder.spendRange")}
+                  value={draft.spendBand}
+                  onChange={(v) => update("spendBand", v)}
+                  allowEmpty
+                  required={isReach}
+                  options={[
+                    { value: "under_500", label: "< USD 500" },
+                    { value: "500_2000", label: "USD 500-2,000" },
+                    { value: "2000_10000", label: "USD 2,000-10,000" },
+                    { value: "10000_50000", label: "USD 10,000-50,000" },
+                    { value: "50000_100000", label: "USD 50,000-100,000" },
+                    { value: "100000_plus", label: "USD 100,000+" },
+                  ]}
+                />
+                <Select
+                  label={t("finder.duration")}
+                  value={draft.durationBand}
+                  onChange={(v) => update("durationBand", v)}
+                  allowEmpty
+                  required={isReach}
+                  options={[
+                    { value: "1_7", label: "1-7" },
+                    { value: "8_14", label: "8-14" },
+                    { value: "15_30", label: "15-30" },
+                    { value: "31_60", label: "31-60" },
+                    { value: "61_90", label: "61-90" },
+                    { value: "91_180", label: "91-180" },
+                    { value: "181_365", label: "181-365" },
+                    { value: "365_plus", label: "365+" },
+                  ]}
+                />
+              </div>
+            </details>
 
             <button
               onClick={() => handleSubmit()}
               disabled={!canSubmit || loading}
-              className="mt-4 w-full rounded-full bg-primary py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-40"
+              aria-busy={loading}
+              className="mt-6 w-full rounded-full bg-primary py-3 text-sm font-semibold text-white transition-all hover:opacity-90 disabled:opacity-40 motion-safe:active:scale-[0.99]"
             >
-              {loading ? t("benchmarkLive.loading") : t("benchmarkLive.getBenchmark")}
+              {loading ? (
+                <span className="inline-flex items-center gap-2">
+                  <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/40 border-t-white" aria-hidden="true" />
+                  {t("benchmarkLive.loading")}
+                </span>
+              ) : (
+                t("benchmarkLive.getBenchmark")
+              )}
             </button>
           </section>
 
@@ -363,13 +398,18 @@ function ResultView({
       <p className="mt-1 font-display text-lg font-semibold text-primary">{verticalLabel}</p>
       <p className="text-sm text-ink-600">{countryLabel}</p>
 
-      <p className="mt-4 font-display text-3xl font-semibold text-ink-900">
-        {response.metric.toUpperCase()}: {median !== null ? formatMetricValue(median, response.unit) : "\u2014"}
-      </p>
+      <div className="mt-5">
+        <p className="text-xs font-medium uppercase tracking-wide text-ink-500">{response.metric.toUpperCase()}</p>
+        <p className="tabular mt-1 font-display text-4xl font-semibold text-ink-900">
+          {median !== null ? formatMetricValue(median, response.unit) : "\u2014"}
+        </p>
+        <p className="mt-1 text-sm text-ink-500">{t("benchmarkLive.marketMedianLabel")}</p>
+      </div>
 
-      {/* Sample size: given real visual prominence per Phase 6, not
-          buried as secondary metadata. */}
-      <p className="mt-2 rounded-xl bg-primary-soft px-3 py-2 text-sm font-medium text-primary">
+      {/* Sample size: given real visual prominence per Phase 6/10, not
+          buried as secondary metadata, but no longer competing with the
+          headline number for attention either. */}
+      <p className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-primary-soft px-3 py-1.5 text-xs font-medium text-primary">
         {t("benchmarkLive.sampleSizeProminent", { n: response.sampleSize })}
       </p>
 
@@ -405,6 +445,22 @@ function ResultView({
   );
 }
 
+// Per-metric example values so the placeholder clarifies expected
+// magnitude/decimal format without ever transforming what the user
+// actually types (Phase 10 "Numeric Input UX" — never silently divide
+// or reinterpret input).
+const METRIC_EXAMPLES: Record<string, string> = {
+  cpm: "4.50",
+  ctr: "1.25",
+  cpc: "0.45",
+  roas: "3.20",
+  cpa: "12.50",
+  cpl: "8.00",
+  reach: "250000",
+  frequency: "2.50",
+  cpv: "0.03",
+};
+
 function ComparisonSection({
   response,
   t,
@@ -422,6 +478,21 @@ function ComparisonSection({
 }) {
   const [inputValue, setInputValue] = useState("");
   const [compared, setCompared] = useState<number | null>(null);
+  const inputId = "your-result-input";
+  const example = METRIC_EXAMPLES[response.metric] ?? "1.00";
+  const median = response.statistics.median;
+
+  // Soft, non-blocking hint only — never prevents submission, never
+  // alters the value. Flags a result that's wildly outside a plausible
+  // range for this cohort (>20x the median) as a nudge to double-check
+  // decimal placement, without asserting the value is wrong.
+  const parsedPreview = Number(inputValue);
+  const looksUnusual =
+    inputValue.trim() !== "" &&
+    Number.isFinite(parsedPreview) &&
+    median !== null &&
+    median > 0 &&
+    (parsedPreview > median * 20 || (parsedPreview > 0 && parsedPreview < median / 20));
 
   function handleCompare() {
     const parsed = Number(inputValue);
@@ -431,31 +502,42 @@ function ComparisonSection({
 
   return (
     <div className="mt-6 border-t border-line pt-5">
-      <label className="flex flex-col gap-1 sm:flex-row sm:items-end sm:gap-3">
-        <span className="flex-1">
+      <label htmlFor={inputId} className="flex flex-col gap-1 sm:flex-row sm:items-end sm:gap-3">
+        <span className="block w-full sm:flex-1">
           <span className="text-xs font-medium text-ink-600">{t("benchmarkLive.yourResult")}</span>
           <input
+            id={inputId}
             type="number"
+            inputMode="decimal"
             step="0.01"
             value={inputValue}
             onChange={(e) => {
               setInputValue(e.target.value);
               setCompared(null);
             }}
-            placeholder={t("benchmarkLive.yourResultPlaceholder")}
-            className="mt-1 w-full rounded-xl border border-line bg-canvas px-3 py-2 text-sm text-ink-900 outline-none focus-visible:border-primary sm:w-40"
+            placeholder={t("benchmarkLive.yourResultExample", { example, unit: response.unit })}
+            aria-describedby={`${inputId}-hint`}
+            className="mt-1 w-full rounded-xl border border-line bg-canvas px-3 py-2 text-sm text-ink-900 outline-none focus-visible:border-primary sm:w-44"
           />
+          <span id={`${inputId}-hint`} className="mt-1 block text-[11px] text-ink-400">
+            {t(`benchmarkLive.unitHint.${response.unit}`)}
+          </span>
+          {looksUnusual && (
+            <span role="status" className="mt-1 block text-[11px] text-vanilla">
+              {t("benchmarkLive.unusualValueHint")}
+            </span>
+          )}
         </span>
         <button
           onClick={handleCompare}
-          className="mt-2 rounded-full bg-ink-900 px-5 py-2 text-sm font-medium text-white hover:opacity-90 sm:mt-0"
+          className="mt-2 rounded-full bg-ink-900 px-5 py-2 text-sm font-medium text-white transition-transform hover:opacity-90 motion-safe:active:scale-[0.98] sm:mt-0"
         >
           {t("benchmarkLive.compareButton")}
         </button>
       </label>
 
       {compared !== null && (
-        <div className="mt-3">
+        <div className="mt-3 motion-safe:animate-[fadeIn_0.2s_ease]">
           <ComparisonDetail
             response={response}
             userValue={compared}
