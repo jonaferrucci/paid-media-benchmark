@@ -134,13 +134,13 @@ export function BenchmarkExplorer({ taxonomies }: { taxonomies: ContributionTaxo
           <div className="flex gap-2 rounded-full bg-surface2 p-1">
             <button
               onClick={() => setMode("single")}
-              className={`flex-1 rounded-full py-2 text-sm font-medium transition-colors ${mode === "single" ? "bg-surface text-ink-900 shadow-sm" : "text-ink-600"}`}
+              className={`flex-1 rounded-full px-2 py-2 text-sm font-medium transition-colors ${mode === "single" ? "bg-surface text-ink-900 shadow-sm" : "text-ink-600"}`}
             >
               {t("benchmarkLive.modeSingle")}
             </button>
             <button
               onClick={() => setMode("campaign")}
-              className={`flex-1 rounded-full py-2 text-sm font-medium transition-colors ${mode === "campaign" ? "bg-surface text-ink-900 shadow-sm" : "text-ink-600"}`}
+              className={`flex-1 rounded-full px-2 py-2 text-sm font-medium transition-colors ${mode === "campaign" ? "bg-surface text-ink-900 shadow-sm" : "text-ink-600"}`}
             >
               {t("benchmarkLive.modeCampaign")}
             </button>
@@ -281,11 +281,11 @@ export function BenchmarkExplorer({ taxonomies }: { taxonomies: ContributionTaxo
               onClick={() => handleSubmit()}
               disabled={!canSubmit || loading}
               aria-busy={loading}
-              className="mt-6 w-full rounded-full bg-primary py-3 text-sm font-semibold text-white transition-all hover:opacity-90 disabled:opacity-40 motion-safe:active:scale-[0.99]"
+              className="mt-6 w-full rounded-full bg-brandGradient py-3 text-sm font-semibold text-[#23232B] transition-all hover:opacity-90 disabled:opacity-40 motion-safe:active:scale-[0.99]"
             >
               {loading ? (
                 <span className="inline-flex items-center gap-2">
-                  <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/40 border-t-white" aria-hidden="true" />
+                  <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-[#23232B]/30 border-t-[#23232B]" aria-hidden="true" />
                   {t("benchmarkLive.loading")}
                 </span>
               ) : (
@@ -400,7 +400,9 @@ export function ResultView({
   const { p25, median, p75 } = response.statistics;
 
   return (
-    <section className="rounded-2xl border border-line bg-surface p-6 shadow-sm">
+    <section className="overflow-hidden rounded-2xl border border-line bg-surface shadow-sm">
+      <div className="h-1 bg-brandGradient" aria-hidden="true" />
+      <div className="p-6">
       <p className="text-xs font-semibold uppercase tracking-wide text-ink-600">
         {platformLabel} · {objectiveLabel}
       </p>
@@ -450,6 +452,7 @@ export function ResultView({
           countryLabel={countryLabel}
         />
       )}
+      </div>
     </section>
   );
 }

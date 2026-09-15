@@ -30,7 +30,7 @@ export function SearchOverlay({ onClose, onApply }: SearchOverlayProps) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 p-4 pt-24">
-      <div className="w-full max-w-lg rounded-2xl border border-line bg-surface p-4 shadow-lg">
+      <div className="w-full max-w-lg rounded-2xl border border-line bg-surfaceElevated p-4 shadow-lg">
         <div className="flex items-center gap-2 rounded-full border border-line bg-canvas px-4 py-2.5">
           <Search size={15} className="text-ink-400" />
           <input

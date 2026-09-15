@@ -20,13 +20,9 @@ export function AppHeader({ onSearchClick }: AppHeaderProps) {
   return (
     <header className="sticky top-0 z-20 border-b border-line bg-surface px-4 py-3 md:px-6">
       <div className="flex max-w-[1400px] items-center gap-3">
-        <div className="flex items-center gap-2.5">
-          <LogoMark size={26} />
-          <div className="leading-tight">
-            <p className="font-display text-base font-semibold text-ink-900">{t("app.name")}</p>
-            <p className="hidden text-[11px] text-ink-600 sm:block">{t("app.tagline")}</p>
-          </div>
-        </div>
+        <Link href="/" className="flex items-center pr-1" aria-label={t("app.name")}>
+          <LogoMark size={34} variant="gradient" />
+        </Link>
 
         <button
           onClick={onSearchClick}
@@ -83,7 +79,7 @@ export function AppHeader({ onSearchClick }: AppHeaderProps) {
                 </Link>
                 <Link
                   href="/auth/sign-up"
-                  className="rounded-full bg-primary px-3.5 py-1.5 text-sm font-medium text-white transition-opacity hover:opacity-90"
+                  className="rounded-full bg-brandGradient px-3.5 py-1.5 text-sm font-medium text-[#23232B] transition-opacity hover:opacity-90"
                 >
                   {t("auth.createAccount")}
                 </Link>

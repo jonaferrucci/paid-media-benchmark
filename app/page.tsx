@@ -81,7 +81,7 @@ export default function OverviewPage() {
   }
 
   return (
-    <div className="min-h-screen bg-canvas">
+    <div className="min-h-screen overflow-x-hidden bg-canvas">
       <AppHeader onSearchClick={() => setSearchOpen(true)} />
       {searchOpen && <SearchOverlay onClose={() => setSearchOpen(false)} onApply={applyPartial} />}
 

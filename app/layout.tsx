@@ -32,7 +32,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="es" data-theme="light" suppressHydrationWarning>
+    <html lang="es" data-theme="dark" suppressHydrationWarning>
       <body
         className={`${display.variable} ${body.variable} ${mono.variable} font-body`}
       >

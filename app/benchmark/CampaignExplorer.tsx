@@ -207,11 +207,11 @@ export function CampaignExplorer({ taxonomies }: { taxonomies: ContributionTaxon
           onClick={handleCompare}
           disabled={!canSubmit || loading}
           aria-busy={loading}
-          className="mt-5 w-full rounded-full bg-primary py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-40"
+          className="mt-5 w-full rounded-full bg-brandGradient py-2.5 text-sm font-semibold text-[#23232B] transition-opacity hover:opacity-90 disabled:opacity-40"
         >
           {loading ? (
             <span className="inline-flex items-center gap-2">
-              <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/40 border-t-white" aria-hidden="true" />
+              <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-[#23232B]/30 border-t-[#23232B]" aria-hidden="true" />
               {t("benchmarkLive.loading")}
             </span>
           ) : (
@@ -221,7 +221,9 @@ export function CampaignExplorer({ taxonomies }: { taxonomies: ContributionTaxon
       </section>
 
       {results && aggregate && (
-        <section className="rounded-2xl border border-line bg-surface p-6 shadow-sm">
+        <section className="overflow-hidden rounded-2xl border border-line bg-surface shadow-sm">
+          <div className="h-1 bg-brandGradient" aria-hidden="true" />
+          <div className="p-6">
           <p className="text-xs font-semibold uppercase tracking-wide text-ink-600">{t("benchmarkLive.campaignSummaryTitle")}</p>
 
           <div className="mt-3 space-y-2">
@@ -247,6 +249,7 @@ export function CampaignExplorer({ taxonomies }: { taxonomies: ContributionTaxon
           )}
 
           <CampaignInsight results={results} t={t} />
+          </div>
         </section>
       )}
 

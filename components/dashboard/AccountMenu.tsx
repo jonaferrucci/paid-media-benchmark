@@ -52,7 +52,7 @@ export function AccountMenu({ user }: AccountMenuProps) {
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full mt-2 w-48 rounded-2xl border border-line bg-surface p-1.5 shadow-lg">
+        <div className="absolute right-0 top-full mt-2 w-48 rounded-2xl border border-line bg-surfaceElevated p-1.5 shadow-lg">
           <Link
             href="/account"
             onClick={() => setOpen(false)}

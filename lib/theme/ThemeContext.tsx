@@ -13,8 +13,12 @@ interface ThemeContextValue {
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  // Light is the default theme, per the approved product direction.
-  const [theme, setThemeState] = useState<Theme>("light");
+  // Phase 12: dark is now the default theme, replacing the earlier
+  // light-default direction. :root in globals.css already holds the
+  // dark palette directly (no attribute needed for the default state,
+  // avoiding any flash of the wrong theme before JS hydrates) — this
+  // state just needs to stay in sync with that CSS-level default.
+  const [theme, setThemeState] = useState<Theme>("dark");
 
   useEffect(() => {
     const stored = window.localStorage.getItem("cucurucho-theme");

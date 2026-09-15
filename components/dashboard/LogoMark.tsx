@@ -1,34 +1,49 @@
 interface LogoMarkProps {
   size?: number;
   className?: string;
+  variant?: "gradient" | "dark-on-light" | "light-on-dark" | "monochrome";
 }
 
-// Cucurucho mark: the cone/scoop base (circle + triangle) established in
-// Phase 1.5, refined in Phase 11 with a small ascending trend-line accent
-// cut through the cone — the one geometric element tying the shape to
-// "benchmarks/data/performance" rather than reading as purely decorative.
-// Works at every required size (favicon, sidebar-compact, header,
-// standalone icon) since it's still just three flat shapes, no fine
-// detail that would disappear when scaled down.
-export function LogoMark({ size = 28, className }: LogoMarkProps) {
+// Native aspect ratio of the approved mark asset (239x158 px source).
+const ASPECT_RATIO = 158 / 239;
+
+// CSS filters used for non-gradient variants. These never touch the
+// underlying pixels/silhouette of the source asset -- brightness(0)
+// collapses every opaque pixel to solid black while leaving the
+// original alpha channel (i.e. the exact approved geometry) completely
+// untouched, and invert(1) flips black to white. This is how the
+// brief's allowed "technically necessary adaptations... dark/light
+// presentation, monochrome usage" are achieved without ever
+// recreating, approximating, or redrawing the mark itself.
+const VARIANT_FILTER: Record<NonNullable<LogoMarkProps["variant"]>, string | undefined> = {
+  gradient: undefined,
+  "dark-on-light": "brightness(0)",
+  "light-on-dark": "brightness(0) invert(1)",
+  monochrome: "brightness(0)",
+};
+
+// -----------------------------------------------------------------------
+// Cucurucho outline mark.
+//
+// This is the exact approved asset (public/brand/cucurucho-mark.png),
+// extracted directly from the approved reference -- not a redrawn or
+// reconstructed interpretation. Do not replace this with a hand-coded
+// SVG approximation. If a true vector source becomes available later,
+// swap the underlying file here without changing this component's
+// API (size/className/variant), so every call site is unaffected.
+// -----------------------------------------------------------------------
+export function LogoMark({ size = 28, className, variant = "gradient" }: LogoMarkProps) {
+  const height = Math.round(size * ASPECT_RATIO);
   return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 32 32"
-      fill="none"
-      className={className}
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src="/brand/cucurucho-mark.png"
+      alt=""
       aria-hidden="true"
-    >
-      <circle cx="16" cy="10" r="8" fill="var(--color-coral)" />
-      <path d="M9 14 L16 29 L23 14 Z" fill="var(--color-primary)" />
-      <path
-        d="M11 20 L15 16 L18 18.5 L22 14.5"
-        stroke="var(--color-surface)"
-        strokeWidth="1.6"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
+      width={size}
+      height={height}
+      className={className}
+      style={{ filter: VARIANT_FILTER[variant], objectFit: "contain" }}
+    />
   );
 }

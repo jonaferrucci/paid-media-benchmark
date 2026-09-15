@@ -3,26 +3,29 @@
 @tailwind utilities;
 
 /* =============================================================================
-   CUCURUCHO DESIGN SYSTEM — Phase 10
-   Formalizing the token system already established in Phase 1.3/1.5 rather
-   than replacing it. Every screen should read colors/spacing through these
-   tokens (or their Tailwind class equivalents — bg-surface, text-ink-600,
-   border-line, etc. — see tailwind.config.ts) rather than one-off hex values.
+   CUCURUCHO DESIGN SYSTEM — Phase 12
+   Dark-first. `:root` now holds the DARK palette directly (no data-theme
+   attribute needed for the default state — avoids any flash-of-wrong-
+   theme before JS hydrates). `[data-theme="light"]` is the override block.
+   This is a deliberate reversal of the Phase 10 "light is default" note.
 
    Categories:
-   - Surface: background < surface < surface-2 < elevated (stacking order,
-     each one step "closer" to the user — elevated is for popovers/modals/
-     anything that should read as floating above a card).
+   - Surface: background < surface < surface-2 < elevated.
    - Text: primary (headlines, key numbers) < secondary (body copy) <
-     tertiary (captions, muted metadata).
-   - Brand: primary (violet, the dominant interactive color — buttons,
-     links, the median marker) and coral (secondary accent — used
-     sparingly, e.g. the "your result" marker, never for large fills).
-   - Semantic/state: pistachio (favorable), vanilla (mixed/neutral-warning),
-     caution (unfavorable) — deliberately NOT named "green/red" since
-     metric directionality varies (Phase 6); "success"/"warning" remain as
-     a separate, more generic pair for non-benchmark UI (form validation,
-     etc.), not to be confused with the classification colors above.
+     tertiary (captions, muted metadata). Also exposed as foreground /
+     muted-foreground (same values, shadcn-style aliases used by the new
+     components/ui/ primitives) — not a second set of colors.
+   - Existing benchmark brand: primary (violet) and coral (secondary
+     accent, e.g. the "your result" marker) — UNCHANGED values from
+     Phase 10/11, only the surrounding surfaces changed.
+   - Existing semantic/state: pistachio (favorable), vanilla (mixed),
+     caution (unfavorable) for benchmark CLASSIFICATION only — UNCHANGED.
+     success/warning remain the separate generic pair for non-benchmark
+     UI. destructive is a NEW, distinct token for generic destructive
+     actions (delete, etc.) — never used for benchmark classification.
+   - NEW Phase 12 brand palette: peach/lavender/mint pastels, used for
+     the logo, the brand gradient, and selective accents — never as a
+     substitute for the semantic tokens above.
    ============================================================================= */
 
 :root {
@@ -30,19 +33,68 @@
   --font-body: "IBM Plex Sans", sans-serif;
   --font-mono: "IBM Plex Mono", monospace;
 
-  /* Light theme (default) — Phase 1.5 approved palette.
-     Text/background legibility note: the spec's pistachio (#A7D8B8) and
-     vanilla (#FFD66B) are pastel tones meant as soft backgrounds, not
-     body text — used here as the "-soft" tiles, paired with a deeper
-     hue of the same family for text/icons drawn on top of them, so
-     contrast stays readable. */
+  /* ---- Dark theme (default) ---- */
+  --color-background: #1A1B20;
+  --color-surface: #2A2D36;
+  --color-surface-2: #323642;
+  --color-surface-elevated: #3A3F4D;
+  --color-text-primary: #F5F3F7;
+  --color-text-secondary: #B9B6C4;
+  --color-text-tertiary: #9995A8;
+  --color-border: #3E4250;
+  --color-primary: #8F88FF;
+  --color-primary-soft: #34304F;
+  --color-coral: #FFA98F;
+  --color-coral-soft: #47302E;
+  --color-pistachio: #9FD8B0;
+  --color-pistachio-soft: #2E3D33;
+  --color-vanilla: #FFDD85;
+  --color-vanilla-soft: #3D341C;
+  --color-caution: #D89A7C;
+  --color-caution-soft: #3E2E27;
+  --color-success: #7FD583;
+  --color-warning: #E3AE73;
+
+  /* Fixed brand tone — sidebar rail stays this dark tone regardless of
+     active theme (kept from Phase 1.5/10). */
+  --color-sidebar: #17181D;
+
+  /* ---- NEW Phase 12 semantic tokens ---- */
+  --color-foreground: var(--color-text-primary);
+  --color-muted-foreground: var(--color-text-secondary);
+  --color-secondary: #4A4569;
+  --color-secondary-foreground: #E4E0F5;
+  --color-accent: #2E4A44;
+  --color-accent-foreground: #A7E3D1;
+  --color-destructive: #E0685C;
+  --color-destructive-soft: #3D2624;
+  --color-focus: var(--color-primary);
+
+  /* ---- NEW Phase 12 pastel brand palette (peach/lavender/mint) ----
+     Used for the logo, the brand gradient, and selective accents only —
+     never substituted for the semantic tokens above. */
+  --color-brand-peach: #FFA7C5;
+  --color-brand-lavender: #C7B6FF;
+  --color-brand-mint: #A7E3D1;
+  --color-brand-cream: #F9F7F3;
+
+  --gradient-start: var(--color-brand-peach);
+  --gradient-mid: var(--color-brand-lavender);
+  --gradient-end: var(--color-brand-mint);
+  --gradient-brand: linear-gradient(135deg, var(--gradient-start), var(--gradient-mid), var(--gradient-end));
+}
+
+/* Light theme — override block. Same token set, light values. Full
+   equivalence pass (contrast re-check, logo light treatment on every
+   surface) is Phase 12 Step 7 — this is the working baseline only. */
+[data-theme="light"] {
   --color-background: #F8F7F4;
   --color-surface: #FFFFFF;
   --color-surface-2: #F1EEE7;
   --color-surface-elevated: #FFFFFF;
   --color-text-primary: #23232B;
   --color-text-secondary: #73737F;
-  --color-text-tertiary: #9A98A3;
+  --color-text-tertiary: #6E6C7D;
   --color-border: #EAE7E2;
   --color-primary: #6C63FF;
   --color-primary-soft: #ECEAFF;
@@ -57,36 +109,22 @@
   --color-success: #3F9142;
   --color-warning: #B4682B;
 
-  /* Fixed brand tone — intentionally identical in both themes, so the
-     sidebar rail stays a consistent dark tone regardless of the active
-     theme. Kept narrow/secondary per Phase 1.5 (not the dominant
-     interface treatment — it only appears in the Result view). */
   --color-sidebar: #211C38;
-}
 
-/* Dark theme — deep charcoal / blue-violet, never pure black, no neon.
-   Toggled via [data-theme="dark"] on <html>, set by ThemeProvider. */
-[data-theme="dark"] {
-  --color-background: #1A1730;
-  --color-surface: #241F3E;
-  --color-surface-2: #2C2650;
-  --color-surface-elevated: #322B54;
-  --color-text-primary: #F2EFFB;
-  --color-text-secondary: #B6AECF;
-  --color-text-tertiary: #8880A0;
-  --color-border: #3A335E;
-  --color-primary: #8F88FF;
-  --color-primary-soft: #362F5C;
-  --color-coral: #FFA98F;
-  --color-coral-soft: #47302E;
-  --color-pistachio: #9FD8B0;
-  --color-pistachio-soft: #2E3D33;
-  --color-vanilla: #FFDD85;
-  --color-vanilla-soft: #3D341C;
-  --color-caution: #D89A7C;
-  --color-caution-soft: #3E2E27;
-  --color-success: #7FD583;
-  --color-warning: #E3AE73;
+  --color-foreground: var(--color-text-primary);
+  --color-muted-foreground: var(--color-text-secondary);
+  --color-secondary: #ECE9FA;
+  --color-secondary-foreground: #4A4569;
+  --color-accent: #E4F5EF;
+  --color-accent-foreground: #2E6B54;
+  --color-destructive: #C6493D;
+  --color-destructive-soft: #FBEAE8;
+  --color-focus: var(--color-primary);
+
+  --color-brand-peach: #FF8FB4;
+  --color-brand-lavender: #A98DFF;
+  --color-brand-mint: #5FBFA0;
+  --color-brand-cream: #F9F7F3;
 }
 
 html {
@@ -111,14 +149,12 @@ body {
 
 /* Visible focus state for keyboard navigation (accessibility requirement) */
 :focus-visible {
-  outline: 2px solid var(--color-primary);
+  outline: 2px solid var(--color-focus);
   outline-offset: 2px;
 }
 
 /* Motion: restrained by default, and fully disabled for users who have
-   asked the OS for it. Every transition/animation in the app should be
-   short (150-300ms) and purposeful (state change, not decoration) — see
-   Phase 10 "Microinteractions". */
+   asked the OS for it. */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;
@@ -132,4 +168,3 @@ body {
   from { opacity: 0; transform: translateY(4px); }
   to { opacity: 1; transform: translateY(0); }
 }
-

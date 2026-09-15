@@ -13,6 +13,7 @@ const config: Config = {
           900: "var(--color-text-primary)",
           700: "var(--color-text-primary)",
           600: "var(--color-text-secondary)",
+          500: "var(--color-text-tertiary)",
           400: "var(--color-text-tertiary)",
         },
         line: "var(--color-border)",
@@ -49,6 +50,33 @@ const config: Config = {
           soft: "var(--color-vanilla-soft)",
         },
         sidebar: "var(--color-sidebar)",
+
+        // NEW Phase 12 semantic tokens
+        foreground: "var(--color-foreground)",
+        mutedForeground: "var(--color-muted-foreground)",
+        secondary: {
+          DEFAULT: "var(--color-secondary)",
+          foreground: "var(--color-secondary-foreground)",
+        },
+        accent: {
+          DEFAULT: "var(--color-accent)",
+          foreground: "var(--color-accent-foreground)",
+        },
+        destructive: {
+          DEFAULT: "var(--color-destructive)",
+          soft: "var(--color-destructive-soft)",
+        },
+        focus: "var(--color-focus)",
+
+        // NEW Phase 12 pastel brand palette — logo/gradient/selective
+        // accents only, never a substitute for the semantic tokens above.
+        brandPeach: "var(--color-brand-peach)",
+        brandLavender: "var(--color-brand-lavender)",
+        brandMint: "var(--color-brand-mint)",
+        brandCream: "var(--color-brand-cream)",
+      },
+      backgroundImage: {
+        brandGradient: "var(--gradient-brand)",
       },
       fontFamily: {
         display: ["var(--font-display)", "sans-serif"],
