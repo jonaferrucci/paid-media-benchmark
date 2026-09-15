@@ -23,6 +23,15 @@ export function createAdminClient() {
         autoRefreshToken: false,
         persistSession: false,
       },
+      global: {
+        // Next.js patches the global fetch() to add its own Data Cache/
+        // request-memoization behavior. This client performs live
+        // cross-user aggregation queries and must never receive a
+        // cached/stale response for one concurrent metric query while
+        // a sibling query in the same Promise.all legitimately
+        // resolves fresh — explicitly opting out here.
+        fetch: (input, init) => fetch(input, { ...init, cache: "no-store" }),
+      },
     }
   );
 }

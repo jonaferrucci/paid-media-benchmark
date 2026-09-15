@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { AlertCircle, ShieldAlert, Info } from "lucide-react";
 import { AppHeader } from "@/components/dashboard/AppHeader";
 import { DashboardSidebar } from "@/components/dashboard/DashboardSidebar";
 import { SearchOverlay } from "@/components/dashboard/SearchOverlay";
@@ -124,7 +125,7 @@ export function BenchmarkExplorer({ taxonomies }: { taxonomies: ContributionTaxo
       {searchOpen && <SearchOverlay onClose={() => setSearchOpen(false)} onApply={() => {}} />}
       <DashboardSidebar />
       <div className="md:pl-56">
-        <main className="mx-auto max-w-2xl space-y-6 px-4 py-8 md:px-8">
+        <main className={`mx-auto space-y-6 px-4 py-8 md:px-8 ${response && mode === "single" ? "max-w-[1400px]" : "max-w-2xl"}`}>
           <div>
             <h1 className="font-display text-xl font-semibold text-ink-900">{t("benchmarkLive.title")}</h1>
             <p className="mt-1 text-sm text-ink-600">{t("benchmarkLive.subtitle")}</p>
@@ -149,7 +150,8 @@ export function BenchmarkExplorer({ taxonomies }: { taxonomies: ContributionTaxo
             <CampaignExplorer taxonomies={taxonomies} />
           ) : (
             <>
-          <section className="rounded-2xl border border-line bg-surface p-6 shadow-sm">
+          <div className={response ? "lg:flex lg:items-start lg:gap-8" : ""}>
+          <section className="rounded-2xl border border-line bg-surface p-6 shadow-sm lg:w-[380px] lg:shrink-0">
             {/* Section 1 — "¿Qué querés comparar?" (Metric + Platform) */}
             <div>
               <p className="text-xs font-semibold uppercase tracking-wide text-ink-500">{t("benchmarkLive.section1Title")}</p>
@@ -293,27 +295,30 @@ export function BenchmarkExplorer({ taxonomies }: { taxonomies: ContributionTaxo
           </section>
 
           {response && (
-            <ResultView
-              response={response}
-              t={t}
-              onApplySuggestion={applyRelaxationSuggestion}
-              platformLabel={platformLabel(draft.platform)}
-              objectiveLabel={objectiveLabel(draft.objective)}
-              verticalLabel={verticalLabel(draft.vertical)}
-              countryLabel={countryLabel(draft.country)}
-            />
-          )}
+            <div className="mt-6 min-w-0 space-y-6 lg:mt-0 lg:flex-1">
+              <ResultView
+                response={response}
+                t={t}
+                onApplySuggestion={applyRelaxationSuggestion}
+                platformLabel={platformLabel(draft.platform)}
+                objectiveLabel={objectiveLabel(draft.objective)}
+                verticalLabel={verticalLabel(draft.vertical)}
+                countryLabel={countryLabel(draft.country)}
+              />
 
-          {response && process.env.NODE_ENV !== "production" && (
-            <details className="rounded-2xl border border-dashed border-line bg-surface2 p-4 text-xs">
-              <summary className="cursor-pointer font-medium text-ink-600">
-                Debug: requested cohort / applied cohort / sample size / status (dev-only, never shown in production)
-              </summary>
-              <pre className="mt-2 overflow-x-auto whitespace-pre-wrap text-[11px] text-ink-700">
-                {JSON.stringify(response, null, 2)}
-              </pre>
-            </details>
+              {process.env.NODE_ENV !== "production" && (
+                <details className="rounded-2xl border border-dashed border-line bg-surface2 p-4 text-xs">
+                  <summary className="cursor-pointer font-medium text-ink-600">
+                    Debug: requested cohort / applied cohort / sample size / status (dev-only, never shown in production)
+                  </summary>
+                  <pre className="mt-2 overflow-x-auto whitespace-pre-wrap text-[11px] text-ink-700">
+                    {JSON.stringify(response, null, 2)}
+                  </pre>
+                </details>
+              )}
+            </div>
           )}
+          </div>
             </>
           )}
         </main>
@@ -322,7 +327,7 @@ export function BenchmarkExplorer({ taxonomies }: { taxonomies: ContributionTaxo
   );
 }
 
-function ResultView({
+export function ResultView({
   response,
   t,
   onApplySuggestion,
@@ -342,7 +347,8 @@ function ResultView({
   if (response.status === "error") {
     return (
       <section className="rounded-2xl border border-caution/30 bg-caution-soft p-6 text-center">
-        <p className="font-display text-base font-semibold text-ink-900">{t("benchmarkLive.errorTitle")}</p>
+        <AlertCircle size={20} className="mx-auto text-caution" aria-hidden="true" />
+        <p className="mt-2 font-display text-base font-semibold text-ink-900">{t("benchmarkLive.errorTitle")}</p>
         <p className="mt-2 text-sm text-ink-700">{t("benchmarkLive.errorBody")}</p>
       </section>
     );
@@ -351,7 +357,8 @@ function ResultView({
   if (response.status === "methodology_block") {
     return (
       <section className="rounded-2xl border border-caution/30 bg-caution-soft p-6">
-        <p className="font-display text-base font-semibold text-ink-900">{t("benchmarkLive.reachBlockTitle")}</p>
+        <ShieldAlert size={20} className="text-caution" aria-hidden="true" />
+        <p className="mt-2 font-display text-base font-semibold text-ink-900">{t("benchmarkLive.reachBlockTitle")}</p>
         <p className="mt-2 text-sm text-ink-700">{t("benchmarkLive.reachBlockBody")}</p>
       </section>
     );
@@ -360,7 +367,8 @@ function ResultView({
   if (response.status === "no_data") {
     return (
       <section className="rounded-2xl border border-dashed border-line bg-surface p-6 text-center">
-        <p className="font-display text-base font-semibold text-ink-900">{t("benchmarkLive.noDataTitle")}</p>
+        <Info size={20} className="mx-auto text-ink-400" aria-hidden="true" />
+        <p className="mt-2 font-display text-base font-semibold text-ink-900">{t("benchmarkLive.noDataTitle")}</p>
         <p className="mt-2 text-sm text-ink-600">{t("benchmarkLive.noDataBody")}</p>
       </section>
     );
@@ -369,7 +377,8 @@ function ResultView({
   if (response.status === "insufficient_sample") {
     return (
       <section className="rounded-2xl border border-caution/30 bg-caution-soft p-6">
-        <p className="font-display text-base font-semibold text-ink-900">{t("benchmarkLive.insufficientTitle")}</p>
+        <Info size={20} className="text-caution" aria-hidden="true" />
+        <p className="mt-2 font-display text-base font-semibold text-ink-900">{t("benchmarkLive.insufficientTitle")}</p>
         <p className="mt-2 text-sm text-ink-700">{t("benchmarkLive.insufficientBody")}</p>
         <p className="mt-1 text-xs text-ink-600">
           n = {response.sampleSize} (cohort: {response.cohortSampleSize})

@@ -3,10 +3,13 @@ interface LogoMarkProps {
   className?: string;
 }
 
-// Temporary placeholder mark: a rounded triangular "cone" base with a
-// circular "scoop" — abstract enough to not read as childish, simple
-// enough to remain legible at favicon size. Replace with the approved
-// brand mark when available.
+// Cucurucho mark: the cone/scoop base (circle + triangle) established in
+// Phase 1.5, refined in Phase 11 with a small ascending trend-line accent
+// cut through the cone — the one geometric element tying the shape to
+// "benchmarks/data/performance" rather than reading as purely decorative.
+// Works at every required size (favicon, sidebar-compact, header,
+// standalone icon) since it's still just three flat shapes, no fine
+// detail that would disappear when scaled down.
 export function LogoMark({ size = 28, className }: LogoMarkProps) {
   return (
     <svg
@@ -18,9 +21,13 @@ export function LogoMark({ size = 28, className }: LogoMarkProps) {
       aria-hidden="true"
     >
       <circle cx="16" cy="10" r="8" fill="var(--color-coral)" />
+      <path d="M9 14 L16 29 L23 14 Z" fill="var(--color-primary)" />
       <path
-        d="M9 14 L16 29 L23 14 Z"
-        fill="var(--color-primary)"
+        d="M11 20 L15 16 L18 18.5 L22 14.5"
+        stroke="var(--color-surface)"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
       />
     </svg>
   );

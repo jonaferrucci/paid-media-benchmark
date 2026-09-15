@@ -1,12 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronDown, ChevronUp, Plus, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronUp, Plus, Trash2, Info, ShieldAlert, AlertCircle } from "lucide-react";
 import { useTranslation } from "@/lib/i18n/LanguageContext";
 import type { ContributionTaxonomies } from "@/lib/contribute/taxonomies";
 import { runBenchmarkQueryBatch, type BenchmarkFormInput, type BenchmarkResponse } from "./actions";
 import { Select } from "./Select";
-import { ComparisonDetail, LABEL_STYLE } from "./ComparisonDetail";
+import { ComparisonDetail, LABEL_STYLE, LABEL_ICON } from "./ComparisonDetail";
 import { classifyPerformance, formatMetricValue, formatPercentDiff, computePercentDiff, isContextualPosition } from "@/lib/comparison/classify";
 import { computeCampaignAggregate, type CampaignMetricSummary } from "@/lib/comparison/campaign";
 import { DiagnosticSection } from "./DiagnosticSection";
@@ -192,23 +192,31 @@ export function CampaignExplorer({ taxonomies }: { taxonomies: ContributionTaxon
                 className="flex-1 rounded-xl border border-line bg-canvas px-3 py-2.5 text-sm text-ink-900 outline-none focus-visible:border-primary"
               />
               {rows.length > 1 && (
-                <button onClick={() => removeRow(i)} className="rounded-full p-2 text-ink-400 hover:text-caution" aria-label="remove">
-                  <Trash2 size={16} />
+                <button onClick={() => removeRow(i)} className="rounded-full p-2 text-ink-400 hover:text-caution" aria-label={t("benchmarkLive.removeMetric")}>
+                  <Trash2 size={16} aria-hidden="true" />
                 </button>
               )}
             </div>
           ))}
           <button onClick={addRow} className="flex items-center gap-1 text-xs font-medium text-primary hover:underline">
-            <Plus size={14} /> {t("benchmarkLive.addMetric")}
+            <Plus size={14} aria-hidden="true" /> {t("benchmarkLive.addMetric")}
           </button>
         </div>
 
         <button
           onClick={handleCompare}
           disabled={!canSubmit || loading}
+          aria-busy={loading}
           className="mt-5 w-full rounded-full bg-primary py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-40"
         >
-          {loading ? t("benchmarkLive.loading") : t("benchmarkLive.compareCampaignButton")}
+          {loading ? (
+            <span className="inline-flex items-center gap-2">
+              <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/40 border-t-white" aria-hidden="true" />
+              {t("benchmarkLive.loading")}
+            </span>
+          ) : (
+            t("benchmarkLive.compareCampaignButton")
+          )}
         </button>
       </section>
 
@@ -247,6 +255,27 @@ export function CampaignExplorer({ taxonomies }: { taxonomies: ContributionTaxon
   );
 }
 
+// Distinct icon per non-success status, so insufficient-sample,
+// no-data, and methodology-block read as visually different states,
+// not one generic gray pill — Phase 11.1 item E/G. No new data is
+// invented; this only clarifies which real status is which.
+const STATUS_ICON: Record<string, typeof Info> = {
+  insufficient_sample: Info,
+  no_data: Info,
+  methodology_block: ShieldAlert,
+  error: AlertCircle,
+};
+
+const ACCENT_BORDER: Record<string, string> = {
+  muy_competitivo: "border-l-pistachio",
+  competitivo: "border-l-primary",
+  por_debajo_del_benchmark: "border-l-vanilla",
+  requiere_atencion: "border-l-caution",
+  por_debajo_del_rango: "border-l-line",
+  dentro_del_rango: "border-l-line",
+  por_encima_del_rango: "border-l-line",
+};
+
 function CampaignRow({
   row, t, expanded, onToggle, platformLabel, objectiveLabel, verticalLabel, countryLabel,
 }: {
@@ -263,10 +292,13 @@ function CampaignRow({
   const median = response.statistics.median;
   const percentDiff = median !== null ? computePercentDiff(userValue, median) : null;
   const contextual = classification !== null && isContextualPosition(classification);
+  const ClassIcon = classification !== null ? LABEL_ICON[classification] : null;
+  const StatusIcon = STATUS_ICON[status] ?? Info;
+  const accent = status === "success" && classification !== null ? ACCENT_BORDER[classification] : "border-l-line";
 
   return (
-    <div className="rounded-xl border border-line">
-      <button onClick={onToggle} className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left">
+    <div className={`overflow-hidden rounded-xl border border-l-4 border-line ${accent} transition-colors`}>
+      <button onClick={onToggle} aria-expanded={status === "success" ? expanded : undefined} className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition-colors hover:bg-surface2/60">
         <div className="flex flex-1 flex-wrap items-center gap-x-3 gap-y-1">
           <span className="w-24 shrink-0 font-display text-sm font-semibold text-ink-900">{row.metric.toUpperCase()}</span>
           <span className="text-sm text-ink-700">
@@ -279,12 +311,14 @@ function CampaignRow({
             <span className="text-sm font-semibold text-ink-700">{formatPercentDiff(percentDiff)}</span>
           )}
           {status === "success" && classification !== null && (
-            <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${LABEL_STYLE[classification]}`}>
+            <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold ${LABEL_STYLE[classification]}`}>
+              {ClassIcon && <ClassIcon size={11} aria-hidden="true" />}
               {t(`benchmarkLive.labels.${classification}`)}
             </span>
           )}
           {status !== "success" && (
-            <span className="rounded-full bg-surface2 px-2.5 py-0.5 text-xs font-medium text-ink-600">
+            <span className="inline-flex items-center gap-1 rounded-full bg-surface2 px-2.5 py-0.5 text-xs font-medium text-ink-600">
+              <StatusIcon size={11} aria-hidden="true" />
               {t(`benchmarkLive.statusShort.${status}`)}
             </span>
           )}
@@ -292,7 +326,7 @@ function CampaignRow({
             <span className="text-xs text-ink-400">n = {response.sampleSize}</span>
           )}
         </div>
-        {status === "success" && (expanded ? <ChevronUp size={16} className="text-ink-400" /> : <ChevronDown size={16} className="text-ink-400" />)}
+        {status === "success" && (expanded ? <ChevronUp size={16} className="text-ink-400" aria-hidden="true" /> : <ChevronDown size={16} className="text-ink-400" aria-hidden="true" />)}
       </button>
 
       {expanded && status === "success" && (

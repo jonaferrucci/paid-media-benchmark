@@ -25,43 +25,56 @@ export function DashboardSidebar() {
 
   return (
     <aside className="hidden md:flex md:w-56 md:flex-col md:fixed md:inset-y-0 md:top-[57px] bg-sidebar text-ink-400">
-      <nav className="flex-1 px-3 py-4 space-y-0.5">
-        {NAV_ITEMS.map((item, idx) => {
-          const Icon = item.icon;
-          const isActive = idx <= 1 && pathname === "/" ? idx === 0 : pathname === item.href;
-          return (
-            <Link
-              key={item.label + idx}
-              href={item.href}
-              className={clsx(
-                "flex items-center gap-3 rounded-full px-3 py-2 text-sm transition-colors",
-                isActive ? "bg-white/10 text-white" : "text-ink-400 hover:bg-white/5 hover:text-white"
-              )}
-            >
-              <Icon size={16} strokeWidth={1.75} />
-              {item.label}
-            </Link>
-          );
-        })}
-        <div className="my-3 border-t border-white/10" />
-        {SECONDARY_ITEMS.map((item) => {
-          const Icon = item.icon;
-          return (
-            <Link
-              key={item.label}
-              href={item.href}
-              className={clsx(
-                "flex items-center gap-3 rounded-full px-3 py-2 text-sm transition-colors",
-                pathname === item.href
-                  ? "bg-white/10 text-white"
-                  : "text-ink-400 hover:bg-white/5 hover:text-white"
-              )}
-            >
-              <Icon size={16} strokeWidth={1.75} />
-              {item.label}
-            </Link>
-          );
-        })}
+      <nav className="flex-1 space-y-4 px-3 py-5">
+        <div>
+          <p className="px-3 pb-1.5 text-[10px] font-semibold uppercase tracking-wider text-white/30">{t("nav.groupExplore")}</p>
+          <div className="space-y-0.5">
+            {NAV_ITEMS.map((item, idx) => {
+              const Icon = item.icon;
+              const isActive = idx <= 1 && pathname === "/" ? idx === 0 : pathname === item.href;
+              return (
+                <Link
+                  key={item.label + idx}
+                  href={item.href}
+                  aria-current={isActive ? "page" : undefined}
+                  className={clsx(
+                    "relative flex items-center gap-3 rounded-full px-3 py-2 text-sm transition-colors",
+                    isActive ? "bg-white/10 text-white" : "text-ink-400 hover:bg-white/5 hover:text-white"
+                  )}
+                >
+                  {isActive && <span className="absolute -left-3 h-5 w-1 rounded-r-full bg-primary" aria-hidden="true" />}
+                  <Icon size={16} strokeWidth={1.75} aria-hidden="true" />
+                  {item.label}
+                </Link>
+              );
+            })}
+          </div>
+        </div>
+
+        <div>
+          <p className="px-3 pb-1.5 text-[10px] font-semibold uppercase tracking-wider text-white/30">{t("nav.groupWork")}</p>
+          <div className="space-y-0.5">
+            {SECONDARY_ITEMS.map((item) => {
+              const Icon = item.icon;
+              const isActive = pathname === item.href;
+              return (
+                <Link
+                  key={item.label}
+                  href={item.href}
+                  aria-current={isActive ? "page" : undefined}
+                  className={clsx(
+                    "relative flex items-center gap-3 rounded-full px-3 py-2 text-sm transition-colors",
+                    isActive ? "bg-white/10 text-white" : "text-ink-400 hover:bg-white/5 hover:text-white"
+                  )}
+                >
+                  {isActive && <span className="absolute -left-3 h-5 w-1 rounded-r-full bg-primary" aria-hidden="true" />}
+                  <Icon size={16} strokeWidth={1.75} aria-hidden="true" />
+                  {item.label}
+                </Link>
+              );
+            })}
+          </div>
+        </div>
       </nav>
     </aside>
   );

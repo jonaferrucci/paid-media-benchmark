@@ -1,5 +1,7 @@
 "use client";
 
+import { WifiOff } from "lucide-react";
+
 // Phase 9 production-blocker fix: shown when taxonomy loading fails
 // server-side (see lib/contribute/taxonomies.ts's hasError flag), so
 // the user never sees silently-empty dropdowns without explanation.
@@ -8,7 +10,8 @@
 export function TaxonomyLoadError() {
   return (
     <div className="mx-auto max-w-md rounded-2xl border border-line bg-surface p-8 text-center shadow-sm">
-      <p className="font-display text-base font-semibold text-ink-900">
+      <WifiOff size={22} className="mx-auto text-ink-400" aria-hidden="true" />
+      <p className="mt-3 font-display text-base font-semibold text-ink-900">
         No pudimos cargar las opciones del benchmark
       </p>
       <p className="mt-2 text-sm text-ink-600">

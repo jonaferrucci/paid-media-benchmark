@@ -18,75 +18,79 @@ export function AppHeader({ onSearchClick }: AppHeaderProps) {
   const { user, loading } = useSupabaseUser();
 
   return (
-    <header className="sticky top-0 z-20 flex items-center gap-3 border-b border-line bg-surface px-4 py-3 md:px-6">
-      <div className="flex items-center gap-2">
-        <LogoMark size={26} />
-        <div className="leading-tight">
-          <p className="font-display text-base font-semibold text-ink-900">{t("app.name")}</p>
-          <p className="hidden text-[11px] text-ink-600 sm:block">{t("app.tagline")}</p>
-        </div>
-      </div>
-
-      <button
-        onClick={onSearchClick}
-        className="ml-2 flex flex-1 items-center gap-2 rounded-full border border-line bg-canvas px-4 py-2 text-left text-sm text-ink-400 transition-colors hover:border-primary/40 sm:max-w-md"
-      >
-        <Search size={15} />
-        <span className="truncate">{t("search.placeholder")}</span>
-      </button>
-
-      <div className="ml-auto flex items-center gap-2">
-        <span className="hidden rounded-full border border-reference/30 bg-reference-soft px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-reference lg:inline-block">
-          {t("app.mockData")}
-        </span>
-
-        <div className="hidden items-center gap-1 rounded-full border border-line bg-canvas p-0.5 text-xs font-medium sm:flex">
-          <button
-            onClick={() => setLocale("es")}
-            className={`rounded-full px-2.5 py-1 transition-colors ${
-              locale === "es" ? "bg-primary text-white" : "text-ink-600"
-            }`}
-          >
-            ES
-          </button>
-          <button
-            onClick={() => setLocale("en")}
-            className={`rounded-full px-2.5 py-1 transition-colors ${
-              locale === "en" ? "bg-primary text-white" : "text-ink-600"
-            }`}
-          >
-            EN
-          </button>
+    <header className="sticky top-0 z-20 border-b border-line bg-surface px-4 py-3 md:px-6">
+      <div className="flex max-w-[1400px] items-center gap-3">
+        <div className="flex items-center gap-2.5">
+          <LogoMark size={26} />
+          <div className="leading-tight">
+            <p className="font-display text-base font-semibold text-ink-900">{t("app.name")}</p>
+            <p className="hidden text-[11px] text-ink-600 sm:block">{t("app.tagline")}</p>
+          </div>
         </div>
 
         <button
-          onClick={toggleTheme}
-          aria-label={theme === "light" ? t("theme.dark") : t("theme.light")}
-          className="flex h-8 w-8 items-center justify-center rounded-full border border-line bg-canvas text-ink-600 transition-colors hover:text-primary"
+          onClick={onSearchClick}
+          className="ml-3 flex flex-1 items-center gap-2 rounded-full border border-line bg-canvas px-4 py-2 text-left text-sm text-ink-400 transition-colors hover:border-primary/40 sm:max-w-md"
         >
-          {theme === "light" ? <Moon size={15} /> : <Sun size={15} />}
+          <Search size={15} />
+          <span className="truncate">{t("search.placeholder")}</span>
         </button>
 
-        {!loading && (
-          user ? (
-            <AccountMenu user={user} />
-          ) : (
-            <>
-              <Link
-                href="/auth/sign-in"
-                className="hidden rounded-full px-3 py-1.5 text-sm font-medium text-ink-700 hover:text-primary sm:inline-block"
-              >
-                {t("auth.login")}
-              </Link>
-              <Link
-                href="/auth/sign-up"
-                className="rounded-full bg-primary px-3.5 py-1.5 text-sm font-medium text-white transition-opacity hover:opacity-90"
-              >
-                {t("auth.createAccount")}
-              </Link>
-            </>
-          )
-        )}
+        <div className="ml-auto flex items-center gap-2">
+          <span className="hidden rounded-full border border-reference/30 bg-reference-soft px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-reference lg:inline-block">
+            {t("app.mockData")}
+          </span>
+
+          <div className="hidden items-center gap-1 rounded-full border border-line bg-canvas p-0.5 text-xs font-medium sm:flex">
+            <button
+              onClick={() => setLocale("es")}
+              className={`rounded-full px-2.5 py-1 transition-colors ${
+                locale === "es" ? "bg-primary text-white" : "text-ink-600"
+              }`}
+            >
+              ES
+            </button>
+            <button
+              onClick={() => setLocale("en")}
+              className={`rounded-full px-2.5 py-1 transition-colors ${
+                locale === "en" ? "bg-primary text-white" : "text-ink-600"
+              }`}
+            >
+              EN
+            </button>
+          </div>
+
+          <button
+            onClick={toggleTheme}
+            aria-label={theme === "light" ? t("theme.dark") : t("theme.light")}
+            className="flex h-8 w-8 items-center justify-center rounded-full border border-line bg-canvas text-ink-600 transition-colors hover:text-primary"
+          >
+            {theme === "light" ? <Moon size={15} /> : <Sun size={15} />}
+          </button>
+
+          <div className="mx-1 hidden h-6 w-px bg-line sm:block" aria-hidden="true" />
+
+          {!loading && (
+            user ? (
+              <AccountMenu user={user} />
+            ) : (
+              <>
+                <Link
+                  href="/auth/sign-in"
+                  className="hidden rounded-full px-3 py-1.5 text-sm font-medium text-ink-700 hover:text-primary sm:inline-block"
+                >
+                  {t("auth.login")}
+                </Link>
+                <Link
+                  href="/auth/sign-up"
+                  className="rounded-full bg-primary px-3.5 py-1.5 text-sm font-medium text-white transition-opacity hover:opacity-90"
+                >
+                  {t("auth.createAccount")}
+                </Link>
+              </>
+            )
+          )}
+        </div>
       </div>
     </header>
   );
