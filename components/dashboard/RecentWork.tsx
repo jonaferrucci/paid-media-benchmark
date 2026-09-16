@@ -66,7 +66,9 @@ export function RecentWork() {
             <Link
               key={c.id}
               href={`/benchmark?saved=${c.id}`}
-              className="group rounded-xl border border-line bg-surface p-3 transition-colors hover:border-primary/50"
+              className={`group rounded-xl border border-l-[3px] border-line bg-surface p-3 transition-colors hover:bg-surface2/40 ${
+                c.comparisonType === "campaign" ? "border-l-brandMint" : "border-l-brandLavender"
+              }`}
             >
               <p className="truncate text-xs font-semibold text-ink-900">{c.name}</p>
               <p className="mt-0.5 truncate text-[11px] text-ink-500">

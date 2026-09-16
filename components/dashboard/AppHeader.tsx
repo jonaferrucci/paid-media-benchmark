@@ -28,19 +28,19 @@ export function AppHeader({ onSearchClick }: AppHeaderProps) {
           onClick={onSearchClick}
           className="ml-3 flex flex-1 items-center gap-2 rounded-full border border-line bg-canvas px-4 py-2 text-left text-sm text-ink-400 transition-colors hover:border-primary/40 sm:max-w-md"
         >
-          <Search size={15} />
+          <Search size={15} aria-hidden="true" />
           <span className="truncate">{t("search.placeholder")}</span>
         </button>
 
-        <div className="ml-auto flex items-center gap-2">
-          <span className="hidden rounded-full border border-reference/30 bg-reference-soft px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-reference lg:inline-block">
+        <div className="ml-auto flex items-center gap-2.5">
+          <span className="hidden rounded-full border border-reference/30 bg-reference-soft px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-reference lg:inline-block">
             {t("app.mockData")}
           </span>
 
           <div className="hidden items-center gap-1 rounded-full border border-line bg-canvas p-0.5 text-xs font-medium sm:flex">
             <button
               onClick={() => setLocale("es")}
-              className={`rounded-full px-2.5 py-1 transition-colors ${
+              className={`rounded-full px-2.5 py-1 transition-colors duration-150 ${
                 locale === "es" ? "bg-primary text-white" : "text-ink-600"
               }`}
             >
@@ -48,7 +48,7 @@ export function AppHeader({ onSearchClick }: AppHeaderProps) {
             </button>
             <button
               onClick={() => setLocale("en")}
-              className={`rounded-full px-2.5 py-1 transition-colors ${
+              className={`rounded-full px-2.5 py-1 transition-colors duration-150 ${
                 locale === "en" ? "bg-primary text-white" : "text-ink-600"
               }`}
             >
@@ -59,9 +59,9 @@ export function AppHeader({ onSearchClick }: AppHeaderProps) {
           <button
             onClick={toggleTheme}
             aria-label={theme === "light" ? t("theme.dark") : t("theme.light")}
-            className="flex h-8 w-8 items-center justify-center rounded-full border border-line bg-canvas text-ink-600 transition-colors hover:text-primary"
+            className="flex h-8 w-8 items-center justify-center rounded-full border border-line bg-canvas text-ink-600 transition-colors hover:border-primary/40 hover:text-primary"
           >
-            {theme === "light" ? <Moon size={15} /> : <Sun size={15} />}
+            {theme === "light" ? <Moon size={15} aria-hidden="true" /> : <Sun size={15} aria-hidden="true" />}
           </button>
 
           <div className="mx-1 hidden h-6 w-px bg-line sm:block" aria-hidden="true" />

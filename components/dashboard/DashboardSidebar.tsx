@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, BarChart3, Layers, Users, Upload, FileBarChart, Sparkles } from "lucide-react";
+import { Home, BarChart3, Layers, Users, Upload, FileBarChart, Sparkles, Bookmark } from "lucide-react";
 import clsx from "clsx";
 import { useTranslation } from "@/lib/i18n/LanguageContext";
 
@@ -19,7 +19,7 @@ export function DashboardSidebar() {
   ];
   const SECONDARY_ITEMS = [
     { href: "/benchmark", label: t("nav.liveBenchmark"), icon: Sparkles },
-    { href: "/comparisons", label: t("nav.myComparisons"), icon: BarChart3 },
+    { href: "/comparisons", label: t("nav.myComparisons"), icon: Bookmark },
     { href: "/contribute", label: t("nav.contributeData"), icon: Upload },
   ];
 
@@ -38,12 +38,12 @@ export function DashboardSidebar() {
                   href={item.href}
                   aria-current={isActive ? "page" : undefined}
                   className={clsx(
-                    "relative flex items-center gap-3 rounded-full px-3 py-2 text-sm transition-colors",
-                    isActive ? "bg-white/10 text-white" : "text-ink-400 hover:bg-white/5 hover:text-white"
+                    "relative flex items-center gap-3 rounded-full px-3 py-2.5 text-sm transition-colors duration-150",
+                    isActive ? "bg-white/[0.08] font-medium text-white" : "text-ink-400 hover:bg-white/5 hover:text-white"
                   )}
                 >
-                  {isActive && <span className="absolute -left-3 h-5 w-1 rounded-r-full bg-primary" aria-hidden="true" />}
-                  <Icon size={16} strokeWidth={1.75} aria-hidden="true" />
+                  {isActive && <span className="absolute -left-3 h-5 w-1 rounded-r-full bg-brandGradient" aria-hidden="true" />}
+                  <Icon size={16} strokeWidth={1.75} aria-hidden="true" className={isActive ? "text-brandLavender" : ""} />
                   {item.label}
                 </Link>
               );
@@ -63,12 +63,12 @@ export function DashboardSidebar() {
                   href={item.href}
                   aria-current={isActive ? "page" : undefined}
                   className={clsx(
-                    "relative flex items-center gap-3 rounded-full px-3 py-2 text-sm transition-colors",
-                    isActive ? "bg-white/10 text-white" : "text-ink-400 hover:bg-white/5 hover:text-white"
+                    "relative flex items-center gap-3 rounded-full px-3 py-2.5 text-sm transition-colors duration-150",
+                    isActive ? "bg-white/[0.08] font-medium text-white" : "text-ink-400 hover:bg-white/5 hover:text-white"
                   )}
                 >
-                  {isActive && <span className="absolute -left-3 h-5 w-1 rounded-r-full bg-primary" aria-hidden="true" />}
-                  <Icon size={16} strokeWidth={1.75} aria-hidden="true" />
+                  {isActive && <span className="absolute -left-3 h-5 w-1 rounded-r-full bg-brandGradient" aria-hidden="true" />}
+                  <Icon size={16} strokeWidth={1.75} aria-hidden="true" className={isActive ? "text-brandLavender" : ""} />
                   {item.label}
                 </Link>
               );

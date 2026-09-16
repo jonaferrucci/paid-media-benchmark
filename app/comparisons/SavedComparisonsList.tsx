@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { MoreVertical, Pencil, Copy, Trash2, ExternalLink, Search } from "lucide-react";
+import { MoreVertical, Pencil, Copy, Trash2, ExternalLink, Search, Bookmark, FolderOpen } from "lucide-react";
 import { AppHeader } from "@/components/dashboard/AppHeader";
 import { DashboardSidebar } from "@/components/dashboard/DashboardSidebar";
 import { SearchOverlay } from "@/components/dashboard/SearchOverlay";
@@ -101,16 +101,20 @@ export function SavedComparisonsList({
       <DashboardSidebar />
       <div className="md:pl-56">
         <main className="mx-auto max-w-4xl px-4 py-6 md:px-8">
-          <h1 className="font-display text-xl font-semibold text-ink-900">{t("comparisons.title")}</h1>
+          <div className="flex items-center gap-2">
+            <Bookmark size={18} className="text-primary" aria-hidden="true" />
+            <h1 className="font-display text-xl font-semibold text-ink-900">{t("comparisons.title")}</h1>
+          </div>
           <p className="mt-1 text-sm text-ink-600">{t("comparisons.subtitle")}</p>
 
           {comparisons.length === 0 ? (
             <div className="mt-6 rounded-2xl border border-dashed border-line bg-surface p-8 text-center">
-              <p className="text-sm text-ink-700">{t("comparisons.emptyTitle")}</p>
+              <FolderOpen size={22} className="mx-auto text-ink-400" aria-hidden="true" />
+              <p className="mt-3 text-sm text-ink-700">{t("comparisons.emptyTitle")}</p>
               <p className="mt-1 text-xs text-ink-500">{t("comparisons.emptyBody")}</p>
               <Link
                 href="/benchmark"
-                className="mt-4 inline-flex items-center gap-1.5 rounded-full bg-primary px-4 py-2 text-xs font-semibold text-white hover:opacity-90"
+                className="mt-4 inline-flex items-center gap-1.5 rounded-full bg-primary px-4 py-2 text-xs font-semibold text-white transition-opacity hover:opacity-90"
               >
                 <Search size={13} aria-hidden="true" />
                 {t("comparisons.emptyCta")}
@@ -119,7 +123,12 @@ export function SavedComparisonsList({
           ) : (
             <ul className="mt-6 space-y-2">
               {comparisons.map((c) => (
-                <li key={c.id} className="overflow-visible rounded-2xl border border-line bg-surface p-4 shadow-sm">
+                <li
+                  key={c.id}
+                  className={`overflow-visible rounded-2xl border border-l-4 border-line bg-surface p-4 shadow-sm transition-colors hover:bg-surface2/40 ${
+                    c.comparisonType === "campaign" ? "border-l-brandMint" : "border-l-brandLavender"
+                  }`}
+                >
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0 flex-1">
                       {renamingId === c.id ? (
@@ -136,14 +145,14 @@ export function SavedComparisonsList({
                               if (e.key === "Enter") handleRenameSubmit(c.id);
                               if (e.key === "Escape") { setRenamingId(null); setRenameError(null); }
                             }}
-                            className="w-full rounded-lg border border-primary bg-canvas px-2 py-1 text-sm text-ink-900 outline-none"
+                            className="w-full rounded-lg border border-primary bg-canvas px-2.5 py-1.5 text-sm text-ink-900 outline-none ring-2 ring-primary/20 transition-shadow focus-visible:ring-primary/40"
                           />
                           {renameError && <p className="mt-1 text-xs text-caution">{renameError}</p>}
                           <div className="mt-2 flex gap-2">
-                            <button onClick={() => handleRenameSubmit(c.id)} className="rounded-full bg-primary px-3 py-1 text-xs font-medium text-white">
+                            <button onClick={() => handleRenameSubmit(c.id)} className="rounded-full bg-primary px-3.5 py-1.5 text-xs font-semibold text-white transition-opacity hover:opacity-90">
                               {t("comparisons.save")}
                             </button>
-                            <button onClick={() => { setRenamingId(null); setRenameError(null); }} className="rounded-full border border-line px-3 py-1 text-xs font-medium text-ink-600">
+                            <button onClick={() => { setRenamingId(null); setRenameError(null); }} className="rounded-full border border-line px-3.5 py-1.5 text-xs font-medium text-ink-600 hover:bg-surface2">
                               {t("comparisons.cancel")}
                             </button>
                           </div>
@@ -151,16 +160,17 @@ export function SavedComparisonsList({
                       ) : (
                         <>
                           <div className="flex items-center gap-2">
-                            <p className="truncate font-display text-sm font-semibold text-ink-900">{c.name}</p>
+                            <p className="truncate font-display text-[15px] font-semibold text-ink-900">{c.name}</p>
                             <span className="shrink-0 rounded-full bg-surface2 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-ink-500">
                               {c.comparisonType === "campaign" ? t("comparisons.typeCampaign") : t("comparisons.typeSingle")}
                             </span>
                           </div>
-                          <p className="mt-1 truncate text-xs text-ink-600">{contextLabel(c)}</p>
-                          <p className="mt-1 text-xs text-ink-500">{metricSummary(c)}</p>
-                          <p className="mt-2 text-[11px] text-ink-400">
-                            {t("comparisons.updated")}: {formatUpdatedAt(c.updatedAt, locale)}
-                          </p>
+                          <p className="mt-1.5 truncate text-xs text-ink-600">{contextLabel(c)}</p>
+                          <div className="mt-1.5 flex items-center gap-2 text-[11px] text-ink-400">
+                            <span>{metricSummary(c)}</span>
+                            <span aria-hidden="true">·</span>
+                            <span>{t("comparisons.updated")} {formatUpdatedAt(c.updatedAt, locale)}</span>
+                          </div>
                         </>
                       )}
                     </div>
@@ -168,7 +178,7 @@ export function SavedComparisonsList({
                     <div className="flex shrink-0 items-center gap-1">
                       <button
                         onClick={() => openComparison(c)}
-                        className="flex items-center gap-1 rounded-full bg-primary-soft px-3 py-1.5 text-xs font-medium text-primary hover:opacity-90"
+                        className="flex items-center gap-1 rounded-full bg-primary-soft px-3 py-1.5 text-xs font-medium text-primary transition-opacity hover:opacity-90"
                       >
                         {t("comparisons.open")} <ExternalLink size={12} aria-hidden="true" />
                       </button>
@@ -177,7 +187,7 @@ export function SavedComparisonsList({
                           onClick={() => setOpenMenuId(openMenuId === c.id ? null : c.id)}
                           aria-label={t("comparisons.moreActions")}
                           aria-expanded={openMenuId === c.id}
-                          className="flex h-8 w-8 items-center justify-center rounded-full text-ink-500 hover:bg-surface2 hover:text-ink-900"
+                          className="flex h-8 w-8 items-center justify-center rounded-full text-ink-500 transition-colors hover:bg-surface2 hover:text-ink-900"
                         >
                           <MoreVertical size={16} aria-hidden="true" />
                         </button>
@@ -208,13 +218,18 @@ export function SavedComparisonsList({
                   </div>
 
                   {confirmDeleteId === c.id && (
-                    <div className="mt-3 rounded-xl border border-destructive/30 bg-destructive-soft p-3">
+                    <div
+                      role="alertdialog"
+                      aria-label={t("comparisons.confirmDelete", { name: c.name })}
+                      onKeyDown={(e) => { if (e.key === "Escape") setConfirmDeleteId(null); }}
+                      className="mt-3 rounded-xl border border-destructive/30 bg-destructive-soft p-3"
+                    >
                       <p className="text-xs text-ink-700">{t("comparisons.confirmDelete", { name: c.name })}</p>
                       <div className="mt-2 flex gap-2">
-                        <button onClick={() => handleDelete(c.id)} className="rounded-full bg-destructive px-3 py-1 text-xs font-medium text-white">
+                        <button autoFocus onClick={() => handleDelete(c.id)} className="rounded-full bg-destructive px-3.5 py-1.5 text-xs font-semibold text-white transition-opacity hover:opacity-90">
                           {t("comparisons.delete")}
                         </button>
-                        <button onClick={() => setConfirmDeleteId(null)} className="rounded-full border border-line px-3 py-1 text-xs font-medium text-ink-600">
+                        <button onClick={() => setConfirmDeleteId(null)} className="rounded-full border border-line px-3.5 py-1.5 text-xs font-medium text-ink-600 hover:bg-surface2">
                           {t("comparisons.cancel")}
                         </button>
                       </div>

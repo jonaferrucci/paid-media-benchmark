@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Bookmark, Check } from "lucide-react";
+import { Bookmark, Check, LogIn } from "lucide-react";
 import { useTranslation } from "@/lib/i18n/LanguageContext";
 import { useSupabaseUser } from "@/lib/supabase/useUser";
 import { saveComparisonAction, type SavedComparisonInput } from "./actions";
@@ -22,12 +22,16 @@ export function SaveComparisonButton({ defaultName, buildPayload }: SaveComparis
   const [status, setStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
 
   if (!user) {
-    return <p className="text-xs text-ink-400">{t("comparisons.signInToSave")}</p>;
+    return (
+      <p className="inline-flex items-center gap-1.5 text-xs text-ink-400">
+        <LogIn size={12} aria-hidden="true" /> {t("comparisons.signInToSave")}
+      </p>
+    );
   }
 
   if (status === "saved") {
     return (
-      <p className="inline-flex items-center gap-1.5 text-xs font-medium text-pistachio">
+      <p className="motion-safe:animate-[fadeIn_0.2s_ease] inline-flex items-center gap-1.5 text-xs font-medium text-pistachio">
         <Check size={13} aria-hidden="true" /> {t("comparisons.savedConfirmation")}
       </p>
     );
@@ -51,7 +55,7 @@ export function SaveComparisonButton({ defaultName, buildPayload }: SaveComparis
   }
 
   return (
-    <div className="inline-flex flex-col gap-1.5">
+    <div className="motion-safe:animate-[fadeIn_0.15s_ease] inline-flex flex-col gap-1.5">
       <label htmlFor="save-comparison-name" className="text-xs font-medium text-ink-600">
         {t("comparisons.saveNamePrompt")}
       </label>
@@ -60,17 +64,21 @@ export function SaveComparisonButton({ defaultName, buildPayload }: SaveComparis
           id="save-comparison-name"
           value={name}
           onChange={(e) => setName(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && handleSave()}
-          className="w-56 rounded-lg border border-line bg-canvas px-2 py-1.5 text-xs text-ink-900 outline-none focus-visible:border-primary"
+          onKeyDown={(e) => {
+            if (e.key === "Enter") handleSave();
+            if (e.key === "Escape") setExpanded(false);
+          }}
+          autoFocus
+          className="w-56 rounded-lg border border-line bg-canvas px-2.5 py-1.5 text-xs text-ink-900 outline-none ring-2 ring-transparent transition-shadow focus-visible:border-primary focus-visible:ring-primary/20"
         />
         <button
           onClick={handleSave}
           disabled={status === "saving"}
-          className="rounded-full bg-primary px-3 py-1.5 text-xs font-medium text-white disabled:opacity-50"
+          className="rounded-full bg-primary px-3.5 py-1.5 text-xs font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
         >
           {t("comparisons.save")}
         </button>
-        <button onClick={() => setExpanded(false)} className="rounded-full border border-line px-3 py-1.5 text-xs font-medium text-ink-600">
+        <button onClick={() => setExpanded(false)} className="rounded-full border border-line px-3.5 py-1.5 text-xs font-medium text-ink-600 hover:bg-surface2">
           {t("comparisons.cancel")}
         </button>
       </div>
