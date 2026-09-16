@@ -262,6 +262,9 @@ const es = {
     validFromLabel: "Vigente desde",
     rateCardPendingNote: "Tu aporte queda pendiente de revisión antes de mostrarse como tarifario vigente.",
     contributionPendingSaved: "Precio enviado — pendiente de revisión.",
+    publicMetricsDisclaimer: "Datos públicos del medio. No son resultados de campaña ni benchmark.",
+    vsPrevious: "vs. anterior",
+    historyAvailable: "{n} observaciones históricas disponibles",
   },
   import: {
     issue: {
@@ -275,6 +278,8 @@ const es = {
       ambiguousNumber: "El número \"{value}\" tiene un formato ambiguo — revisalo.",
       unrecognizedCurrency: "\"{value}\" no es un código de moneda reconocido.",
       possibleDuplicate: "Podría ser un duplicado de la fila {row}.",
+      unknownMediaOutlet: "No encontramos este medio en el catálogo.",
+      unknownMetricDefinition: "No reconocemos esta métrica pública.",
     },
   },
 
@@ -1009,6 +1014,9 @@ const en: typeof es = {
     validFromLabel: "Valid from",
     rateCardPendingNote: "Your submission stays pending review before showing as the current rate card.",
     contributionPendingSaved: "Price submitted — pending review.",
+    publicMetricsDisclaimer: "Public media data. Not campaign results or benchmark data.",
+    vsPrevious: "vs. previous",
+    historyAvailable: "{n} historical observations available",
   },
   import: {
     issue: {
@@ -1022,6 +1030,8 @@ const en: typeof es = {
       ambiguousNumber: "The number \"{value}\" has an ambiguous format — please review it.",
       unrecognizedCurrency: "\"{value}\" isn't a recognized currency code.",
       possibleDuplicate: "May be a duplicate of row {row}.",
+      unknownMediaOutlet: "We couldn't find this outlet in the catalog.",
+      unknownMetricDefinition: "We don't recognize this public metric.",
     },
   },
 

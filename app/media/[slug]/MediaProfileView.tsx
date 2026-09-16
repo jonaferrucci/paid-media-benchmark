@@ -9,6 +9,7 @@ import { SearchOverlay } from "@/components/dashboard/SearchOverlay";
 import { useTranslation } from "@/lib/i18n/LanguageContext";
 import type { MediaProfile } from "@/lib/media/catalog";
 import { AddMetricSnapshotForm, AddRateCardForm } from "./ContributionForms";
+import { freshnessLabel } from "@/lib/media/trend";
 
 function formatValue(value: number, unitType: string): string {
   if (unitType === "rate") return `${value}`;
@@ -16,7 +17,7 @@ function formatValue(value: number, unitType: string): string {
 }
 
 export function MediaProfileView({ profile }: { profile: MediaProfile }) {
-  const { t } = useTranslation();
+  const { t, locale } = useTranslation();
   const [searchOpen, setSearchOpen] = useState(false);
   const { platform, category, countries, latestMetrics, rateCards, metricDefinitions, formats } = profile;
 
@@ -57,6 +58,7 @@ export function MediaProfileView({ profile }: { profile: MediaProfile }) {
               <TrendingUp size={15} className="text-brandLavender" aria-hidden="true" />
               <h2 className="font-display text-sm font-semibold text-ink-900">{t("media.publicMetricsTitle")}</h2>
             </div>
+            <p className="mt-1 text-[11px] text-ink-400">{t("media.publicMetricsDisclaimer")}</p>
             {latestMetrics.length === 0 ? (
               <p className="mt-2 text-xs text-ink-500">{t("media.noPublicMetricsYet")}</p>
             ) : (
@@ -64,8 +66,18 @@ export function MediaProfileView({ profile }: { profile: MediaProfile }) {
                 {latestMetrics.map((m) => (
                   <div key={m.definition!.id} className="rounded-xl border border-line bg-canvas p-3">
                     <p className="text-[11px] uppercase tracking-wide text-ink-500">{m.definition!.display_label}</p>
-                    <p className="tabular mt-1 font-display text-lg font-semibold text-ink-900">{formatValue(m.value, m.definition!.unit_type)}</p>
-                    <p className="mt-1 text-[10px] text-ink-400">{m.observed_at} · {m.source}</p>
+                    <p className="tabular mt-1 font-display text-lg font-semibold text-ink-900">{formatValue(m.latest.value, m.definition!.unit_type)}</p>
+                    {m.change !== null && (
+                      <p className="tabular mt-0.5 text-xs text-ink-500">
+                        {m.change.absolute >= 0 ? "+" : ""}{formatValue(m.change.absolute, m.definition!.unit_type)}
+                        {m.change.percent !== null && ` (${m.change.percent >= 0 ? "+" : ""}${m.change.percent.toFixed(1)}%)`}
+                        {" "}{t("media.vsPrevious")}
+                      </p>
+                    )}
+                    <p className="mt-1 text-[10px] text-ink-400">{freshnessLabel(m.latest.observed_at, new Date(), locale)} · {m.latest.source}</p>
+                    {m.eligibility === "trend" && (
+                      <p className="mt-1 text-[10px] text-ink-400">{t("media.historyAvailable", { n: m.history.length })}</p>
+                    )}
                   </div>
                 ))}
               </div>

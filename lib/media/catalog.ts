@@ -1,5 +1,6 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { latestSnapshotPerMetric } from "./filter";
+import { resolveLatestAndPrevious, computeChange, isChangeMeaningful, trendEligibility } from "./trend";
 
 // Phase 17: fetches the full media catalog in a small, fixed number
 // of queries (not N+1 per platform) — public reference taxonomy only,
@@ -73,14 +74,38 @@ export async function getMediaProfile(slug: string) {
   // pure helper's "first occurrence wins" reduction gives the latest.
   const latestByMetric = latestSnapshotPerMetric(snapshots.data ?? []);
 
+  // Full per-metric history (already desc-ordered from the query) for
+  // change/trend computation — same underlying query, no extra round
+  // trip (item 16: avoid N+1 / redundant queries).
+  const historyByMetric = new Map<string, typeof snapshots.data>();
+  for (const row of snapshots.data ?? []) {
+    const list = historyByMetric.get(row.metric_definition_id) ?? [];
+    list.push(row);
+    historyByMetric.set(row.metric_definition_id, list);
+  }
+
+  const metricIntelligence = Array.from(latestByMetric.entries()).map(([metricDefinitionId, snap]) => {
+    const definition = (metricDefs.data ?? []).find((d) => d.id === metricDefinitionId) ?? null;
+    const history = historyByMetric.get(metricDefinitionId) ?? [];
+    const { latest, previous } = resolveLatestAndPrevious(history);
+    const change = latest && previous && definition && isChangeMeaningful(definition.unit_type)
+      ? computeChange(previous.value, latest.value)
+      : null;
+    return {
+      definition,
+      latest: snap,
+      previous,
+      change,
+      eligibility: trendEligibility(history.length),
+      history,
+    };
+  }).filter((m) => m.definition !== null);
+
   return {
     platform,
     category: category.data,
     countries,
-    latestMetrics: Array.from(latestByMetric.entries()).map(([metricDefinitionId, snap]) => ({
-      definition: (metricDefs.data ?? []).find((d) => d.id === metricDefinitionId) ?? null,
-      ...snap,
-    })).filter((m) => m.definition !== null),
+    latestMetrics: metricIntelligence,
     metricDefinitions: metricDefs.data ?? [],
     rateCards: (rateCards.data ?? []).map((rc) => ({
       ...rc,
