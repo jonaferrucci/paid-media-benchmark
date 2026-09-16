@@ -10,6 +10,12 @@ import { useTranslation } from "@/lib/i18n/LanguageContext";
 import type { MediaCatalog } from "@/lib/media/catalog";
 import { platformsForCategory, platformsForCountry, searchCatalog } from "@/lib/media/filter";
 
+function hashString(s: string): number {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h << 5) - h + s.charCodeAt(i);
+  return h;
+}
+
 export function MediaCatalogView({ catalog }: { catalog: MediaCatalog }) {
   const { t } = useTranslation();
   const [searchOpen, setSearchOpen] = useState(false);
@@ -48,44 +54,46 @@ export function MediaCatalogView({ catalog }: { catalog: MediaCatalog }) {
             </p>
           )}
 
-          <div className="mt-5 flex flex-wrap items-center gap-2">
+          <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
             <label htmlFor="catalog-search" className="sr-only">{t("media.searchLabel")}</label>
-            <div className="flex flex-1 items-center gap-2 rounded-full border border-line bg-surface px-3 py-2 sm:max-w-xs">
-              <Search size={14} className="text-ink-400" aria-hidden="true" />
+            <div className="flex items-center gap-2 rounded-full border border-line bg-surface px-3 py-2 sm:max-w-xs sm:flex-1">
+              <Search size={14} className="shrink-0 text-ink-400" aria-hidden="true" />
               <input
                 id="catalog-search"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder={t("media.searchPlaceholder")}
-                className="w-full bg-transparent text-sm text-ink-900 outline-none placeholder:text-ink-400"
+                className="w-full min-w-0 bg-transparent text-sm text-ink-900 outline-none placeholder:text-ink-400"
               />
             </div>
 
-            <label htmlFor="catalog-category" className="sr-only">{t("media.categoryLabel")}</label>
-            <select
-              id="catalog-category"
-              value={categoryId ?? ""}
-              onChange={(e) => setCategoryId(e.target.value || null)}
-              className="rounded-full border border-line bg-surface px-3 py-2 text-sm text-ink-900"
-            >
-              <option value="">{t("media.allCategories")}</option>
-              {catalog.categories.map((c) => (
-                <option key={c.id} value={c.id}>{c.display_label}</option>
-              ))}
-            </select>
+            <div className="flex gap-2">
+              <label htmlFor="catalog-category" className="sr-only">{t("media.categoryLabel")}</label>
+              <select
+                id="catalog-category"
+                value={categoryId ?? ""}
+                onChange={(e) => setCategoryId(e.target.value || null)}
+                className="min-w-0 flex-1 rounded-full border border-line bg-surface px-3 py-2 text-sm text-ink-900 sm:flex-none"
+              >
+                <option value="">{t("media.allCategories")}</option>
+                {catalog.categories.map((c) => (
+                  <option key={c.id} value={c.id}>{c.display_label}</option>
+                ))}
+              </select>
 
-            <label htmlFor="catalog-country" className="sr-only">{t("media.countryLabel")}</label>
-            <select
-              id="catalog-country"
-              value={countryId ?? ""}
-              onChange={(e) => setCountryId(e.target.value || null)}
-              className="rounded-full border border-line bg-surface px-3 py-2 text-sm text-ink-900"
-            >
-              <option value="">{t("media.allCountries")}</option>
-              {catalog.countries.map((c) => (
-                <option key={c.id} value={c.id}>{c.display_label}</option>
-              ))}
-            </select>
+              <label htmlFor="catalog-country" className="sr-only">{t("media.countryLabel")}</label>
+              <select
+                id="catalog-country"
+                value={countryId ?? ""}
+                onChange={(e) => setCountryId(e.target.value || null)}
+                className="min-w-0 flex-1 rounded-full border border-line bg-surface px-3 py-2 text-sm text-ink-900 sm:flex-none"
+              >
+                <option value="">{t("media.allCountries")}</option>
+                {catalog.countries.map((c) => (
+                  <option key={c.id} value={c.id}>{c.display_label}</option>
+                ))}
+              </select>
+            </div>
           </div>
 
           {filtered.length === 0 ? (
@@ -98,26 +106,37 @@ export function MediaCatalogView({ catalog }: { catalog: MediaCatalog }) {
             </div>
           ) : (
             <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {filtered.map((p) => (
-                <div key={p.id} className="rounded-2xl border border-line bg-surface p-4 shadow-sm">
-                  <div className="flex items-center justify-between gap-2">
-                    <Link href={`/media/${p.internal_key}`} className="truncate font-display text-sm font-semibold text-ink-900 hover:text-primary">{p.display_label}</Link>
-                    {p.status === "pending" && (
-                      <span className="shrink-0 rounded-full bg-vanilla-soft px-2 py-0.5 text-[10px] font-medium text-vanilla">
-                        {t("media.statusPending")}
-                      </span>
-                    )}
+              {filtered.map((p) => {
+                // Same restrained 3-accent pattern already established
+                // for saved comparisons / recent work (Phase 14/15) —
+                // reused here rather than inventing a new per-category
+                // color system, per the Product UI standard against
+                // "dozens of arbitrary colors."
+                const accents = ["border-l-brandPeach", "border-l-brandLavender", "border-l-brandMint"];
+                const accent = accents[Math.abs(hashString(p.media_category_id ?? "")) % accents.length];
+                return (
+                  <div key={p.id} className={`rounded-2xl border border-l-4 border-line ${accent} bg-surface p-4 shadow-sm transition-colors hover:bg-surface2/40`}>
+                    <div className="flex items-start justify-between gap-2">
+                      <Link href={`/media/${p.internal_key}`} className="truncate font-display text-[15px] font-semibold text-ink-900 hover:text-primary">
+                        {p.display_label}
+                      </Link>
+                      {p.status === "pending" && (
+                        <span className="shrink-0 rounded-full bg-vanilla-soft px-2 py-0.5 text-[10px] font-medium text-vanilla">
+                          {t("media.statusPending")}
+                        </span>
+                      )}
+                    </div>
+                    <p className="mt-1 text-xs text-ink-500">{categoryLabel(p.media_category_id)}</p>
+                    <p className="mt-3 text-xs text-ink-400">{t("media.noBenchmarkYet")}</p>
+                    <Link
+                      href="/contribute"
+                      className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+                    >
+                      {t("media.ctaContribute")}
+                    </Link>
                   </div>
-                  <p className="mt-1 text-xs text-ink-500">{categoryLabel(p.media_category_id)}</p>
-                  <p className="mt-3 text-xs text-ink-400">{t("media.noBenchmarkYet")}</p>
-                  <Link
-                    href="/contribute"
-                    className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
-                  >
-                    {t("media.ctaContribute")}
-                  </Link>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </main>

@@ -31,7 +31,9 @@ export function MediaProfileView({ profile }: { profile: MediaProfile }) {
           </Link>
 
           {/* Overview */}
-          <div className="rounded-2xl border border-line bg-surface p-5 shadow-sm">
+          <div className="overflow-hidden rounded-2xl border border-line bg-surface shadow-sm">
+            <div className="h-1 bg-brandGradient" aria-hidden="true" />
+            <div className="p-5">
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="font-display text-xl font-semibold text-ink-900">{platform.display_label}</h1>
               {platform.status === "pending" && (
@@ -45,6 +47,7 @@ export function MediaProfileView({ profile }: { profile: MediaProfile }) {
               </p>
             )}
             {platform.is_global && <p className="mt-1 text-xs text-ink-500">{t("media.globalAvailability")}</p>}
+            </div>
           </div>
 
           {/* Public metrics */}
