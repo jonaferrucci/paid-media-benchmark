@@ -81,6 +81,7 @@ export async function getMediaProfile(slug: string) {
       definition: (metricDefs.data ?? []).find((d) => d.id === metricDefinitionId) ?? null,
       ...snap,
     })).filter((m) => m.definition !== null),
+    metricDefinitions: metricDefs.data ?? [],
     rateCards: (rateCards.data ?? []).map((rc) => ({
       ...rc,
       format: (formats.data ?? []).find((f) => f.id === rc.media_format_id) ?? null,

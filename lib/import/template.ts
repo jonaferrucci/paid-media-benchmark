@@ -25,6 +25,19 @@ const EXAMPLE_ROW: Record<string, string> = {
 
 const ALL_FIELDS = [...REQUIRED_FIELDS, ...OPTIONAL_FIELDS];
 
+// Phase 17B.2: category-aware templates. Rather than maintaining N
+// separate hardcoded template definitions, this filters the SAME
+// canonical field list down to only the fields relevant for a given
+// category — callers pass the metric internal_keys resolved from
+// media_category_metrics (the real applicability data), so the
+// template generator itself has zero category-specific knowledge.
+export function buildCategoryTemplateHeaders(applicableMetricKeys: string[] | null): string[] {
+  const fields = applicableMetricKeys
+    ? ALL_FIELDS.filter((f) => REQUIRED_FIELDS.includes(f) || applicableMetricKeys.includes(f))
+    : ALL_FIELDS;
+  return fields.map((f) => HEADER_LABELS[f] ?? f);
+}
+
 export function buildTemplateHeaders(): string[] {
   return ALL_FIELDS.map((f) => HEADER_LABELS[f] ?? f);
 }

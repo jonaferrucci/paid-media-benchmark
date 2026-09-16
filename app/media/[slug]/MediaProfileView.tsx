@@ -8,6 +8,7 @@ import { DashboardSidebar } from "@/components/dashboard/DashboardSidebar";
 import { SearchOverlay } from "@/components/dashboard/SearchOverlay";
 import { useTranslation } from "@/lib/i18n/LanguageContext";
 import type { MediaProfile } from "@/lib/media/catalog";
+import { AddMetricSnapshotForm, AddRateCardForm } from "./ContributionForms";
 
 function formatValue(value: number, unitType: string): string {
   if (unitType === "rate") return `${value}`;
@@ -17,7 +18,7 @@ function formatValue(value: number, unitType: string): string {
 export function MediaProfileView({ profile }: { profile: MediaProfile }) {
   const { t } = useTranslation();
   const [searchOpen, setSearchOpen] = useState(false);
-  const { platform, category, countries, latestMetrics, rateCards } = profile;
+  const { platform, category, countries, latestMetrics, rateCards, metricDefinitions, formats } = profile;
 
   return (
     <div className="min-h-screen bg-canvas">
@@ -69,9 +70,8 @@ export function MediaProfileView({ profile }: { profile: MediaProfile }) {
                 ))}
               </div>
             )}
+            <AddMetricSnapshotForm platformId={platform.id} metricDefinitions={metricDefinitions} />
           </section>
-
-          {/* Commercial formats / rate cards */}
           <section className="mt-4 rounded-2xl border border-line bg-surface p-5 shadow-sm">
             <div className="flex items-center gap-2">
               <Tag size={15} className="text-brandPeach" aria-hidden="true" />
@@ -91,6 +91,7 @@ export function MediaProfileView({ profile }: { profile: MediaProfile }) {
                 ))}
               </div>
             )}
+            <AddRateCardForm platformId={platform.id} formats={formats} />
           </section>
 
           {/* Benchmark availability */}
