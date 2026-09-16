@@ -117,11 +117,19 @@ function LandingChooser({
         </div>
       </div>
 
-      <div className="mt-4 rounded-xl border border-dashed border-line bg-surface2/40 px-4 py-3">
-        <p className="text-xs text-ink-600">{t("media.importMetricsFromContributeNote")}</p>
-        <Link href="/contribute/public-metrics" className="mt-1 inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline">
-          {t("media.importMetricsCta")}
-        </Link>
+      <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
+        <div className="rounded-xl border border-dashed border-line bg-surface2/40 px-4 py-3">
+          <p className="text-xs text-ink-600">{t("media.importMetricsFromContributeNote")}</p>
+          <Link href="/contribute/public-metrics" className="mt-1 inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline">
+            {t("media.importMetricsCta")}
+          </Link>
+        </div>
+        <div className="rounded-xl border border-dashed border-line bg-surface2/40 px-4 py-3">
+          <p className="text-xs text-ink-600">{t("media.rateCardsFromContributeNote")}</p>
+          <Link href="/contribute/rate-cards" className="mt-1 inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline">
+            {t("media.importRateCardsCta")}
+          </Link>
+        </div>
       </div>
     </div>
   );

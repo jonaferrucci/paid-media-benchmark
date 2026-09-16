@@ -109,6 +109,9 @@ export function MediaProfileView({ profile }: { profile: MediaProfile }) {
               </div>
             )}
             <AddRateCardForm platformId={platform.id} formats={formats} />
+            <Link href="/contribute/rate-cards" className="mt-2 block text-xs font-medium text-primary hover:underline">
+              {t("media.importRateCardsCta")}
+            </Link>
           </section>
 
           {/* Benchmark availability */}

@@ -268,12 +268,18 @@ const es = {
     field: {
       mediaOutlet: "Medio", property: "Propiedad", metric: "Métrica", value: "Valor",
       observedAt: "Fecha de observación", source: "Fuente", sourceReference: "Referencia",
+      validTo: "Vigente hasta", notes: "Notas",
     },
     importMetricsTitle: "Importar métricas públicas",
     importMetricsSubtitle: "Subí un archivo con datos públicos de audiencia. Esto no es contribución de campaña.",
     confirmImportIntro: "Vamos a importar {n} métricas públicas.",
     importMetricsFromContributeNote: "¿Tenés un archivo con métricas públicas de audiencia (suscriptores, vistas, etc.)?",
     importMetricsCta: "Importar métricas públicas",
+    importRateCardsTitle: "Importar tarifarios",
+    importRateCardsSubtitle: "Subí un archivo con precios de lista de medios. Esto no es gasto real de campaña.",
+    confirmRateCardImportIntro: "Vamos a importar {n} precios de tarifario.",
+    rateCardsFromContributeNote: "¿Tenés un archivo con precios de lista de varios medios?",
+    importRateCardsCta: "Importar tarifarios",
   },
   import: {
     issue: {
@@ -289,6 +295,8 @@ const es = {
       possibleDuplicate: "Podría ser un duplicado de la fila {row}.",
       unknownMediaOutlet: "No encontramos este medio en el catálogo.",
       unknownMetricDefinition: "No reconocemos esta métrica pública.",
+      unknownFormat: "No reconocemos este formato comercial.",
+      unknownPricingUnit: "La unidad de precio no es válida.",
     },
   },
 
@@ -1029,12 +1037,18 @@ const en: typeof es = {
     field: {
       mediaOutlet: "Outlet", property: "Property", metric: "Metric", value: "Value",
       observedAt: "Observed date", source: "Source", sourceReference: "Reference",
+      validTo: "Valid to", notes: "Notes",
     },
     importMetricsTitle: "Import public metrics",
     importMetricsSubtitle: "Upload a file with public audience data. This is not campaign contribution.",
     confirmImportIntro: "We'll import {n} public metrics.",
     importMetricsFromContributeNote: "Have a file with public audience metrics (subscribers, views, etc.)?",
     importMetricsCta: "Import public metrics",
+    importRateCardsTitle: "Import rate cards",
+    importRateCardsSubtitle: "Upload a file with outlet list prices. This is not actual campaign spend.",
+    confirmRateCardImportIntro: "We'll import {n} rate card prices.",
+    rateCardsFromContributeNote: "Have a file with list prices across several outlets?",
+    importRateCardsCta: "Import rate cards",
   },
   import: {
     issue: {
@@ -1050,6 +1064,8 @@ const en: typeof es = {
       possibleDuplicate: "May be a duplicate of row {row}.",
       unknownMediaOutlet: "We couldn't find this outlet in the catalog.",
       unknownMetricDefinition: "We don't recognize this public metric.",
+      unknownFormat: "We don't recognize this commercial format.",
+      unknownPricingUnit: "That pricing unit isn't valid.",
     },
   },
 

@@ -99,6 +99,64 @@ export async function bulkSubmitSnapshotsAction(
   return { ok: true, imported: count ?? insertRows.length, failed };
 }
 
+export interface BulkRateCardImportResult {
+  ok: boolean;
+  imported: number;
+  failed: number;
+  error?: "not_authenticated" | "no_valid_rows" | "lookup_failed";
+}
+
+// Phase 19: bulk rate-card persistence. Resolves platform/format
+// internal_key strings to real ids server-side (same pattern as
+// bulkSubmitSnapshotsAction). Every imported row is inserted as
+// status="pending" — bulk-imported prices never bypass the same
+// governance gate as manually-contributed ones (item 5/29).
+export async function bulkSubmitRateCardsAction(
+  rows: { platformKey: string; mediaFormatKey: string; price: number; currency: string; pricingUnit: "per_integration" | "per_spot" | "per_mention" | "per_day" | "per_week" | "per_month" | "per_thousand" | "package" | "custom"; validFrom: string; validTo: string | null; source: string; sourceReference: string | null; notes: string | null }[]
+): Promise<BulkRateCardImportResult> {
+  const supabase = createServerSupabaseClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { ok: false, imported: 0, failed: 0, error: "not_authenticated" };
+  if (rows.length === 0) return { ok: false, imported: 0, failed: 0, error: "no_valid_rows" };
+
+  const [platformsRes, formatsRes] = await Promise.all([
+    supabase.from("platforms").select("id, internal_key"),
+    supabase.from("media_formats").select("id, internal_key"),
+  ]);
+  if (platformsRes.error || formatsRes.error) {
+    console.error("[media_rate_cards] lookup failed:", platformsRes.error, formatsRes.error);
+    return { ok: false, imported: 0, failed: 0, error: "lookup_failed" };
+  }
+  const platformIds = new Map((platformsRes.data ?? []).map((p) => [p.internal_key, p.id]));
+  const formatIds = new Map((formatsRes.data ?? []).map((f) => [f.internal_key, f.id]));
+
+  const insertRows: {
+    platform_id: string; media_format_id: string; price: number; currency: string;
+    pricing_unit: "per_integration" | "per_spot" | "per_mention" | "per_day" | "per_week" | "per_month" | "per_thousand" | "package" | "custom";
+    valid_from: string; valid_to: string | null; source: string; source_reference: string | null;
+    notes: string | null; status: "pending"; submitted_by: string;
+  }[] = [];
+  let failed = 0;
+  for (const r of rows) {
+    const platformId = platformIds.get(r.platformKey);
+    const mediaFormatId = formatIds.get(r.mediaFormatKey);
+    if (!platformId || !mediaFormatId) { failed++; continue; }
+    insertRows.push({
+      platform_id: platformId, media_format_id: mediaFormatId, price: r.price, currency: r.currency,
+      pricing_unit: r.pricingUnit, valid_from: r.validFrom, valid_to: r.validTo, source: r.source,
+      source_reference: r.sourceReference, notes: r.notes, status: "pending", submitted_by: user.id,
+    });
+  }
+  if (insertRows.length === 0) return { ok: false, imported: 0, failed, error: "no_valid_rows" };
+
+  const { error, count } = await supabase.from("media_rate_cards").insert(insertRows);
+  if (error) {
+    console.error("[media_rate_cards] bulk insert failed:", error);
+    return { ok: false, imported: 0, failed: rows.length };
+  }
+  return { ok: true, imported: count ?? insertRows.length, failed };
+}
+
 export interface RateCardInput {
   platformId: string;
   mediaFormatId: string;
