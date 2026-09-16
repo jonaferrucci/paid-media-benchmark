@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useRef, useState } from "react";
+import Link from "next/link";
 import { Edit3, Upload, FileDown, ArrowLeft, Check, AlertTriangle } from "lucide-react";
 import { AppHeader } from "@/components/dashboard/AppHeader";
 import { DashboardSidebar } from "@/components/dashboard/DashboardSidebar";
@@ -114,6 +115,13 @@ function LandingChooser({
             <button onClick={downloadXlsx} className="rounded-full border border-line px-3 py-1.5 text-xs font-medium text-ink-700 hover:border-primary hover:text-primary">XLSX</button>
           </div>
         </div>
+      </div>
+
+      <div className="mt-4 rounded-xl border border-dashed border-line bg-surface2/40 px-4 py-3">
+        <p className="text-xs text-ink-600">{t("media.importMetricsFromContributeNote")}</p>
+        <Link href="/contribute/public-metrics" className="mt-1 inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline">
+          {t("media.importMetricsCta")}
+        </Link>
       </div>
     </div>
   );

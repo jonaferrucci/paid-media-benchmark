@@ -50,38 +50,53 @@ export interface BulkSnapshotImportResult {
   ok: boolean;
   imported: number;
   failed: number;
-  error?: "not_authenticated" | "no_valid_rows";
+  error?: "not_authenticated" | "no_valid_rows" | "lookup_failed";
 }
 
-// Phase 18 item 4/22: bulk persistence for validated snapshot import
-// rows. Only rows already marked "valid" are accepted (defensive
-// second check — server-side validation is authoritative). Batches
-// via a single insert call rather than one request per row.
+// Phase 18B: accepts platform/metric internal_key strings (exactly
+// what validateSnapshotRow resolves from an uploaded file) rather than
+// raw database ids — the server resolves real ids itself, the same
+// pattern already established by Phase 16's bulkSubmitContributionsAction,
+// so client code never needs to (and never gets to) supply a raw id
+// directly.
 export async function bulkSubmitSnapshotsAction(
-  rows: { platformId: string; metricDefinitionId: string; value: number; observedAt: string; source: string; sourceReference: string | null }[]
+  rows: { platformKey: string; metricKey: string; value: number; observedAt: string; source: string; sourceReference: string | null }[]
 ): Promise<BulkSnapshotImportResult> {
   const supabase = createServerSupabaseClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { ok: false, imported: 0, failed: 0, error: "not_authenticated" };
   if (rows.length === 0) return { ok: false, imported: 0, failed: 0, error: "no_valid_rows" };
 
-  const { error, count } = await supabase.from("public_media_metric_snapshots").insert(
-    rows.map((r) => ({
-      platform_id: r.platformId,
-      metric_definition_id: r.metricDefinitionId,
-      value: r.value,
-      observed_at: r.observedAt,
-      source: r.source,
-      source_reference: r.sourceReference,
-      submitted_by: user.id,
-    }))
-  );
+  const [platformsRes, metricsRes] = await Promise.all([
+    supabase.from("platforms").select("id, internal_key"),
+    supabase.from("public_media_metric_definitions").select("id, internal_key"),
+  ]);
+  if (platformsRes.error || metricsRes.error) {
+    console.error("[public_media_metric_snapshots] lookup failed:", platformsRes.error, metricsRes.error);
+    return { ok: false, imported: 0, failed: 0, error: "lookup_failed" };
+  }
+  const platformIds = new Map((platformsRes.data ?? []).map((p) => [p.internal_key, p.id]));
+  const metricIds = new Map((metricsRes.data ?? []).map((m) => [m.internal_key, m.id]));
 
+  const insertRows: { platform_id: string; metric_definition_id: string; value: number; observed_at: string; source: string; source_reference: string | null; submitted_by: string }[] = [];
+  let failed = 0;
+  for (const r of rows) {
+    const platformId = platformIds.get(r.platformKey);
+    const metricDefinitionId = metricIds.get(r.metricKey);
+    if (!platformId || !metricDefinitionId) { failed++; continue; }
+    insertRows.push({
+      platform_id: platformId, metric_definition_id: metricDefinitionId, value: r.value,
+      observed_at: r.observedAt, source: r.source, source_reference: r.sourceReference, submitted_by: user.id,
+    });
+  }
+  if (insertRows.length === 0) return { ok: false, imported: 0, failed, error: "no_valid_rows" };
+
+  const { error, count } = await supabase.from("public_media_metric_snapshots").insert(insertRows);
   if (error) {
     console.error("[public_media_metric_snapshots] bulk insert failed:", error);
     return { ok: false, imported: 0, failed: rows.length };
   }
-  return { ok: true, imported: count ?? rows.length, failed: 0 };
+  return { ok: true, imported: count ?? insertRows.length, failed };
 }
 
 export interface RateCardInput {

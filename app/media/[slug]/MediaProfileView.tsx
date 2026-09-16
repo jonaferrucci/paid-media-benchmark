@@ -82,7 +82,12 @@ export function MediaProfileView({ profile }: { profile: MediaProfile }) {
                 ))}
               </div>
             )}
-            <AddMetricSnapshotForm platformId={platform.id} metricDefinitions={metricDefinitions} />
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <AddMetricSnapshotForm platformId={platform.id} metricDefinitions={metricDefinitions} />
+              <Link href="/contribute/public-metrics" className="mt-2 text-xs font-medium text-primary hover:underline">
+                {t("media.importMetricsCta")}
+              </Link>
+            </div>
           </section>
           <section className="mt-4 rounded-2xl border border-line bg-surface p-5 shadow-sm">
             <div className="flex items-center gap-2">

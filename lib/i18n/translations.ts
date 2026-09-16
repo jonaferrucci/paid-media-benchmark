@@ -265,6 +265,15 @@ const es = {
     publicMetricsDisclaimer: "Datos públicos del medio. No son resultados de campaña ni benchmark.",
     vsPrevious: "vs. anterior",
     historyAvailable: "{n} observaciones históricas disponibles",
+    field: {
+      mediaOutlet: "Medio", property: "Propiedad", metric: "Métrica", value: "Valor",
+      observedAt: "Fecha de observación", source: "Fuente", sourceReference: "Referencia",
+    },
+    importMetricsTitle: "Importar métricas públicas",
+    importMetricsSubtitle: "Subí un archivo con datos públicos de audiencia. Esto no es contribución de campaña.",
+    confirmImportIntro: "Vamos a importar {n} métricas públicas.",
+    importMetricsFromContributeNote: "¿Tenés un archivo con métricas públicas de audiencia (suscriptores, vistas, etc.)?",
+    importMetricsCta: "Importar métricas públicas",
   },
   import: {
     issue: {
@@ -1017,6 +1026,15 @@ const en: typeof es = {
     publicMetricsDisclaimer: "Public media data. Not campaign results or benchmark data.",
     vsPrevious: "vs. previous",
     historyAvailable: "{n} historical observations available",
+    field: {
+      mediaOutlet: "Outlet", property: "Property", metric: "Metric", value: "Value",
+      observedAt: "Observed date", source: "Source", sourceReference: "Reference",
+    },
+    importMetricsTitle: "Import public metrics",
+    importMetricsSubtitle: "Upload a file with public audience data. This is not campaign contribution.",
+    confirmImportIntro: "We'll import {n} public metrics.",
+    importMetricsFromContributeNote: "Have a file with public audience metrics (subscribers, views, etc.)?",
+    importMetricsCta: "Import public metrics",
   },
   import: {
     issue: {
