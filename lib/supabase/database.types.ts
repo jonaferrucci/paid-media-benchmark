@@ -65,6 +65,10 @@ export interface Database {
           display_order: number;
           created_at: string;
           updated_at: string;
+          media_category_id: string | null;
+          is_global: boolean;
+          status: "active" | "inactive" | "pending";
+          website_domain: string | null;
         };
         Insert: {
           id?: string;
@@ -74,6 +78,10 @@ export interface Database {
           display_order?: number;
           created_at?: string;
           updated_at?: string;
+          media_category_id?: string | null;
+          is_global?: boolean;
+          status?: "active" | "inactive" | "pending";
+          website_domain?: string | null;
         };
         Update: {
           id?: string;
@@ -83,6 +91,100 @@ export interface Database {
           display_order?: number;
           created_at?: string;
           updated_at?: string;
+          media_category_id?: string | null;
+          is_global?: boolean;
+          status?: "active" | "inactive" | "pending";
+          website_domain?: string | null;
+        };
+        Relationships: [];
+      };
+      media_categories: {
+        Row: { id: string; internal_key: string; display_label: string; active: boolean; display_order: number; created_at: string; updated_at: string };
+        Insert: { id?: string; internal_key: string; display_label: string; active?: boolean; display_order?: number; created_at?: string; updated_at?: string };
+        Update: { id?: string; internal_key?: string; display_label?: string; active?: boolean; display_order?: number; created_at?: string; updated_at?: string };
+        Relationships: [];
+      };
+      media_formats: {
+        Row: { id: string; media_category_id: string; internal_key: string; display_label: string; active: boolean; display_order: number; created_at: string };
+        Insert: { id?: string; media_category_id: string; internal_key: string; display_label: string; active?: boolean; display_order?: number; created_at?: string };
+        Update: { id?: string; media_category_id?: string; internal_key?: string; display_label?: string; active?: boolean; display_order?: number; created_at?: string };
+        Relationships: [];
+      };
+      metric_families: {
+        Row: { id: string; internal_key: string; display_label: string; display_order: number };
+        Insert: { id?: string; internal_key: string; display_label: string; display_order?: number };
+        Update: { id?: string; internal_key?: string; display_label?: string; display_order?: number };
+        Relationships: [];
+      };
+      media_category_metrics: {
+        Row: { media_category_id: string; metric_id: string; required: boolean };
+        Insert: { media_category_id: string; metric_id: string; required?: boolean };
+        Update: { media_category_id?: string; metric_id?: string; required?: boolean };
+        Relationships: [];
+      };
+      platform_countries: {
+        Row: { platform_id: string; country_id: string };
+        Insert: { platform_id: string; country_id: string };
+        Update: { platform_id?: string; country_id?: string };
+        Relationships: [];
+      };
+      media_properties: {
+        Row: { id: string; platform_id: string; internal_key: string; display_label: string; active: boolean; created_at: string };
+        Insert: { id?: string; platform_id: string; internal_key: string; display_label: string; active?: boolean; created_at?: string };
+        Update: { id?: string; platform_id?: string; internal_key?: string; display_label?: string; active?: boolean; created_at?: string };
+        Relationships: [];
+      };
+      media_outlet_formats: {
+        Row: { platform_id: string; media_format_id: string };
+        Insert: { platform_id: string; media_format_id: string };
+        Update: { platform_id?: string; media_format_id?: string };
+        Relationships: [];
+      };
+      public_media_metric_definitions: {
+        Row: { id: string; internal_key: string; display_label: string; unit_type: "count" | "rate" | "duration"; active: boolean };
+        Insert: { id?: string; internal_key: string; display_label: string; unit_type?: "count" | "rate" | "duration"; active?: boolean };
+        Update: { id?: string; internal_key?: string; display_label?: string; unit_type?: "count" | "rate" | "duration"; active?: boolean };
+        Relationships: [];
+      };
+      public_media_metric_snapshots: {
+        Row: {
+          id: string; platform_id: string; media_property_id: string | null; metric_definition_id: string;
+          value: number; observed_at: string; source: string; source_reference: string | null;
+          submitted_by: string | null; created_at: string;
+        };
+        Insert: {
+          id?: string; platform_id: string; media_property_id?: string | null; metric_definition_id: string;
+          value: number; observed_at: string; source: string; source_reference?: string | null;
+          submitted_by?: string | null; created_at?: string;
+        };
+        Update: {
+          id?: string; platform_id?: string; media_property_id?: string | null; metric_definition_id?: string;
+          value?: number; observed_at?: string; source?: string; source_reference?: string | null;
+          submitted_by?: string | null; created_at?: string;
+        };
+        Relationships: [];
+      };
+      media_rate_cards: {
+        Row: {
+          id: string; platform_id: string; media_property_id: string | null; media_format_id: string;
+          price: number; currency: string;
+          pricing_unit: "per_integration" | "per_spot" | "per_mention" | "per_day" | "per_week" | "per_month" | "per_thousand" | "package" | "custom";
+          valid_from: string; valid_to: string | null; source: string; source_reference: string | null;
+          notes: string | null; status: "active" | "superseded" | "pending"; submitted_by: string | null; created_at: string;
+        };
+        Insert: {
+          id?: string; platform_id: string; media_property_id?: string | null; media_format_id: string;
+          price: number; currency: string;
+          pricing_unit: "per_integration" | "per_spot" | "per_mention" | "per_day" | "per_week" | "per_month" | "per_thousand" | "package" | "custom";
+          valid_from: string; valid_to?: string | null; source: string; source_reference?: string | null;
+          notes?: string | null; status?: "active" | "superseded" | "pending"; submitted_by?: string | null; created_at?: string;
+        };
+        Update: {
+          id?: string; platform_id?: string; media_property_id?: string | null; media_format_id?: string;
+          price?: number; currency?: string;
+          pricing_unit?: "per_integration" | "per_spot" | "per_mention" | "per_day" | "per_week" | "per_month" | "per_thousand" | "package" | "custom";
+          valid_from?: string; valid_to?: string | null; source?: string; source_reference?: string | null;
+          notes?: string | null; status?: "active" | "superseded" | "pending"; submitted_by?: string | null; created_at?: string;
         };
         Relationships: [];
       };
@@ -338,6 +440,7 @@ export interface Database {
           active: boolean;
           created_at: string;
           updated_at: string;
+          metric_family_id: string | null;
         };
         Insert: {
           id?: string;
@@ -352,6 +455,7 @@ export interface Database {
           active?: boolean;
           created_at?: string;
           updated_at?: string;
+          metric_family_id?: string | null;
         };
         Update: {
           id?: string;
@@ -366,6 +470,7 @@ export interface Database {
           active?: boolean;
           created_at?: string;
           updated_at?: string;
+          metric_family_id?: string | null;
         };
         Relationships: [];
       };

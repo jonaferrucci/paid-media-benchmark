@@ -1,14 +1,7 @@
-"use client";
-import { PlaceholderPage } from "@/components/dashboard/PlaceholderPage";
-import { useTranslation } from "@/lib/i18n/LanguageContext";
+import { getMediaCatalog } from "@/lib/media/catalog";
+import { MediaCatalogView } from "./MediaCatalogView";
 
-export default function PlatformsPage() {
-  const { t } = useTranslation();
-  return (
-    <PlaceholderPage
-      title={t("stubPages.platformsTitle")}
-      description={t("stubPages.platformsDesc")}
-      plannedPhase={t("stubPages.phase6")}
-    />
-  );
+export default async function PlatformsPage() {
+  const catalog = await getMediaCatalog();
+  return <MediaCatalogView catalog={catalog} />;
 }
