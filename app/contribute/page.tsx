@@ -1,7 +1,7 @@
 import { getContributionTaxonomies } from "@/lib/contribute/taxonomies";
-import { ContributeWizard } from "./ContributeWizard";
+import { ContributeLanding } from "./ContributeLanding";
 
 export default async function ContributePage() {
   const taxonomies = await getContributionTaxonomies();
-  return <ContributeWizard taxonomies={taxonomies} />;
+  return <ContributeLanding taxonomies={taxonomies} />;
 }
