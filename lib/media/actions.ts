@@ -29,6 +29,9 @@ export async function submitPublicMetricSnapshotAction(
   if (!isValidObservedValue(input.value)) return { ok: false, error: "invalid_value" };
   if (!isValidDateString(input.observedAt)) return { ok: false, error: "invalid_date" };
 
+  // Phase 19B item 3: explicit status="pending" — public metric
+  // snapshots now go through the same curator review gate rate cards
+  // already had, rather than relying implicitly on the column default.
   const { error } = await supabase.from("public_media_metric_snapshots").insert({
     platform_id: input.platformId,
     metric_definition_id: input.metricDefinitionId,
@@ -37,6 +40,7 @@ export async function submitPublicMetricSnapshotAction(
     source: input.source,
     source_reference: input.sourceReference || null,
     submitted_by: user.id,
+    status: "pending",
   });
 
   if (error) {
@@ -78,7 +82,7 @@ export async function bulkSubmitSnapshotsAction(
   const platformIds = new Map((platformsRes.data ?? []).map((p) => [p.internal_key, p.id]));
   const metricIds = new Map((metricsRes.data ?? []).map((m) => [m.internal_key, m.id]));
 
-  const insertRows: { platform_id: string; metric_definition_id: string; value: number; observed_at: string; source: string; source_reference: string | null; submitted_by: string }[] = [];
+  const insertRows: { platform_id: string; metric_definition_id: string; value: number; observed_at: string; source: string; source_reference: string | null; submitted_by: string; status: "pending" }[] = [];
   let failed = 0;
   for (const r of rows) {
     const platformId = platformIds.get(r.platformKey);
@@ -87,6 +91,7 @@ export async function bulkSubmitSnapshotsAction(
     insertRows.push({
       platform_id: platformId, metric_definition_id: metricDefinitionId, value: r.value,
       observed_at: r.observedAt, source: r.source, source_reference: r.sourceReference, submitted_by: user.id,
+      status: "pending",
     });
   }
   if (insertRows.length === 0) return { ok: false, imported: 0, failed, error: "no_valid_rows" };

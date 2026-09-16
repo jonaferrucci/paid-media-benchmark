@@ -2,6 +2,7 @@
 
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { calculateDerivedMetrics, type RawMetricInputs } from "@/lib/metrics/derive";
+import { isSupportedCurrencyCode } from "@/lib/config/currencies";
 
 export interface ContributionPayload {
   platformId: string;
@@ -64,7 +65,9 @@ export async function submitContributionAction(
   if (!Number.isFinite(payload.adSpend) || payload.adSpend < 0) {
     return { error: "invalid_spend" };
   }
-  if (payload.currency.length !== 3) {
+  // Phase 19B item 4: controlled supported set, not a length check —
+  // see lib/config/currencies.ts (centralized list).
+  if (!isSupportedCurrencyCode(payload.currency)) {
     return { error: "invalid_currency" };
   }
 

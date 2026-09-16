@@ -6,6 +6,7 @@ import { useTranslation } from "@/lib/i18n/LanguageContext";
 import { useSupabaseUser } from "@/lib/supabase/useUser";
 import { submitPublicMetricSnapshotAction, submitRateCardAction, type RateCardInput } from "@/lib/media/actions";
 import type { MediaProfile } from "@/lib/media/catalog";
+import { SUPPORTED_CURRENCIES, isSupportedCurrencyCode } from "@/lib/config/currencies";
 
 const PRICING_UNITS: RateCardInput["pricingUnit"][] = [
   "per_integration", "per_spot", "per_mention", "per_day", "per_week", "per_month", "per_thousand", "package", "custom",
@@ -78,7 +79,7 @@ export function AddRateCardForm({ platformId, formats }: { platformId: string; f
   const [expanded, setExpanded] = useState(false);
   const [formatId, setFormatId] = useState(formats[0]?.id ?? "");
   const [price, setPrice] = useState("");
-  const [currency, setCurrency] = useState("ARS");
+  const [currency, setCurrency] = useState<string>(SUPPORTED_CURRENCIES[0].code);
   const [pricingUnit, setPricingUnit] = useState<RateCardInput["pricingUnit"]>("per_integration");
   const [validFrom, setValidFrom] = useState(() => new Date().toISOString().slice(0, 10));
   const [source, setSource] = useState("");
@@ -98,7 +99,7 @@ export function AddRateCardForm({ platformId, formats }: { platformId: string; f
 
   async function handleSubmit() {
     const numPrice = Number(price);
-    if (!Number.isFinite(numPrice) || numPrice < 0 || currency.trim().length !== 3 || !source.trim()) { setStatus("error"); return; }
+    if (!Number.isFinite(numPrice) || numPrice < 0 || !isSupportedCurrencyCode(currency) || !source.trim()) { setStatus("error"); return; }
     setStatus("saving");
     const result = await submitRateCardAction({ platformId, mediaFormatId: formatId, price: numPrice, currency, pricingUnit, validFrom, source: source.trim() });
     setStatus(result.ok ? "saved" : "error");
@@ -120,7 +121,9 @@ export function AddRateCardForm({ platformId, formats }: { platformId: string; f
           </label>
           <label className="text-xs text-ink-600">
             {t("media.currencyLabel")}
-            <input value={currency} onChange={(e) => setCurrency(e.target.value.toUpperCase())} maxLength={3} className="mt-1 w-full rounded-lg border border-line bg-surface px-2 py-1.5 text-sm text-ink-900" />
+            <select value={currency} onChange={(e) => setCurrency(e.target.value)} className="mt-1 w-full rounded-lg border border-line bg-surface px-2 py-1.5 text-sm text-ink-900">
+              {SUPPORTED_CURRENCIES.map((c) => <option key={c.code} value={c.code}>{c.code}</option>)}
+            </select>
           </label>
         </div>
         <label className="text-xs text-ink-600">

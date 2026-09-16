@@ -85,8 +85,16 @@ export async function getContributionTaxonomies() {
     metrics,
     platformMetrics,
     metricVariants,
+    mediaCategories,
+    platformCountries,
+    mediaFormats,
+    categoryMetrics,
   ] = await Promise.all([
-    supabase.from("platforms").select("id, internal_key, display_label").eq("active", true).order("display_order"),
+    // Phase 19B item 2: media_category_id/is_global added (additive
+    // select columns only) so the wizard can reuse the SAME category/
+    // country filtering already proven by lib/media/filter.ts, rather
+    // than a second parallel taxonomy just for contribution.
+    supabase.from("platforms").select("id, internal_key, display_label, media_category_id, is_global").eq("active", true).order("display_order"),
     supabase.from("campaign_types").select("id, platform_id, internal_key, display_label").eq("active", true).order("display_order"),
     supabase.from("objectives").select("id, internal_key, display_label").eq("active", true).order("display_order"),
     supabase.from("verticals").select("id, internal_key, display_label").eq("active", true).order("display_order"),
@@ -97,6 +105,10 @@ export async function getContributionTaxonomies() {
     supabase.from("metrics").select("id, internal_key, display_label, metric_kind, unit_type").eq("active", true),
     supabase.from("platform_metrics").select("platform_id, metric_id, required").eq("active", true),
     supabase.from("metric_definition_variants").select("id, metric_id, internal_key, display_label, is_unknown_default").eq("active", true),
+    supabase.from("media_categories").select("id, internal_key, display_label, display_order").eq("active", true).order("display_order"),
+    supabase.from("platform_countries").select("platform_id, country_id"),
+    supabase.from("media_formats").select("id, media_category_id, internal_key, display_label, display_order").eq("active", true).order("display_order"),
+    supabase.from("media_category_metrics").select("media_category_id, metric_id, required"),
   ]);
 
   const results = {
@@ -111,6 +123,10 @@ export async function getContributionTaxonomies() {
     metrics,
     platformMetrics,
     metricVariants,
+    mediaCategories,
+    platformCountries,
+    mediaFormats,
+    categoryMetrics,
   };
 
   let hasError = false;
@@ -160,9 +176,14 @@ export async function getContributionTaxonomies() {
     metrics: metrics.data ?? [],
     platformMetrics: platformMetrics.data ?? [],
     metricVariants: metricVariants.data ?? [],
-    // New, additive field — existing consumers that don't read it are
-    // completely unaffected; every array field keeps its original
+    // Phase 19B item 2 — additive fields for the category-aware
+    // wizard. Existing consumers that don't read them are completely
+    // unaffected; every previously-existing field keeps its original
     // shape and meaning.
+    mediaCategories: mediaCategories.data ?? [],
+    platformCountries: platformCountries.data ?? [],
+    mediaFormats: mediaFormats.data ?? [],
+    categoryMetrics: categoryMetrics.data ?? [],
     hasError,
   };
 }

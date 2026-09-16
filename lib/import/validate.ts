@@ -1,6 +1,7 @@
 import type { CanonicalField, MappedRow, NormalizedRow, RowIssue } from "./types";
 import { REQUIRED_FIELDS } from "./types";
 import { parseLatamAwareNumber, parseFlexibleDate, matchTaxonomyValue } from "./normalize";
+import { isSupportedCurrencyCode } from "@/lib/config/currencies";
 
 export interface ValidationTaxonomies {
   platforms: { internal_key: string; display_label: string }[];
@@ -116,8 +117,14 @@ export function normalizeAndValidateRow(
     else rawMetrics[field] = parsed.value;
   }
 
+  // Phase 19B item 4: validated against the centralized controlled set
+  // (lib/config/currencies.ts), not a length-only check. Still a
+  // warning, not a hard error — the same permissive-but-flagged
+  // behavior as before, so existing bulk-import flows and any
+  // already-submitted currency values keep working unchanged; the row
+  // is simply flagged for human review, same as any other warning.
   const currency = (mapped.currency || "USD").toUpperCase().slice(0, 3);
-  if (mapped.currency && mapped.currency.trim().length !== 3) {
+  if (mapped.currency && !isSupportedCurrencyCode(mapped.currency)) {
     issues.push({ field: "currency", severity: "warning", messageKey: "import.issue.unrecognizedCurrency", messageVars: { value: mapped.currency } });
   }
 

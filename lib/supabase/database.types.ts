@@ -151,16 +151,19 @@ export interface Database {
           id: string; platform_id: string; media_property_id: string | null; metric_definition_id: string;
           value: number; observed_at: string; source: string; source_reference: string | null;
           submitted_by: string | null; created_at: string;
+          status: "pending" | "active" | "rejected"; reviewed_by: string | null; reviewed_at: string | null;
         };
         Insert: {
           id?: string; platform_id: string; media_property_id?: string | null; metric_definition_id: string;
           value: number; observed_at: string; source: string; source_reference?: string | null;
           submitted_by?: string | null; created_at?: string;
+          status?: "pending" | "active" | "rejected"; reviewed_by?: string | null; reviewed_at?: string | null;
         };
         Update: {
           id?: string; platform_id?: string; media_property_id?: string | null; metric_definition_id?: string;
           value?: number; observed_at?: string; source?: string; source_reference?: string | null;
           submitted_by?: string | null; created_at?: string;
+          status?: "pending" | "active" | "rejected"; reviewed_by?: string | null; reviewed_at?: string | null;
         };
         Relationships: [];
       };
@@ -170,21 +173,24 @@ export interface Database {
           price: number; currency: string;
           pricing_unit: "per_integration" | "per_spot" | "per_mention" | "per_day" | "per_week" | "per_month" | "per_thousand" | "package" | "custom";
           valid_from: string; valid_to: string | null; source: string; source_reference: string | null;
-          notes: string | null; status: "active" | "superseded" | "pending"; submitted_by: string | null; created_at: string;
+          notes: string | null; status: "active" | "superseded" | "pending" | "rejected"; submitted_by: string | null; created_at: string;
+          reviewed_by: string | null; reviewed_at: string | null;
         };
         Insert: {
           id?: string; platform_id: string; media_property_id?: string | null; media_format_id: string;
           price: number; currency: string;
           pricing_unit: "per_integration" | "per_spot" | "per_mention" | "per_day" | "per_week" | "per_month" | "per_thousand" | "package" | "custom";
           valid_from: string; valid_to?: string | null; source: string; source_reference?: string | null;
-          notes?: string | null; status?: "active" | "superseded" | "pending"; submitted_by?: string | null; created_at?: string;
+          notes?: string | null; status?: "active" | "superseded" | "pending" | "rejected"; submitted_by?: string | null; created_at?: string;
+          reviewed_by?: string | null; reviewed_at?: string | null;
         };
         Update: {
           id?: string; platform_id?: string; media_property_id?: string | null; media_format_id?: string;
           price?: number; currency?: string;
           pricing_unit?: "per_integration" | "per_spot" | "per_mention" | "per_day" | "per_week" | "per_month" | "per_thousand" | "package" | "custom";
           valid_from?: string; valid_to?: string | null; source?: string; source_reference?: string | null;
-          notes?: string | null; status?: "active" | "superseded" | "pending"; submitted_by?: string | null; created_at?: string;
+          notes?: string | null; status?: "active" | "superseded" | "pending" | "rejected"; submitted_by?: string | null; created_at?: string;
+          reviewed_by?: string | null; reviewed_at?: string | null;
         };
         Relationships: [];
       };
@@ -611,18 +617,21 @@ export interface Database {
           display_name: string | null;
           created_at: string;
           updated_at: string;
+          is_curator: boolean;
         };
         Insert: {
           id: string;
           display_name?: string | null;
           created_at?: string;
           updated_at?: string;
+          is_curator?: boolean;
         };
         Update: {
           id?: string;
           display_name?: string | null;
           created_at?: string;
           updated_at?: string;
+          is_curator?: boolean;
         };
         Relationships: [];
       };

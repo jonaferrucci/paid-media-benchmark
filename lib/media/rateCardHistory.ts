@@ -82,3 +82,72 @@ export function hasOnlyPendingRateCards<T extends RateCardLike>(rateCards: T[]):
 export function chronologicalHistory<T extends RateCardLike>(rateCards: T[]): T[] {
   return [...rateCards].sort((a, b) => (a.validFrom < b.validFrom ? 1 : -1));
 }
+
+// Phase 19B item 1: groups a platform's rate cards by exact compatible
+// identity (outlet + property + format + currency + pricing_unit —
+// the SAME identity areRateCardsCompatible already enforces) and
+// resolves current/previous/change/history for each group. This is
+// the single function the media profile page wires up — never a
+// second, page-level reimplementation of the Phase 19 comparison
+// rules. A group with no currently-eligible row (hasOnlyPendingRateCards,
+// or every row expired/future-dated) still comes back so the UI can
+// show an honest "sin precio vigente" state instead of silently
+// dropping the identity.
+export interface RateCardGroup<T extends RateCardLike & RateCardIdentity> {
+  identity: RateCardIdentity;
+  current: T | null;
+  previous: T | null;
+  change: ChangeResult | null;
+  // Compact historical list: active/superseded rows only (chronological,
+  // most recent first). Pending rows are deliberately EXCLUDED here too
+  // — a pending submission has never been a real effective price, so it
+  // must never appear inside "price history" any more than it may be
+  // shown as the current price (item 1's "never treat pending as
+  // canonical", same rule migration 0012's RLS comment already states).
+  history: T[];
+  isPendingOnly: boolean;
+  // Count only — never the pending row's price/date, so the UI can say
+  // "N submissions awaiting review" without presenting an unverified
+  // number as fact.
+  pendingCount: number;
+}
+
+function identityKey(identity: RateCardIdentity): string {
+  return [identity.platformId, identity.propertyId ?? "", identity.mediaFormatId, identity.currency, identity.pricingUnit].join("|");
+}
+
+export function groupRateCardsByIdentity<T extends RateCardLike & RateCardIdentity>(
+  rateCards: T[],
+  today: Date
+): RateCardGroup<T>[] {
+  const groups = new Map<string, T[]>();
+  for (const rc of rateCards) {
+    const key = identityKey(rc);
+    const list = groups.get(key) ?? [];
+    list.push(rc);
+    groups.set(key, list);
+  }
+
+  return Array.from(groups.values()).map((group) => {
+    // Item 1: current/previous/change and the visible history are
+    // resolved from active+superseded rows ONLY — a pending row must
+    // never be eligible as "previous" for a change calculation any
+    // more than it may be shown as "current" (resolveCurrentRateCard
+    // already excludes it; this excludes it from the comparison pool
+    // resolvePreviousRateCardAndChange searches too).
+    const verified = group.filter((rc) => rc.status !== "pending");
+    const current = resolveCurrentRateCard(verified, today);
+    const { previous, change } = current
+      ? resolvePreviousRateCardAndChange(current, verified)
+      : { previous: null, change: null };
+    return {
+      identity: { platformId: group[0].platformId, propertyId: group[0].propertyId, mediaFormatId: group[0].mediaFormatId, currency: group[0].currency, pricingUnit: group[0].pricingUnit },
+      current,
+      previous,
+      change,
+      history: chronologicalHistory(verified),
+      isPendingOnly: hasOnlyPendingRateCards(group),
+      pendingCount: group.filter((rc) => rc.status === "pending").length,
+    };
+  });
+}

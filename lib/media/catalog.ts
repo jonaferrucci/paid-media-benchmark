@@ -1,6 +1,7 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { latestSnapshotPerMetric } from "./filter";
 import { resolveLatestAndPrevious, computeChange, isChangeMeaningful, trendEligibility } from "./trend";
+import { groupRateCardsByIdentity } from "./rateCardHistory";
 
 // Phase 17: fetches the full media catalog in a small, fixed number
 // of queries (not N+1 per platform) — public reference taxonomy only,
@@ -58,9 +59,21 @@ export async function getMediaProfile(slug: string) {
       : Promise.resolve({ data: null }),
     supabase.from("platform_countries").select("country_id").eq("platform_id", platform.id),
     supabase.from("countries").select("id, iso_code, display_label"),
-    supabase.from("public_media_metric_snapshots").select("metric_definition_id, value, observed_at, source").eq("platform_id", platform.id).order("observed_at", { ascending: false }),
+    // Phase 19B item 3: only status="active" snapshots are shown on
+    // the public profile — a pending submission is never presented as
+    // a verified public signal (same governance shape rate cards
+    // already had). Existing rows were backfilled to "active" by
+    // migration 0014, so previously-visible data is unaffected.
+    supabase.from("public_media_metric_snapshots").select("metric_definition_id, value, observed_at, source").eq("platform_id", platform.id).eq("status", "active").order("observed_at", { ascending: false }),
     supabase.from("public_media_metric_definitions").select("id, internal_key, display_label, unit_type"),
-    supabase.from("media_rate_cards").select("id, media_format_id, price, currency, pricing_unit, valid_from, valid_to, source, status").eq("platform_id", platform.id).eq("status", "active").order("valid_from", { ascending: false }),
+    // Phase 19B item 1: fetches active+superseded+pending (not just
+    // active) so the profile can compute previous-compatible-price/
+    // change/compact-history (needs superseded rows) and can honestly
+    // note pending submissions awaiting review (needs pending rows,
+    // counted only — never shown as a price, per groupRateCardsByIdentity).
+    // "rejected" rows are excluded — a curator-rejected submission was
+    // never a real price and should never surface here at all.
+    supabase.from("media_rate_cards").select("id, media_property_id, media_format_id, price, currency, pricing_unit, valid_from, valid_to, source, source_reference, status").eq("platform_id", platform.id).in("status", ["active", "superseded", "pending"]).order("valid_from", { ascending: false }),
     platform.media_category_id
       ? supabase.from("media_formats").select("id, internal_key, display_label").eq("media_category_id", platform.media_category_id).eq("active", true)
       : Promise.resolve({ data: [] }),
@@ -101,16 +114,38 @@ export async function getMediaProfile(slug: string) {
     };
   }).filter((m) => m.definition !== null);
 
+  // Phase 19B item 1: shape the raw rows into the RateCardLike &
+  // RateCardIdentity structure lib/media/rateCardHistory.ts's pure
+  // helpers expect, then group by exact compatible identity — the
+  // page renders current/previous/change/history per group, it never
+  // re-derives any of this comparison logic itself.
+  const rateCardInputs = (rateCards.data ?? []).map((rc) => ({
+    id: rc.id,
+    platformId: platform.id,
+    propertyId: rc.media_property_id,
+    mediaFormatId: rc.media_format_id,
+    price: rc.price,
+    currency: rc.currency,
+    pricingUnit: rc.pricing_unit,
+    status: rc.status as "active" | "superseded" | "pending",
+    validFrom: rc.valid_from,
+    validTo: rc.valid_to,
+    source: rc.source,
+    sourceReference: rc.source_reference,
+  }));
+
+  const rateCardGroups = groupRateCardsByIdentity(rateCardInputs, new Date()).map((group) => ({
+    ...group,
+    format: (formats.data ?? []).find((f) => f.id === group.identity.mediaFormatId) ?? null,
+  }));
+
   return {
     platform,
     category: category.data,
     countries,
     latestMetrics: metricIntelligence,
     metricDefinitions: metricDefs.data ?? [],
-    rateCards: (rateCards.data ?? []).map((rc) => ({
-      ...rc,
-      format: (formats.data ?? []).find((f) => f.id === rc.media_format_id) ?? null,
-    })),
+    rateCardGroups,
     formats: formats.data ?? [],
   };
 }

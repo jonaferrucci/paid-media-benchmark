@@ -31,6 +31,7 @@ export default function AccountPage() {
   const [displayName, setDisplayName] = useState("");
   const [profileLoaded, setProfileLoaded] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [isCurator, setIsCurator] = useState(false);
   const [state, formAction] = useFormState<UpdateProfileResult, FormData>(updateProfileAction, {});
 
   useEffect(() => {
@@ -38,11 +39,18 @@ export default function AccountPage() {
     const supabase = createClient();
     supabase
       .from("profiles")
-      .select("display_name")
+      // Phase 19B item 3: is_curator is only read here to decide
+      // whether to SHOW the curation link — a cosmetic convenience,
+      // never the security boundary. The actual page (/curation) and
+      // every governance action re-check this server-side, and RLS
+      // (migration 0014) enforces it regardless of what this client
+      // component renders.
+      .select("display_name, is_curator")
       .eq("id", user.id)
       .single()
       .then(({ data }) => {
         setDisplayName(data?.display_name ?? "");
+        setIsCurator(data?.is_curator === true);
         setProfileLoaded(true);
       });
   }, [user]);
@@ -91,6 +99,15 @@ export default function AccountPage() {
               >
                 {t("auth.myContributions")} →
               </Link>
+
+              {isCurator && (
+                <Link
+                  href="/curation"
+                  className="mt-2 block text-sm font-medium text-primary hover:underline"
+                >
+                  {t("curation.navLink")} →
+                </Link>
+              )}
             </div>
           )}
         </main>

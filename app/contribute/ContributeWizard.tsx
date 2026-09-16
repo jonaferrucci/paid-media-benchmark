@@ -9,6 +9,8 @@ import { SearchOverlay } from "@/components/dashboard/SearchOverlay";
 import { useTranslation } from "@/lib/i18n/LanguageContext";
 import type { ContributionTaxonomies } from "@/lib/contribute/taxonomies";
 import { submitContributionAction } from "./actions";
+import { SUPPORTED_CURRENCIES, isSupportedCurrencyCode } from "@/lib/config/currencies";
+import { platformsForCategory, platformsForCountry, formatsForCategory, metricsForCategory } from "@/lib/media/filter";
 
 interface Draft {
   platformUiId: string | null;
@@ -31,6 +33,17 @@ interface Draft {
   adSpend: string;
   rawMetrics: Record<string, string>;
   videoViewVariantId: string | null;
+  // Phase 19B item 2 — category-aware fields. mediaCategoryId/
+  // mediaFormatId narrow which "Medio" options and which metrics are
+  // shown (progressive disclosure per Cucurucho UX & Information
+  // Architecture.md); they don't change what gets submitted below —
+  // performance_datasets has no media_format_id column (formats are a
+  // rate-card/commercial concept, migration 0012), so introducing one
+  // is out of scope here (Phase 19B §8 limits new migrations to
+  // curator governance). See CUCURUCHO_HANDOFF-facing report for this
+  // called out as a genuine open item.
+  mediaCategoryId: string | null;
+  mediaFormatId: string | null;
 }
 
 const DEFAULT_DRAFT: Draft = {
@@ -54,6 +67,8 @@ const DEFAULT_DRAFT: Draft = {
   adSpend: "",
   rawMetrics: {},
   videoViewVariantId: null,
+  mediaCategoryId: null,
+  mediaFormatId: null,
 };
 
 const STEP_KEYS = ["stepContext", "stepAudience", "stepPeriod", "stepMetrics", "stepReview"] as const;
@@ -127,11 +142,26 @@ export function ContributeWizard({ taxonomies }: { taxonomies: ContributionTaxon
     (c) => c.internal_key === "video_youtube" && c.platform_id === googleAds?.id
   );
 
+  // Phase 19B item 2 — category-aware "Medio" list. Reuses the SAME
+  // pure filters already proven by the media catalog/profile pages
+  // (lib/media/filter.ts) rather than a second parallel filtering
+  // rule: Tipo de medio -> País narrows which outlets are offered,
+  // exactly like /platforms and /contribute/rate-cards already do.
+  // Every existing platform now carries a media_category_id (migration
+  // 0012 tagged meta_ads/google_ads/etc. alongside the newer streaming/
+  // publisher outlets), so this applies uniformly — no special-casing
+  // "old" vs "new" platforms.
+  const categoryFilteredPlatforms = useMemo(() => {
+    const byCategory = platformsForCategory(taxonomies.platforms, draft.mediaCategoryId);
+    return platformsForCountry(byCategory, taxonomies.platformCountries, draft.countryId);
+  }, [taxonomies.platforms, taxonomies.platformCountries, draft.mediaCategoryId, draft.countryId]);
+
+  const showsYoutubeOption =
+    !!googleAds && !!youtubeCampaignType && categoryFilteredPlatforms.some((p) => p.id === googleAds.id);
+
   const platformOptions = [
-    ...taxonomies.platforms.map((p) => ({ uiId: p.internal_key, id: p.id, label: p.display_label })),
-    ...(googleAds && youtubeCampaignType
-      ? [{ uiId: "youtube", id: googleAds.id, label: "YouTube" }]
-      : []),
+    ...categoryFilteredPlatforms.map((p) => ({ uiId: p.internal_key, id: p.id, label: p.display_label })),
+    ...(showsYoutubeOption ? [{ uiId: "youtube", id: googleAds!.id, label: "YouTube" }] : []),
   ];
 
   function selectPlatform(uiId: string) {
@@ -142,14 +172,74 @@ export function ContributeWizard({ taxonomies }: { taxonomies: ContributionTaxon
       platformUiId: uiId,
       platformId: option.id,
       campaignTypeId: uiId === "youtube" ? youtubeCampaignType?.id ?? null : null,
+      mediaFormatId: null,
     }));
   }
 
+  function selectMediaCategory(categoryId: string) {
+    setDraft((d) => ({
+      ...d,
+      mediaCategoryId: categoryId || null,
+      // Selecting a category can invalidate the previously-chosen
+      // outlet/format — never leave a stale, no-longer-visible
+      // selection silently submitted.
+      platformUiId: null,
+      platformId: null,
+      campaignTypeId: null,
+      mediaFormatId: null,
+    }));
+  }
+
+  function selectCountry(countryId: string) {
+    setDraft((d) => ({
+      ...d,
+      countryId: countryId || null,
+      platformUiId: null,
+      platformId: null,
+      campaignTypeId: null,
+      mediaFormatId: null,
+    }));
+  }
+
+  const selectedPlatform = taxonomies.platforms.find((p) => p.id === draft.platformId);
+
+  // Formato: only offered when the selected outlet's category actually
+  // has formats defined (today: streaming_live/digital_publisher —
+  // media_formats is empty for paid_social/search/marketplace_ads/
+  // programmatic, so this step is invisible there, exactly like the
+  // existing rate-card contribution form's format selector). Purely a
+  // progressive-disclosure/metrics-scoping input for the campaign
+  // wizard — see the Draft interface comment above for why it isn't
+  // persisted on performance_datasets.
+  const formatOptions = useMemo(() => {
+    if (!selectedPlatform?.media_category_id) return [];
+    return formatsForCategory(taxonomies.mediaFormats, selectedPlatform.media_category_id);
+  }, [selectedPlatform, taxonomies.mediaFormats]);
+
+  // Item 2/17B.1: category-level metric applicability (media_category_
+  // metrics) takes priority when the selected outlet's category
+  // defines one — this is what makes streaming/publisher outlets show
+  // their own relevant metrics instead of the paid-social set. When a
+  // category has NO applicability rows yet (every pre-existing paid-
+  // media category: paid_social/search/marketplace_ads/programmatic),
+  // this falls back EXACTLY to the original platform_metrics-driven
+  // behavior — existing paid-media workflows are byte-for-byte
+  // unchanged, never a large if/else chain per platform.
+  const categoryApplicableMetrics = useMemo(() => {
+    if (!selectedPlatform?.media_category_id) return [];
+    return metricsForCategory(taxonomies.categoryMetrics, taxonomies.metrics, selectedPlatform.media_category_id);
+  }, [selectedPlatform, taxonomies.categoryMetrics, taxonomies.metrics]);
+
   // Dynamic metric inputs: only base metrics this platform actually
-  // supports (per platform_metrics), excluding ad_spend (collected in
-  // the Period & Investment step already).
+  // supports, excluding ad_spend (collected in the Period & Investment
+  // step already).
   const availableMetrics = useMemo(() => {
     if (!draft.platformId) return [];
+    if (categoryApplicableMetrics.length > 0) {
+      return categoryApplicableMetrics
+        .map((cm) => cm.metric)
+        .filter((m) => m.metric_kind === "base" && m.internal_key !== "ad_spend");
+    }
     const compatibleMetricIds = new Set(
       taxonomies.platformMetrics
         .filter((pm) => pm.platform_id === draft.platformId)
@@ -158,7 +248,7 @@ export function ContributeWizard({ taxonomies }: { taxonomies: ContributionTaxon
     return taxonomies.metrics.filter(
       (m) => m.metric_kind === "base" && m.internal_key !== "ad_spend" && compatibleMetricIds.has(m.id)
     );
-  }, [draft.platformId, taxonomies]);
+  }, [draft.platformId, categoryApplicableMetrics, taxonomies]);
 
   const videoViewsMetric = taxonomies.metrics.find((m) => m.internal_key === "video_views");
   const videoViewVariants = taxonomies.metricVariants.filter((v) => v.metric_id === videoViewsMetric?.id);
@@ -179,7 +269,7 @@ export function ContributeWizard({ taxonomies }: { taxonomies: ContributionTaxon
     } else {
       setSpendError(null);
     }
-    if (draft.currency.trim().length !== 3) {
+    if (!isSupportedCurrencyCode(draft.currency)) {
       setCurrencyError(t("contribute.errorInvalidCurrency"));
       ok = false;
     } else {
@@ -279,6 +369,29 @@ export function ContributeWizard({ taxonomies }: { taxonomies: ContributionTaxon
       <div className="mt-6 max-w-xl rounded-2xl border border-line bg-surface p-6 shadow-sm">
         {step === 0 && (
           <div className="space-y-3">
+            {/* Phase 19B item 2 — category-aware ordering: Tipo de
+                medio -> País -> Medio -> Formato, each narrowing the
+                next (progressive disclosure per Cucurucho UX & IA),
+                before the pre-existing objective/vertical/business-
+                model/scope fields. */}
+            <Field label={t("contribute.mediaCategory")}>
+              <Select
+                value={draft.mediaCategoryId ?? ""}
+                allowEmpty
+                emptyLabel={t("contribute.allMediaCategories")}
+                onChange={selectMediaCategory}
+                options={taxonomies.mediaCategories.map((c) => ({ value: c.id, label: c.display_label }))}
+              />
+            </Field>
+            <Field label={t("contribute.country")}>
+              <Select
+                value={draft.countryId ?? ""}
+                allowEmpty
+                emptyLabel="—"
+                onChange={selectCountry}
+                options={taxonomies.countries.map((c) => ({ value: c.id, label: c.display_label }))}
+              />
+            </Field>
             <Field label={t("contribute.platform")}>
               <Select
                 value={draft.platformUiId ?? ""}
@@ -288,6 +401,17 @@ export function ContributeWizard({ taxonomies }: { taxonomies: ContributionTaxon
                 options={platformOptions.map((p) => ({ value: p.uiId, label: p.label }))}
               />
             </Field>
+            {formatOptions.length > 0 && (
+              <Field label={`${t("contribute.format")} (${t("contribute.optional")})`}>
+                <Select
+                  value={draft.mediaFormatId ?? ""}
+                  allowEmpty
+                  emptyLabel="—"
+                  onChange={(v) => update("mediaFormatId", v || null)}
+                  options={formatOptions.map((f) => ({ value: f.id, label: f.display_label }))}
+                />
+              </Field>
+            )}
             <Field label={t("contribute.objective")}>
               <Select
                 value={draft.objectiveId ?? ""}
@@ -304,15 +428,6 @@ export function ContributeWizard({ taxonomies }: { taxonomies: ContributionTaxon
                 emptyLabel="—"
                 onChange={(v) => update("verticalId", v)}
                 options={taxonomies.verticals.map((v) => ({ value: v.id, label: v.display_label }))}
-              />
-            </Field>
-            <Field label={t("contribute.country")}>
-              <Select
-                value={draft.countryId ?? ""}
-                allowEmpty
-                emptyLabel="—"
-                onChange={(v) => update("countryId", v)}
-                options={taxonomies.countries.map((c) => ({ value: c.id, label: c.display_label }))}
               />
             </Field>
             <Field label={`${t("contribute.businessModel")} (${t("contribute.optional")})`}>
@@ -428,13 +543,12 @@ export function ContributeWizard({ taxonomies }: { taxonomies: ContributionTaxon
             </div>
             {dateError && <p className="text-xs text-caution">{dateError}</p>}
             <Field label={t("contribute.currency")}>
-              <input
-                type="text"
-                maxLength={3}
-                placeholder="USD"
+              <Select
                 value={draft.currency}
-                onChange={(e) => update("currency", e.target.value.toUpperCase())}
-                className="rounded-xl border border-line bg-surface px-3 py-2.5 text-sm uppercase text-ink-900 outline-none focus-visible:border-primary"
+                allowEmpty
+                emptyLabel="—"
+                onChange={(v) => update("currency", v)}
+                options={SUPPORTED_CURRENCIES.map((c) => ({ value: c.code, label: c.displayLabel }))}
               />
             </Field>
             {currencyError && <p className="text-xs text-caution">{currencyError}</p>}

@@ -27,16 +27,25 @@ export function currentRateCards<T extends { status: string }>(rateCards: T[]): 
   return rateCards.filter((rc) => rc.status === "active");
 }
 
-export function platformsForCategory(platforms: Platform[], categoryId: string | null): Platform[] {
+// Phase 19B item 2: widened to a minimal structural generic (rather
+// than the specific MediaCatalog["platforms"] shape) so the SAME
+// filtering logic is reusable from the contribution wizard's taxonomy
+// query (lib/contribute/taxonomies.ts), which selects a slightly
+// different column subset than getMediaCatalog — never a second,
+// parallel copy of this filtering rule.
+export function platformsForCategory<T extends { media_category_id: string | null }>(
+  platforms: T[],
+  categoryId: string | null
+): T[] {
   if (!categoryId) return platforms;
   return platforms.filter((p) => p.media_category_id === categoryId);
 }
 
-export function platformsForCountry(
-  platforms: Platform[],
+export function platformsForCountry<T extends { id: string; is_global: boolean }>(
+  platforms: T[],
   platformCountries: MediaCatalog["platformCountries"],
   countryId: string | null
-): Platform[] {
+): T[] {
   if (!countryId) return platforms;
   const availableIds = new Set(platformCountries.filter((pc) => pc.country_id === countryId).map((pc) => pc.platform_id));
   // A global platform is available everywhere even without an
@@ -46,22 +55,27 @@ export function platformsForCountry(
   return platforms.filter((p) => p.is_global || availableIds.has(p.id));
 }
 
-export function formatsForCategory(formats: MediaCatalog["formats"], categoryId: string): MediaCatalog["formats"] {
+export function formatsForCategory<T extends { media_category_id: string }>(formats: T[], categoryId: string): T[] {
   return formats.filter((f) => f.media_category_id === categoryId);
 }
 
-export function metricsForCategory(
+// Phase 19B item 2: `metrics` widened to a minimal structural generic
+// (id + internal_key, same requirement as before) so the contribution
+// wizard's taxonomy shape (which carries extra metric_kind/unit_type
+// fields getMediaCatalog doesn't select) flows through with its full
+// type intact — same filtering rule, reused rather than duplicated.
+export function metricsForCategory<T extends { id: string; internal_key: string }>(
   categoryMetrics: MediaCatalog["categoryMetrics"],
-  metrics: MediaCatalog["metrics"],
+  metrics: T[],
   categoryId: string
-): { metric: MediaCatalog["metrics"][number]; required: boolean }[] {
+): { metric: T; required: boolean }[] {
   const applicable = categoryMetrics.filter((cm) => cm.media_category_id === categoryId);
   return applicable
     .map((cm) => {
       const metric = metrics.find((m) => m.id === cm.metric_id);
       return metric ? { metric, required: cm.required } : null;
     })
-    .filter((x): x is { metric: MediaCatalog["metrics"][number]; required: boolean } => x !== null);
+    .filter((x): x is { metric: T; required: boolean } => x !== null);
 }
 
 // Case/accent-insensitive substring search across display name and

@@ -1,5 +1,6 @@
 import { parseLatamAwareNumber, parseFlexibleDate } from "@/lib/import/normalize";
 import type { RawTable } from "@/lib/import/types";
+import { isSupportedCurrencyCode } from "@/lib/config/currencies";
 
 // Phase 19 item 9/10/11: reuses lib/import/parse.ts's parseCsv/
 // parseXlsxBuffer directly — same reused pattern as lib/media/
@@ -125,8 +126,9 @@ export function validateRateCardRow(
   const parsedPrice = parseLatamAwareNumber(row.price);
   if (parsedPrice.value === null || parsedPrice.value < 0) errors.push("import.issue.invalidNumber");
 
+  // Phase 19B item 4: controlled supported set, not a length check.
   const currency = row.currency.trim().toUpperCase();
-  if (currency.length !== 3) errors.push("import.issue.unrecognizedCurrency");
+  if (!isSupportedCurrencyCode(currency)) errors.push("import.issue.unrecognizedCurrency");
 
   const pricingUnit = row.pricingUnit.trim();
   if (!VALID_PRICING_UNITS.has(pricingUnit)) errors.push("import.issue.unknownPricingUnit");
@@ -149,7 +151,7 @@ export function validateRateCardRow(
     platformKey: platform?.internal_key ?? null,
     mediaFormatKey: format?.internal_key ?? null,
     price: parsedPrice.value,
-    currency: currency.length === 3 ? currency : null,
+    currency: isSupportedCurrencyCode(currency) ? currency : null,
     pricingUnit: VALID_PRICING_UNITS.has(pricingUnit) ? pricingUnit : null,
     validFrom: parsedFrom.iso,
     validTo: validToIso,
