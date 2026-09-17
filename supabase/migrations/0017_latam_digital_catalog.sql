@@ -28,15 +28,18 @@ update countries set display_label = 'Perú' where iso_code = 'PE' and display_l
 -- ---------------------------------------------------------------------
 -- §4: LATAM expansion needs Ecuador and Bolivia added to the countries
 -- table (not present in the original seed) before any catalog entity
--- can be scoped to them.
+-- can be scoped to them. Guarded via the table's own canonical unique
+-- constraint on iso_code (0002_taxonomies.sql) rather than a manual
+-- not-exists check, so this is safe to re-run after a partial failure
+-- of this migration on hosted Supabase.
 -- ---------------------------------------------------------------------
-insert into countries (iso_code, display_label, display_order)
-select 'EC', 'Ecuador', 11
-where not exists (select 1 from countries where iso_code = 'EC');
+insert into countries (iso_code, display_label, display_order) values
+  ('EC', 'Ecuador', 11)
+on conflict (iso_code) do nothing;
 
-insert into countries (iso_code, display_label, display_order)
-select 'BO', 'Bolivia', 12
-where not exists (select 1 from countries where iso_code = 'BO');
+insert into countries (iso_code, display_label, display_order) values
+  ('BO', 'Bolivia', 12)
+on conflict (iso_code) do nothing;
 
 -- ---------------------------------------------------------------------
 -- §4/§5: curated, quality-over-quantity initial digital catalog for
@@ -115,12 +118,24 @@ from (values
   ('la_razon_bo', 'La Razón Digital', 'digital_publisher', 132, 'larazon.bo')
 ) as v(internal_key, display_label, category_key, display_order, website_domain)
 join media_categories mc on mc.internal_key = v.category_key
-where not exists (select 1 from platforms where internal_key = v.internal_key);
+on conflict (internal_key) do nothing;
 
+-- Bug fix (post-5b7de26): the previous version of this statement joined
+-- `countries c on c.iso_code = v.iso_code` BEFORE `v` (the internal_key
+-- → iso_code values table) was introduced later in the same FROM
+-- clause — Postgres evaluates join conditions in join order, so `v` was
+-- not yet in scope at that point (42P01: missing FROM-clause entry for
+-- table "v"). Fixed by joining `v` first (it only depends on `p`, which
+-- is already in scope), then joining `countries c` on `v.iso_code` once
+-- `v` actually exists in the FROM clause. Also switched from a manual
+-- not-exists guard to platform_countries' own canonical primary key
+-- (platform_id, country_id) via ON CONFLICT DO NOTHING (0012_media_
+-- universe.sql), so this statement is safe to re-run regardless of how
+-- much of the previous, failed attempt actually committed on hosted
+-- Supabase.
 insert into platform_countries (platform_id, country_id)
 select p.id, c.id
 from platforms p
-join countries c on c.iso_code = v.iso_code
 join (values
   ('el_universal_mx', 'MX'), ('milenio', 'MX'), ('animal_politico', 'MX'), ('expansion_mx', 'MX'), ('la_silla_rota', 'MX'),
   ('el_pais_uy', 'UY'), ('montevideo_portal', 'UY'), ('el_observador_uy', 'UY'),
@@ -132,9 +147,8 @@ join (values
   ('el_comercio_ec', 'EC'), ('el_universo', 'EC'), ('primicias', 'EC'),
   ('el_deber', 'BO'), ('los_tiempos', 'BO'), ('la_razon_bo', 'BO')
 ) as v(internal_key, iso_code) on v.internal_key = p.internal_key
-where not exists (
-  select 1 from platform_countries pc where pc.platform_id = p.id and pc.country_id = c.id
-);
+join countries c on c.iso_code = v.iso_code
+on conflict (platform_id, country_id) do nothing;
 
 -- ---------------------------------------------------------------------
 -- No new media_formats or media_outlet_formats rows are needed: every
