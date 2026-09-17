@@ -1,5 +1,5 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server";
-import { platformsForCategory, platformsForCountry, formatsForCategory, latestSnapshotPerMetric } from "@/lib/media/filter";
+import { platformsForCategory, platformsForCountry, formatsForCategory, latestSnapshotPerMetric, digitalMediaCategories, digitalMediaPlatforms } from "@/lib/media/filter";
 import { groupRateCardsByIdentity, type RateCardIdentity, type RateCardLike } from "@/lib/media/rateCardHistory";
 import { buildOpportunities, type OpportunityTaxonomyCombo, type PlanningOpportunity } from "./opportunity";
 
@@ -133,7 +133,12 @@ export async function getPlanningOpportunities(filters: PlanningFilters): Promis
     supabase.from("media_outlet_formats").select("platform_id, media_format_id"),
   ]);
 
-  let matchedPlatforms = platformsForCategory(platformsRes.data ?? [], filters.categoryId ?? null);
+  // Phase 20D item 6: digital-only scope — same filter getMediaCatalog
+  // applies, kept here too since the planner fetches platforms/
+  // categories independently rather than through getMediaCatalog.
+  const allCategories = categories.data ?? [];
+  const digitalCategories = digitalMediaCategories(allCategories);
+  let matchedPlatforms = platformsForCategory(digitalMediaPlatforms(platformsRes.data ?? [], allCategories), filters.categoryId ?? null);
   matchedPlatforms = platformsForCountry(matchedPlatforms, platformCountries.data ?? [], filters.countryId ?? null);
   if (filters.platformId) matchedPlatforms = matchedPlatforms.filter((p) => p.id === filters.platformId);
 
@@ -180,7 +185,7 @@ export async function getPlanningOpportunities(filters: PlanningFilters): Promis
   return {
     opportunities: assembled.opportunities,
     platforms: matchedPlatforms,
-    categories: categories.data ?? [],
+    categories: digitalCategories,
     formats: formatsRes.data ?? [],
     properties: properties.data ?? [],
     metricDefinitions: assembled.metricDefinitions,

@@ -1,5 +1,5 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server";
-import { latestSnapshotPerMetric } from "./filter";
+import { latestSnapshotPerMetric, digitalMediaCategories, digitalMediaPlatforms } from "./filter";
 import { resolveLatestAndPrevious, computeChange, isChangeMeaningful, trendEligibility } from "./trend";
 import { groupRateCardsByIdentity } from "./rateCardHistory";
 
@@ -11,7 +11,7 @@ import { groupRateCardsByIdentity } from "./rateCardHistory";
 export async function getMediaCatalog() {
   const supabase = createServerSupabaseClient();
 
-  const [categories, platforms, platformCountries, countries, formats, metricFamilies, categoryMetrics, metrics] = await Promise.all([
+  const [categories, platforms, platformCountries, countries, formats, metricFamilies, categoryMetrics, metrics, activeRateCards] = await Promise.all([
     supabase.from("media_categories").select("id, internal_key, display_label, display_order").eq("active", true).order("display_order"),
     supabase.from("platforms").select("id, internal_key, display_label, media_category_id, is_global, status, display_order").eq("active", true).order("display_order"),
     supabase.from("platform_countries").select("platform_id, country_id"),
@@ -20,17 +20,27 @@ export async function getMediaCatalog() {
     supabase.from("metric_families").select("id, internal_key, display_label, display_order").order("display_order"),
     supabase.from("media_category_metrics").select("media_category_id, metric_id, required"),
     supabase.from("metrics").select("id, internal_key, display_label").eq("active", true),
+    // Phase 20D item 11: a presence-only check (which outlets have a
+    // currently active rate card) so media cards can honestly say
+    // "Tarifario disponible" / "Sin tarifario" — never a price value,
+    // just whether one exists, and never N+1 (one query, all rows).
+    supabase.from("media_rate_cards").select("platform_id").eq("status", "active"),
   ]);
 
+  // Phase 20D item 6: digital-only scope for the current catalog-
+  // expansion phase — see lib/media/filter.ts. Schema/data untouched;
+  // non-digital categories simply don't surface in discovery yet.
+  const allCategories = categories.data ?? [];
   return {
-    categories: categories.data ?? [],
-    platforms: platforms.data ?? [],
+    categories: digitalMediaCategories(allCategories),
+    platforms: digitalMediaPlatforms(platforms.data ?? [], allCategories),
     platformCountries: platformCountries.data ?? [],
     countries: countries.data ?? [],
     formats: formats.data ?? [],
     metricFamilies: metricFamilies.data ?? [],
     categoryMetrics: categoryMetrics.data ?? [],
     metrics: metrics.data ?? [],
+    platformsWithRateCard: Array.from(new Set((activeRateCards.data ?? []).map((rc) => rc.platform_id))),
     hasError: !!(categories.error || platforms.error || platformCountries.error || countries.error || formats.error),
   };
 }

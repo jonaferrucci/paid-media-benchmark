@@ -10,15 +10,24 @@ import { EntityAvatar } from "@/components/ui/EntityAvatar";
 import { Badge } from "@/components/ui/Badge";
 import { useTranslation } from "@/lib/i18n/LanguageContext";
 import type { MediaCatalog } from "@/lib/media/catalog";
-import { platformsForCategory, platformsForCountry, searchCatalog } from "@/lib/media/filter";
+import { platformsForCategory, platformsForCountry, searchCatalog, splitPlatformsAndMedia } from "@/lib/media/filter";
 
 // Phase 20C item D: progressive chip filters replace the two dropdown
-// <select>s (a "filter wall" per the product-experience brief) — the
-// same platformsForCategory/platformsForCountry/searchCatalog pure
-// helpers from Phase 17 are reused untouched, only the input controls
-// change. Cards move onto the shared EntityCard/EntityAvatar pattern
-// (item B) so the catalog now shows a recognizable brand mark instead
-// of a bare hashed color bar.
+// <select>s (a "filter wall") — the same platformsForCategory/
+// platformsForCountry/searchCatalog pure helpers from Phase 17 are
+// reused untouched, only the input controls change.
+//
+// Phase 20D item 5/10/11: PLATAFORMAS (ad platforms) and MEDIOS (outlets)
+// are rendered as two distinct sections rather than one mixed grid —
+// splitPlatformsAndMedia draws that line by category, in one shared
+// place. Ad platform cards reuse the exact same lib/mock/taxonomies.ts
+// PLATFORM_CARDS description copy already shown in the benchmark
+// wizard (no new/invented copy); media cards surface real, non-
+// fabricated rate-card presence instead.
+const PLATFORM_DESC_KEYS = new Set([
+  "meta_ads", "google_ads", "tiktok_ads", "mercado_libre_ads", "pinterest_ads", "dsp_programmatic",
+]);
+
 function FilterChip({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
   return (
     <button
@@ -49,6 +58,11 @@ export function MediaCatalogView({ catalog }: { catalog: MediaCatalog }) {
     return result;
   }, [catalog, categoryId, countryId, query]);
 
+  const { adPlatforms, media } = useMemo(
+    () => splitPlatformsAndMedia(filtered, catalog.categories),
+    [filtered, catalog.categories]
+  );
+
   function categoryLabel(id: string | null): string {
     return catalog.categories.find((c) => c.id === id)?.display_label ?? "";
   }
@@ -60,6 +74,8 @@ export function MediaCatalogView({ catalog }: { catalog: MediaCatalog }) {
     if (ids.length === 1) return catalog.countries.find((c) => c.id === ids[0])?.display_label ?? "";
     return t("media.countryCount", { n: ids.length });
   }
+
+  const hasRateCard = new Set(catalog.platformsWithRateCard ?? []);
 
   return (
     <div className="min-h-screen bg-canvas">
@@ -116,19 +132,56 @@ export function MediaCatalogView({ catalog }: { catalog: MediaCatalog }) {
               </a>
             </div>
           ) : (
-            <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {filtered.map((p) => (
-                <EntityCard
-                  key={p.id}
-                  href={`/media/${p.internal_key}`}
-                  avatar={<EntityAvatar label={p.display_label} platformUiId={p.internal_key} size={36} />}
-                  title={p.display_label}
-                  meta={[categoryLabel(p.media_category_id), countryMetaFor(p.id, p.is_global)].filter(Boolean).join(" · ")}
-                  badge={p.status === "pending" ? <Badge tone="warning">{t("media.statusPending")}</Badge> : undefined}
-                  detail={<p>{t("media.noBenchmarkYet")}</p>}
-                />
-              ))}
-            </div>
+            <>
+              {adPlatforms.length > 0 && (
+                <section className="mt-6">
+                  <h2 className="font-display text-sm font-semibold text-ink-900">{t("media.platformsSectionTitle")}</h2>
+                  <p className="text-xs text-ink-500">{t("media.platformsSectionSubtitle")}</p>
+                  <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                    {adPlatforms.map((p) => (
+                      <EntityCard
+                        key={p.id}
+                        href={`/media/${p.internal_key}`}
+                        avatar={<EntityAvatar label={p.display_label} platformUiId={p.internal_key} size={36} />}
+                        title={p.display_label}
+                        meta={categoryLabel(p.media_category_id)}
+                        detail={
+                          <>
+                            {PLATFORM_DESC_KEYS.has(p.internal_key) && <p>{t(`platformDesc.${p.internal_key}`)}</p>}
+                            <p className="mt-1 font-medium text-primary">{t("media.exploreCta")} →</p>
+                          </>
+                        }
+                      />
+                    ))}
+                  </div>
+                </section>
+              )}
+
+              {media.length > 0 && (
+                <section className="mt-6">
+                  <h2 className="font-display text-sm font-semibold text-ink-900">{t("media.mediaSectionTitle")}</h2>
+                  <p className="text-xs text-ink-500">{t("media.mediaSectionSubtitle")}</p>
+                  <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                    {media.map((p) => (
+                      <EntityCard
+                        key={p.id}
+                        href={`/media/${p.internal_key}`}
+                        avatar={<EntityAvatar label={p.display_label} platformUiId={p.internal_key} size={36} />}
+                        title={p.display_label}
+                        meta={[categoryLabel(p.media_category_id), countryMetaFor(p.id, p.is_global)].filter(Boolean).join(" · ")}
+                        badge={p.status === "pending" ? <Badge tone="warning">{t("media.statusPending")}</Badge> : undefined}
+                        detail={
+                          <>
+                            <p>{hasRateCard.has(p.id) ? t("media.hasRateCard") : t("media.noRateCard")}</p>
+                            <p className="mt-1 font-medium text-primary">{t("media.viewMediaCta")} →</p>
+                          </>
+                        }
+                      />
+                    ))}
+                  </div>
+                </section>
+              )}
+            </>
           )}
         </main>
       </div>

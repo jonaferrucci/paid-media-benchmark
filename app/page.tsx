@@ -1,12 +1,12 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import Link from "next/link";
 import { ArrowLeft, Globe2 } from "lucide-react";
 import { DashboardSidebar } from "@/components/dashboard/DashboardSidebar";
 import { AppHeader } from "@/components/dashboard/AppHeader";
 import { SearchOverlay } from "@/components/dashboard/SearchOverlay";
 import { Hero } from "@/components/dashboard/Hero";
+import { QuickActions } from "@/components/dashboard/QuickActions";
 import { GlobalInsights } from "@/components/dashboard/GlobalInsights";
 import { MiniTrend } from "@/components/dashboard/MiniTrend";
 import { FeaturedModules } from "@/components/dashboard/FeaturedModules";
@@ -91,6 +91,8 @@ export default function OverviewPage() {
         <div>
           <Hero />
 
+          <QuickActions />
+
           <div className="mx-auto mb-3 flex max-w-xs items-center gap-1 rounded-full border border-line bg-surface p-1">
             <button
               onClick={() => setMode("find")}
@@ -109,12 +111,6 @@ export default function OverviewPage() {
               {t("modeTabs.exploreMarket")}
             </button>
           </div>
-
-          <p className="mb-8 text-center text-xs text-ink-500">
-            <Link href="/benchmark" className="font-medium text-ink-700 hover:text-primary hover:underline">
-              {t("modeTabs.compareCampaign")}
-            </Link>
-          </p>
 
           {mode === "find" ? (
             <div className="space-y-10">

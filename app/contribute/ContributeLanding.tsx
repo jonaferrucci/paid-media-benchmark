@@ -2,7 +2,7 @@
 
 import { useCallback, useRef, useState } from "react";
 import Link from "next/link";
-import { Edit3, Upload, FileDown, ArrowLeft, Check, AlertTriangle } from "lucide-react";
+import { Edit3, Upload, FileDown, BarChart3, ArrowLeft, Check, AlertTriangle } from "lucide-react";
 import { AppHeader } from "@/components/dashboard/AppHeader";
 import { DashboardSidebar } from "@/components/dashboard/DashboardSidebar";
 import { SearchOverlay } from "@/components/dashboard/SearchOverlay";
@@ -95,7 +95,14 @@ function LandingChooser({
         </p>
       )}
 
-      <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
+      {/* Phase 20D item 17: the top-level split is by WHAT the person
+          has (campaign results / public data / a rate card / a bulk
+          file) — never by entry-method speed — so someone with a
+          tarifario in hand doesn't have to first guess "quick" vs
+          "upload". Four equal cards, no card more prominent than
+          another. */}
+      <h2 className="mt-6 text-sm font-medium text-ink-700">{t("contribute.topQuestion")}</h2>
+      <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <button onClick={onQuick} className="group rounded-2xl border border-line bg-surface p-5 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md">
           <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-brandLavender/20">
             <Edit3 size={20} className="text-brandLavender" aria-hidden="true" />
@@ -106,6 +113,20 @@ function LandingChooser({
             {t("contribute.pathQuickHint")}
           </span>
         </button>
+        <Link href="/contribute/public-metrics" className="group rounded-2xl border border-line bg-surface p-5 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md">
+          <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-coral/20">
+            <BarChart3 size={20} className="text-coral" aria-hidden="true" />
+          </span>
+          <p className="mt-3 font-display text-sm font-semibold text-ink-900">{t("contribute.pathPublicMetricsTitle")}</p>
+          <p className="mt-1 text-xs text-ink-600">{t("contribute.pathPublicMetricsBody")}</p>
+        </Link>
+        <Link href="/contribute/rate-cards" className="group rounded-2xl border border-line bg-surface p-5 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md">
+          <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-brandPeach/20">
+            <FileDown size={20} className="text-brandPeach" aria-hidden="true" />
+          </span>
+          <p className="mt-3 font-display text-sm font-semibold text-ink-900">{t("contribute.pathRateCardsTitle")}</p>
+          <p className="mt-1 text-xs text-ink-600">{t("contribute.pathRateCardsBody")}</p>
+        </Link>
         <button onClick={onUpload} className="group rounded-2xl border border-line bg-surface p-5 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md">
           <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-brandMint/20">
             <Upload size={20} className="text-brandMint" aria-hidden="true" />
@@ -113,32 +134,14 @@ function LandingChooser({
           <p className="mt-3 font-display text-sm font-semibold text-ink-900">{t("contribute.pathUploadTitle")}</p>
           <p className="mt-1 text-xs text-ink-600">{t("contribute.pathUploadBody")}</p>
         </button>
-        <div className="rounded-2xl border border-line bg-surface p-5 shadow-sm">
-          <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-brandPeach/20">
-            <FileDown size={20} className="text-brandPeach" aria-hidden="true" />
-          </span>
-          <p className="mt-3 font-display text-sm font-semibold text-ink-900">{t("contribute.pathTemplateTitle")}</p>
-          <p className="mt-1 text-xs text-ink-600">{t("contribute.pathTemplateBody")}</p>
-          <div className="mt-3 flex gap-2">
-            <button onClick={downloadCsv} className="rounded-full border border-line px-3 py-1.5 text-xs font-medium text-ink-700 hover:border-primary hover:text-primary">CSV</button>
-            <button onClick={downloadXlsx} className="rounded-full border border-line px-3 py-1.5 text-xs font-medium text-ink-700 hover:border-primary hover:text-primary">XLSX</button>
-          </div>
-        </div>
       </div>
 
-      <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
-        <div className="rounded-xl border border-dashed border-line bg-surface2/40 px-4 py-3">
-          <p className="text-xs text-ink-600">{t("media.importMetricsFromContributeNote")}</p>
-          <Link href="/contribute/public-metrics" className="mt-1 inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline">
-            {t("media.importMetricsCta")}
-          </Link>
-        </div>
-        <div className="rounded-xl border border-dashed border-line bg-surface2/40 px-4 py-3">
-          <p className="text-xs text-ink-600">{t("media.rateCardsFromContributeNote")}</p>
-          <Link href="/contribute/rate-cards" className="mt-1 inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline">
-            {t("media.importRateCardsCta")}
-          </Link>
-        </div>
+      {/* Item 19: template download reachable without picking a file
+          first — a small secondary row, not a fifth competing card. */}
+      <div className="mt-3 flex flex-wrap items-center gap-2 rounded-xl border border-dashed border-line bg-surface2/40 px-4 py-3 text-xs text-ink-600">
+        <span>{t("contribute.pathTemplateBody")}</span>
+        <button onClick={downloadCsv} className="rounded-full border border-line bg-surface px-3 py-1 font-medium text-ink-700 hover:border-primary hover:text-primary">CSV</button>
+        <button onClick={downloadXlsx} className="rounded-full border border-line bg-surface px-3 py-1 font-medium text-ink-700 hover:border-primary hover:text-primary">XLSX</button>
       </div>
     </div>
   );

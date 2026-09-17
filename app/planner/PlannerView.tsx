@@ -76,12 +76,12 @@ export function PlannerView({ catalog, initialScenarios }: PlannerViewProps) {
 
   const formatsForFilter = categoryId ? catalog.formats.filter((f) => f.media_category_id === categoryId) : catalog.formats;
 
-  async function runSearch() {
+  async function runSearch(overrides?: { categoryId?: string }) {
     setLoading(true);
     setHasSearched(true);
     try {
       const data = await fetchPlanningOpportunitiesAction({
-        categoryId: categoryId || null,
+        categoryId: (overrides?.categoryId ?? categoryId) || null,
         countryId: countryId || null,
         mediaFormatId: mediaFormatId || null,
       });
@@ -89,6 +89,15 @@ export function PlannerView({ catalog, initialScenarios }: PlannerViewProps) {
     } finally {
       setLoading(false);
     }
+  }
+
+  // §13: one-click "Explorar" shortcuts from the friendly start state —
+  // real categories from the catalog, never an invented "most popular"
+  // ranking (no usage data exists to back that claim).
+  function quickExplore(catId: string) {
+    setCategoryId(catId);
+    setMediaFormatId("");
+    runSearch({ categoryId: catId });
   }
 
   const opportunities = result?.opportunities ?? [];
@@ -271,10 +280,34 @@ export function PlannerView({ catalog, initialScenarios }: PlannerViewProps) {
                 </select>
               </label>
             </div>
-            <Button className="mt-3" onClick={runSearch} disabled={loading}>
+            <Button className="mt-3" onClick={() => runSearch()} disabled={loading}>
               {loading ? t("mediaPlanner.opportunitiesLoading") : t("mediaPlanner.filters.search")}
             </Button>
           </Card>
+
+          {/* §13: friendly start state — never a bare, technical empty
+              filter panel. Category shortcuts are real catalog
+              categories, "Explorar" rather than an invented "most
+              popular" ranking (no usage data backs that claim). */}
+          {!hasSearched && (
+            <div className="mt-6 rounded-2xl border border-dashed border-line bg-surface p-6 text-center">
+              <Compass size={20} className="mx-auto text-brandLavender" aria-hidden="true" />
+              <p className="mt-2 font-display text-sm font-semibold text-ink-900">{t("mediaPlanner.startStateTitle")}</p>
+              <p className="mt-1 text-xs text-ink-500">{t("mediaPlanner.startStateBody")}</p>
+              <div className="mt-4 flex flex-wrap justify-center gap-2">
+                {catalog.categories.map((c) => (
+                  <button
+                    key={c.id}
+                    type="button"
+                    onClick={() => quickExplore(c.id)}
+                    className="rounded-full border border-line bg-canvas px-3.5 py-1.5 text-xs font-medium text-ink-700 hover:border-primary hover:text-primary"
+                  >
+                    {c.display_label} — {t("media.exploreCta")}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Opportunity discovery grid */}
           {hasSearched && (
@@ -334,6 +367,43 @@ export function PlannerView({ catalog, initialScenarios }: PlannerViewProps) {
                   })}
                 </div>
               )}
+            </section>
+          )}
+
+          {/* §14/§15: "medios seleccionados" is its own visible step
+              ahead of the comparison table, and always communicates
+              whether another opportunity can still be added — the
+              workspace never reads as fixed to exactly two. */}
+          {selectedOpportunities.length > 0 && (
+            <section className="mt-5">
+              <h2 className="font-display text-sm font-semibold text-ink-900">{t("mediaPlanner.selectedSectionTitle")}</h2>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {selectedOpportunities.map((o) => {
+                  const label = labelForOpportunity(o).outlet;
+                  return (
+                    <span key={opportunityKey(o)} className="inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary-soft/30 py-1.5 pl-3 pr-2 text-xs font-medium text-ink-800">
+                      {label}
+                      <button
+                        type="button"
+                        onClick={() => toggleSelect(o)}
+                        aria-label={`${t("mediaPlanner.removeFromComparison")} — ${label}`}
+                        className="rounded-full p-0.5 text-ink-400 hover:bg-white/40 hover:text-destructive"
+                      >
+                        <X size={11} aria-hidden="true" />
+                      </button>
+                    </span>
+                  );
+                })}
+                {selectedOpportunities.length < 4 ? (
+                  <span className="inline-flex items-center rounded-full border border-dashed border-line px-3 py-1.5 text-xs text-ink-500">
+                    + {t("mediaPlanner.addAnotherHint")}
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center rounded-full bg-vanilla-soft px-3 py-1.5 text-xs text-vanilla">
+                    {t("mediaPlanner.selectionLimitReached")}
+                  </span>
+                )}
+              </div>
             </section>
           )}
 

@@ -78,6 +78,57 @@ export function metricsForCategory<T extends { id: string; internal_key: string 
     .filter((x): x is { metric: T; required: boolean } => x !== null);
 }
 
+// Phase 20D item 6: the next catalog-expansion phase is scoped to
+// DIGITAL media only. Non-digital categories (television, radio, ooh,
+// dooh, print) stay in media_categories/platforms for later — this is
+// a presentational/query filter, never a schema change, and nothing
+// here stops a category from being surfaced again by removing its key.
+// A platform with no category at all is treated as digital-eligible
+// (never silently excluded just because media_category_id is null).
+const NON_DIGITAL_CATEGORY_KEYS = new Set(["television", "radio", "ooh", "dooh", "print"]);
+
+export function isDigitalMediaCategory<T extends { internal_key: string }>(category: T): boolean {
+  return !NON_DIGITAL_CATEGORY_KEYS.has(category.internal_key);
+}
+
+export function digitalMediaCategories<T extends { internal_key: string }>(categories: T[]): T[] {
+  return categories.filter(isDigitalMediaCategory);
+}
+
+export function digitalMediaPlatforms<
+  C extends { id: string; internal_key: string },
+  P extends { media_category_id: string | null }
+>(platforms: P[], categories: C[]): P[] {
+  const nonDigitalIds = new Set(categories.filter((c) => !isDigitalMediaCategory(c)).map((c) => c.id));
+  return platforms.filter((p) => p.media_category_id === null || !nonDigitalIds.has(p.media_category_id));
+}
+
+// Phase 20D item 5: PLATAFORMAS (Meta Ads, Google Ads, TikTok Ads,
+// Mercado Libre Ads, Pinterest, Programmatic) and MEDIOS (streaming
+// outlets, digital publishers, etc.) are different concepts and should
+// never render as one undifferentiated grid — this is the single place
+// that draws the line, by category, so catalog/planner views split
+// consistently rather than each guessing independently.
+const AD_PLATFORM_CATEGORY_KEYS = new Set(["paid_social", "search", "marketplace_ads", "programmatic"]);
+
+export function isAdPlatformCategory(categoryInternalKey: string | null): boolean {
+  return categoryInternalKey !== null && AD_PLATFORM_CATEGORY_KEYS.has(categoryInternalKey);
+}
+
+export function splitPlatformsAndMedia<
+  C extends { id: string; internal_key: string },
+  P extends { media_category_id: string | null }
+>(platforms: P[], categories: C[]): { adPlatforms: P[]; media: P[] } {
+  const categoryKeyById = new Map(categories.map((c) => [c.id, c.internal_key]));
+  const adPlatforms: P[] = [];
+  const media: P[] = [];
+  for (const p of platforms) {
+    const key = p.media_category_id ? categoryKeyById.get(p.media_category_id) ?? null : null;
+    (isAdPlatformCategory(key) ? adPlatforms : media).push(p);
+  }
+  return { adPlatforms, media };
+}
+
 // Case/accent-insensitive substring search across display name and
 // (loosely) category — no external search service needed (item 23).
 export function searchCatalog(platforms: Platform[], query: string): Platform[] {

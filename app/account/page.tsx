@@ -64,8 +64,24 @@ export default function AccountPage() {
         <main className="mx-auto max-w-lg px-4 py-8 md:px-8">
           <h1 className="font-display text-xl font-semibold text-ink-900">{t("account.title")}</h1>
 
-          {loading || !user ? (
+          {loading ? (
             <p className="mt-6 text-sm text-ink-600">{t("account.loading")}</p>
+          ) : !user ? (
+            // Item 20: a signed-out visitor never sees a perpetual
+            // "loading" state — a short, concrete explanation of what
+            // an account is for, no subscription-tier language.
+            <div className="mt-6 rounded-2xl border border-dashed border-line bg-surface p-6 text-center">
+              <p className="font-display text-sm font-semibold text-ink-900">{t("account.signedOutTitle")}</p>
+              <p className="mt-1 text-xs text-ink-600">{t("account.signedOutBenefits")}</p>
+              <div className="mt-4 flex justify-center gap-2">
+                <Link href="/auth/sign-in" className="rounded-full border border-line px-4 py-2 text-xs font-medium text-ink-700 hover:border-primary hover:text-primary">
+                  {t("account.signInCta")}
+                </Link>
+                <Link href="/auth/sign-up" className="rounded-full bg-primary px-4 py-2 text-xs font-semibold text-white hover:opacity-90">
+                  {t("account.createAccountCta")}
+                </Link>
+              </div>
+            </div>
           ) : (
             <div className="mt-6 rounded-2xl border border-line bg-surface p-6 shadow-sm">
               <label className="flex flex-col gap-1">

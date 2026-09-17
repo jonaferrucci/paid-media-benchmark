@@ -8,6 +8,7 @@ import { AppHeader } from "@/components/dashboard/AppHeader";
 import { DashboardSidebar } from "@/components/dashboard/DashboardSidebar";
 import { SearchOverlay } from "@/components/dashboard/SearchOverlay";
 import { useTranslation } from "@/lib/i18n/LanguageContext";
+import { useSupabaseUser } from "@/lib/supabase/useUser";
 import type { ContributionTaxonomies } from "@/lib/contribute/taxonomies";
 import {
   type SavedComparison,
@@ -34,6 +35,7 @@ export function SavedComparisonsList({
   taxonomies: ContributionTaxonomies;
 }) {
   const { t, locale } = useTranslation();
+  const { user, loading: userLoading } = useSupabaseUser();
   const router = useRouter();
   const [searchOpen, setSearchOpen] = useState(false);
   const [comparisons, setComparisons] = useState(initialComparisons);
@@ -107,7 +109,25 @@ export function SavedComparisonsList({
           </div>
           <p className="mt-1 text-sm text-ink-600">{t("comparisons.subtitle")}</p>
 
-          {comparisons.length === 0 ? (
+          {!userLoading && !user ? (
+            // Item 24: a signed-out visitor gets the honest reason
+            // (no account, not "nothing saved yet") — the same
+            // sign-in/create-account prompt as /account, not a
+            // misleading "you haven't saved a comparison" empty state.
+            <div className="mt-6 rounded-2xl border border-dashed border-line bg-surface p-8 text-center">
+              <FolderOpen size={22} className="mx-auto text-ink-400" aria-hidden="true" />
+              <p className="mt-3 text-sm font-semibold text-ink-900">{t("account.signedOutTitle")}</p>
+              <p className="mt-1 text-xs text-ink-500">{t("account.signedOutBenefits")}</p>
+              <div className="mt-4 flex justify-center gap-2">
+                <Link href="/auth/sign-in" className="rounded-full border border-line px-4 py-2 text-xs font-medium text-ink-700 hover:border-primary hover:text-primary">
+                  {t("account.signInCta")}
+                </Link>
+                <Link href="/auth/sign-up" className="rounded-full bg-primary px-4 py-2 text-xs font-semibold text-white hover:opacity-90">
+                  {t("account.createAccountCta")}
+                </Link>
+              </div>
+            </div>
+          ) : comparisons.length === 0 ? (
             <div className="mt-6 rounded-2xl border border-dashed border-line bg-surface p-8 text-center">
               <FolderOpen size={22} className="mx-auto text-ink-400" aria-hidden="true" />
               <p className="mt-3 text-sm text-ink-700">{t("comparisons.emptyTitle")}</p>
