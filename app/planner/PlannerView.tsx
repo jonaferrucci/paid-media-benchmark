@@ -319,7 +319,18 @@ export function PlannerView({ catalog, initialScenarios }: PlannerViewProps) {
               {loading ? (
                 <p className="mt-2 text-sm text-ink-500">{t("mediaPlanner.opportunitiesLoading")}</p>
               ) : opportunities.length === 0 ? (
-                <p className="mt-2 text-sm text-ink-500">{t("mediaPlanner.opportunitiesEmpty")}</p>
+                // Phase 21 item 24/25: an empty result answers what's
+                // missing and offers one concrete next action — adjust
+                // the filters, or contribute the missing data — rather
+                // than a bare sentence with nothing to do next.
+                <div className="mt-3 rounded-2xl border border-dashed border-line bg-surface p-6 text-center">
+                  <Info size={18} className="mx-auto text-ink-400" aria-hidden="true" />
+                  <p className="mt-2 text-sm text-ink-700">{t("mediaPlanner.opportunitiesEmpty")}</p>
+                  <p className="mt-1 text-xs text-ink-500">{t("mediaPlanner.opportunitiesEmptyHint")}</p>
+                  <a href="/contribute" className="mt-3 inline-block rounded-full bg-primary px-4 py-2 text-xs font-semibold text-white hover:opacity-90">
+                    {t("media.ctaContribute")}
+                  </a>
+                </div>
               ) : (
                 <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
                   {opportunities.map((o) => {

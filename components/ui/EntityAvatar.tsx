@@ -1,4 +1,5 @@
 import { PLATFORM_LOGO } from "@/components/dashboard/PlatformLogo";
+import { resolveBrandAsset } from "@/lib/media/brand";
 
 // Phase 20C: a single, reusable slug→asset mapping surface for "who is
 // this" chips across the app (homepage, platforms, planner, media catalog,
@@ -12,6 +13,12 @@ import { PLATFORM_LOGO } from "@/components/dashboard/PlatformLogo";
 // policy PlatformLogo.tsx already established for mercado_libre_ads and
 // dsp_programmatic; this component just extends it to entities that have
 // no bundled brand glyph at all.
+//
+// Phase 21 item 8/12: the actual local-asset/brand-icon/initials
+// PRECEDENCE decision now lives in lib/media/brand.ts's resolveBrandAsset
+// (a pure, DB-free function) rather than being implicit in this
+// component's own if/else — this component only renders whichever tier
+// that resolver picks.
 const ACCENTS = [
   "bg-brandPeach/25 text-ink-900",
   "bg-brandLavender/25 text-ink-900",
@@ -40,9 +47,25 @@ interface EntityAvatarProps {
 
 export function EntityAvatar({ label, platformUiId, size = 36, className = "" }: EntityAvatarProps) {
   const brandEntry = platformUiId ? PLATFORM_LOGO[platformUiId] : undefined;
+  const resolution = resolveBrandAsset(platformUiId ?? label, !!brandEntry);
   const dimension = { width: size, height: size };
 
-  if (brandEntry) {
+  if (resolution.kind === "local-asset" && resolution.assetPath) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element -- a small,
+      // fixed-size catalog avatar; not worth next/image's remote-loader
+      // config for a handful of locally-approved logo files.
+      <img
+        src={resolution.assetPath}
+        alt=""
+        className={`shrink-0 rounded-full object-contain ${className}`}
+        style={dimension}
+        aria-hidden="true"
+      />
+    );
+  }
+
+  if (resolution.kind === "brand-icon" && brandEntry) {
     const { Icon, color } = brandEntry;
     return (
       <span

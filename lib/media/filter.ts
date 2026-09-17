@@ -139,6 +139,42 @@ export function searchCatalog(platforms: Platform[], query: string): Platform[] 
   );
 }
 
+// Phase 21 item 23: catalog search should work across outlet/platform
+// name, category, AND country — not just display_label. Still no
+// external search service, still fast (all in-memory, same normalized-
+// substring approach as searchCatalog above — just checked against more
+// fields per row). Kept as a SEPARATE exported function rather than
+// changing searchCatalog's signature, so nothing that already calls
+// searchCatalog(platforms, query) needs to change.
+export function searchCatalogAcrossFields(
+  platforms: Platform[],
+  categories: MediaCatalog["categories"],
+  countries: MediaCatalog["countries"],
+  platformCountries: MediaCatalog["platformCountries"],
+  query: string
+): Platform[] {
+  const normalize = (s: string) => s.trim().toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+  const normalized = normalize(query);
+  if (normalized === "") return platforms;
+
+  const categoryLabelById = new Map(categories.map((c) => [c.id, normalize(c.display_label)]));
+  const countryLabelById = new Map(countries.map((c) => [c.id, normalize(c.display_label)]));
+  const countryIdsByPlatform = new Map<string, string[]>();
+  for (const pc of platformCountries) {
+    const list = countryIdsByPlatform.get(pc.platform_id) ?? [];
+    list.push(pc.country_id);
+    countryIdsByPlatform.set(pc.platform_id, list);
+  }
+
+  return platforms.filter((p) => {
+    if (normalize(p.display_label).includes(normalized)) return true;
+    const categoryLabel = p.media_category_id ? categoryLabelById.get(p.media_category_id) : undefined;
+    if (categoryLabel && categoryLabel.includes(normalized)) return true;
+    const countryIds = countryIdsByPlatform.get(p.id) ?? [];
+    return countryIds.some((id) => (countryLabelById.get(id) ?? "").includes(normalized));
+  });
+}
+
 // Item 24/25: an arbitrary user-typed outlet name is NEVER treated as
 // a match against the canonical catalog — this is the explicit
 // "escape hatch" boundary. Returns true only if the exact same

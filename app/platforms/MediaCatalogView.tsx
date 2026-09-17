@@ -10,7 +10,7 @@ import { EntityAvatar } from "@/components/ui/EntityAvatar";
 import { Badge } from "@/components/ui/Badge";
 import { useTranslation } from "@/lib/i18n/LanguageContext";
 import type { MediaCatalog } from "@/lib/media/catalog";
-import { platformsForCategory, platformsForCountry, searchCatalog, splitPlatformsAndMedia } from "@/lib/media/filter";
+import { platformsForCategory, platformsForCountry, searchCatalogAcrossFields, splitPlatformsAndMedia } from "@/lib/media/filter";
 
 // Phase 20C item D: progressive chip filters replace the two dropdown
 // <select>s (a "filter wall") — the same platformsForCategory/
@@ -54,7 +54,9 @@ export function MediaCatalogView({ catalog }: { catalog: MediaCatalog }) {
     let result = catalog.platforms;
     result = platformsForCategory(result, categoryId);
     result = platformsForCountry(result, catalog.platformCountries, countryId);
-    result = searchCatalog(result, query);
+    // Phase 21 item 23: search matches outlet/platform name, category,
+    // or country — not just the display name.
+    result = searchCatalogAcrossFields(result, catalog.categories, catalog.countries, catalog.platformCountries, query);
     return result;
   }, [catalog, categoryId, countryId, query]);
 

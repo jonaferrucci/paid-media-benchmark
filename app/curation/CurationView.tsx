@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { Check, X } from "lucide-react";
+import Link from "next/link";
+import { Check, X, Database } from "lucide-react";
 import { AppHeader } from "@/components/dashboard/AppHeader";
 import { DashboardSidebar } from "@/components/dashboard/DashboardSidebar";
 import { SearchOverlay } from "@/components/dashboard/SearchOverlay";
@@ -95,6 +96,18 @@ export function CurationView({ queue }: { queue: GovernanceQueue }) {
           <h1 className="font-display text-xl font-semibold text-ink-900">{t("curation.title")}</h1>
           <p className="mt-1 text-xs text-ink-600">{t("curation.subtitle")}</p>
           {queue.hasError && <p className="mt-2 text-xs text-caution">{t("curation.loadError")}</p>}
+
+          {/* Phase 21 item 13/20: catalog import is a curator-only tool,
+              so its entry point lives here rather than adding another
+              top-level nav item (per the UX/IA doc's "do not add a
+              top-level navigation item for every new feature"). */}
+          <Link
+            href="/curation/catalog-import"
+            className="mt-4 inline-flex items-center gap-2 rounded-full border border-line bg-surface px-4 py-2 text-xs font-medium text-ink-700 hover:border-primary hover:text-primary"
+          >
+            <Database size={14} aria-hidden="true" />
+            {t("curation.catalogImport.entryCta")}
+          </Link>
 
           <Section title={t("curation.rateCardsTitle")} count={queue.rateCards.length} empty={t("curation.rateCardsEmpty")}>
             {queue.rateCards.map((rc) => (
