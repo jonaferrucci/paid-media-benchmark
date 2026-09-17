@@ -231,7 +231,7 @@ function ResultView({
   return (
     <div>
       <DashboardSidebar />
-      <div className="md:pl-56">
+      <div className="md:pl-[var(--sidebar-inset)] transition-[padding-left] duration-150">
         <main className="space-y-6 px-4 py-6 md:px-8">
           <div className="flex items-center justify-between">
             <button

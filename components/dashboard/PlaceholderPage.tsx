@@ -22,7 +22,7 @@ export function PlaceholderPage({ title, description, plannedPhase }: Placeholde
       {searchOpen && <SearchOverlay onClose={() => setSearchOpen(false)} onApply={() => {}} />}
 
       <DashboardSidebar />
-      <div className="md:pl-56">
+      <div className="md:pl-[var(--sidebar-inset)] transition-[padding-left] duration-150">
         <main className="px-4 py-6 md:px-8">
           <h1 className="font-display text-xl font-semibold text-ink-900">{title}</h1>
           <p className="mt-1 text-sm text-ink-600">{description}</p>

@@ -46,7 +46,7 @@ export function ContributeLanding({ taxonomies }: { taxonomies: ContributionTaxo
       <AppHeader onSearchClick={() => setSearchOpen(true)} />
       {searchOpen && <SearchOverlay onClose={() => setSearchOpen(false)} onApply={() => {}} />}
       <DashboardSidebar />
-      <div className="md:pl-56">
+      <div className="md:pl-[var(--sidebar-inset)] transition-[padding-left] duration-150">
         <main className="mx-auto max-w-4xl px-4 py-6 md:px-8">
           {mode === "landing" && (
             <LandingChooser
@@ -96,18 +96,27 @@ function LandingChooser({
       )}
 
       <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <button onClick={onQuick} className="group rounded-2xl border border-line bg-surface p-5 text-left shadow-sm transition-colors hover:border-primary/40">
-          <Edit3 size={20} className="text-brandLavender" aria-hidden="true" />
+        <button onClick={onQuick} className="group rounded-2xl border border-line bg-surface p-5 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md">
+          <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-brandLavender/20">
+            <Edit3 size={20} className="text-brandLavender" aria-hidden="true" />
+          </span>
           <p className="mt-3 font-display text-sm font-semibold text-ink-900">{t("contribute.pathQuickTitle")}</p>
           <p className="mt-1 text-xs text-ink-600">{t("contribute.pathQuickBody")}</p>
+          <span className="mt-2 inline-block rounded-full bg-pistachio-soft px-2 py-0.5 text-[10px] font-medium text-pistachio">
+            {t("contribute.pathQuickHint")}
+          </span>
         </button>
-        <button onClick={onUpload} className="group rounded-2xl border border-line bg-surface p-5 text-left shadow-sm transition-colors hover:border-primary/40">
-          <Upload size={20} className="text-brandMint" aria-hidden="true" />
+        <button onClick={onUpload} className="group rounded-2xl border border-line bg-surface p-5 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md">
+          <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-brandMint/20">
+            <Upload size={20} className="text-brandMint" aria-hidden="true" />
+          </span>
           <p className="mt-3 font-display text-sm font-semibold text-ink-900">{t("contribute.pathUploadTitle")}</p>
           <p className="mt-1 text-xs text-ink-600">{t("contribute.pathUploadBody")}</p>
         </button>
         <div className="rounded-2xl border border-line bg-surface p-5 shadow-sm">
-          <FileDown size={20} className="text-brandPeach" aria-hidden="true" />
+          <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-brandPeach/20">
+            <FileDown size={20} className="text-brandPeach" aria-hidden="true" />
+          </span>
           <p className="mt-3 font-display text-sm font-semibold text-ink-900">{t("contribute.pathTemplateTitle")}</p>
           <p className="mt-1 text-xs text-ink-600">{t("contribute.pathTemplateBody")}</p>
           <div className="mt-3 flex gap-2">

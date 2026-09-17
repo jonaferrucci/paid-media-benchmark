@@ -99,7 +99,7 @@ export function SavedComparisonsList({
       {searchOpen && <SearchOverlay onClose={() => setSearchOpen(false)} onApply={() => {}} />}
 
       <DashboardSidebar />
-      <div className="md:pl-56">
+      <div className="md:pl-[var(--sidebar-inset)] transition-[padding-left] duration-150">
         <main className="mx-auto max-w-4xl px-4 py-6 md:px-8">
           <div className="flex items-center gap-2">
             <Bookmark size={18} className="text-primary" aria-hidden="true" />

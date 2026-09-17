@@ -90,7 +90,7 @@ export function CurationView({ queue }: { queue: GovernanceQueue }) {
       <AppHeader onSearchClick={() => setSearchOpen(true)} />
       {searchOpen && <SearchOverlay onClose={() => setSearchOpen(false)} onApply={() => {}} />}
       <DashboardSidebar />
-      <div className="md:pl-56">
+      <div className="md:pl-[var(--sidebar-inset)] transition-[padding-left] duration-150">
         <main className="mx-auto max-w-4xl px-4 py-6 md:px-8">
           <h1 className="font-display text-xl font-semibold text-ink-900">{t("curation.title")}</h1>
           <p className="mt-1 text-xs text-ink-600">{t("curation.subtitle")}</p>

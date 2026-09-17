@@ -704,7 +704,7 @@ function Shell({
       <AppHeader onSearchClick={() => setSearchOpen(true)} />
       {searchOpen && <SearchOverlay onClose={() => setSearchOpen(false)} onApply={() => {}} />}
       <DashboardSidebar />
-      <div className="md:pl-56">
+      <div className="md:pl-[var(--sidebar-inset)] transition-[padding-left] duration-150">
         <main className="px-4 py-8 md:px-8">{children}</main>
       </div>
     </div>

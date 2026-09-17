@@ -131,6 +131,18 @@ html {
   -webkit-font-smoothing: antialiased;
 }
 
+/* Phase 20C: collapsed-by-default sidebar rail. Pages reserve only the
+   collapsed width by default; hovering/focusing the rail expands it as a
+   fixed overlay (no layout shift). Pinning is an explicit, deliberate user
+   choice, so it's the one case allowed to change this variable and shift
+   the docked content over — see DashboardSidebar.tsx. */
+:root {
+  --sidebar-inset: 4rem;
+}
+:root.sidebar-pinned {
+  --sidebar-inset: 14rem;
+}
+
 body {
   background-color: var(--color-background);
   color: var(--color-text-primary);

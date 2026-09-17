@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, Sparkles, PlayCircle } from "lucide-react";
 import { useTranslation } from "@/lib/i18n/LanguageContext";
 import { CohortFilters } from "@/lib/types";
 import { seededRandom, randomInRange } from "@/lib/mock/random";
@@ -51,7 +51,10 @@ export function FeaturedModules({ onQuickBenchmark }: FeaturedModulesProps) {
         onClick={() => onQuickBenchmark(featuredVerticalFilters)}
         className="rounded-2xl border border-line bg-surface p-4 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md"
       >
-        <p className="text-xs font-medium uppercase tracking-wide text-ink-400">
+        <span className="flex h-8 w-8 items-center justify-center rounded-full bg-brandLavender/20">
+          <Sparkles size={14} className="text-brandLavender" aria-hidden="true" />
+        </span>
+        <p className="mt-2 text-xs font-medium uppercase tracking-wide text-ink-400">
           {t("market.featuredVerticalTitle")}
         </p>
         <p className="mt-1 font-display text-base font-semibold text-primary">Beauty & Personal Care</p>
@@ -66,7 +69,10 @@ export function FeaturedModules({ onQuickBenchmark }: FeaturedModulesProps) {
         onClick={() => onQuickBenchmark(featuredPlatformFilters)}
         className="rounded-2xl border border-line bg-surface p-4 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md"
       >
-        <p className="text-xs font-medium uppercase tracking-wide text-ink-400">
+        <span className="flex h-8 w-8 items-center justify-center rounded-full bg-coral/20">
+          <PlayCircle size={14} className="text-coral" aria-hidden="true" />
+        </span>
+        <p className="mt-2 text-xs font-medium uppercase tracking-wide text-ink-400">
           {t("market.featuredPlatformTitle")}
         </p>
         <p className="mt-1 font-display text-base font-semibold text-coral">TikTok Ads</p>

@@ -9,6 +9,8 @@ import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Input } from "@/components/ui/Input";
+import { EntityCard } from "@/components/ui/EntityCard";
+import { EntityAvatar } from "@/components/ui/EntityAvatar";
 import { useTranslation } from "@/lib/i18n/LanguageContext";
 import { useSupabaseUser } from "@/lib/supabase/useUser";
 import { SUPPORTED_CURRENCIES } from "@/lib/config/currencies";
@@ -214,7 +216,7 @@ export function PlannerView({ catalog, initialScenarios }: PlannerViewProps) {
       <AppHeader onSearchClick={() => setSearchOpen(true)} />
       {searchOpen && <SearchOverlay onClose={() => setSearchOpen(false)} onApply={() => {}} />}
       <DashboardSidebar />
-      <div className="md:pl-56">
+      <div className="md:pl-[var(--sidebar-inset)] transition-[padding-left] duration-150">
         <main className="mx-auto max-w-5xl px-4 py-6 md:px-8">
           <div className="flex items-center gap-2">
             <Compass size={18} className="text-brandLavender" aria-hidden="true" />
@@ -294,45 +296,40 @@ export function PlannerView({ catalog, initialScenarios }: PlannerViewProps) {
                     const current = o.rateCardGroup?.current ?? null;
                     const signals = result?.latestSignalsByPlatform[o.platformId] ?? [];
                     return (
-                      <Card key={key} className={`p-4 ${selected ? "border-primary" : ""}`}>
-                        <p className="text-sm font-semibold text-ink-900">{labels.outlet}</p>
-                        <p className="text-xs text-ink-500">{labels.category}{labels.property ? ` · ${labels.property}` : ""}</p>
-                        <p className="mt-1 text-xs font-medium text-ink-700">{labels.format}</p>
-
-                        <div className="mt-2 rounded-lg bg-canvas p-2">
-                          {current ? (
-                            <>
+                      <EntityCard
+                        key={key}
+                        avatar={<EntityAvatar label={labels.outlet} size={32} />}
+                        title={labels.outlet}
+                        meta={`${labels.category}${labels.property ? ` · ${labels.property}` : ""} · ${labels.format}`}
+                        selectable
+                        selected={selected}
+                        disabled={!selected && selectedKeys.length >= 4}
+                        onSelect={() => toggleSelect(o)}
+                        body={
+                          <div className="mt-1 rounded-lg bg-canvas p-2">
+                            {current ? (
                               <p className="tabular text-sm font-semibold text-ink-900">
                                 {formatPrice(current.price, current.currency)}
                                 <span className="ml-1 text-xs font-normal text-ink-500">/ {t(`media.pricingUnit.${current.pricingUnit}`)}</span>
                               </p>
-                              <p className="mt-0.5 text-[10px] uppercase tracking-wide text-ink-400">{t("media.commercialTitle")}</p>
-                            </>
-                          ) : (
-                            <p className="text-xs text-ink-500">{explainMissingRateCard(locale)}</p>
-                          )}
-                        </div>
-
-                        <div className="mt-2 text-[11px] text-ink-500">
-                          {signals.length > 0 ? (
-                            <p className="flex items-center gap-1"><TrendingUp size={11} aria-hidden="true" /> {signals.length} {t("mediaPlanner.dimension.publicSignal").toLowerCase()}</p>
-                          ) : (
-                            <p>{t("mediaPlanner.publicSignalNone")}</p>
-                          )}
-                        </div>
-
-                        <button
-                          type="button"
-                          onClick={() => toggleSelect(o)}
-                          disabled={!selected && selectedKeys.length >= 4}
-                          aria-pressed={selected}
-                          className={`mt-3 w-full rounded-full px-3 py-1.5 text-xs font-semibold transition-opacity disabled:opacity-40 ${
-                            selected ? "bg-primary text-white" : "border border-line text-ink-700 hover:border-primary hover:text-primary"
-                          }`}
-                        >
-                          {selected ? t("mediaPlanner.selectedCta") : t("mediaPlanner.selectCta")}
-                        </button>
-                      </Card>
+                            ) : (
+                              <p className="text-xs text-ink-500">{explainMissingRateCard(locale)}</p>
+                            )}
+                            <div className="mt-1 text-[11px] text-ink-500">
+                              {signals.length > 0 ? (
+                                <p className="flex items-center gap-1"><TrendingUp size={11} aria-hidden="true" /> {signals.length} {t("mediaPlanner.dimension.publicSignal").toLowerCase()}</p>
+                              ) : (
+                                <p>{t("mediaPlanner.publicSignalNone")}</p>
+                              )}
+                            </div>
+                          </div>
+                        }
+                        footer={
+                          <p className={`text-xs font-medium ${selected ? "text-primary" : "text-ink-500"}`}>
+                            {selected ? t("mediaPlanner.selectedCta") : t("mediaPlanner.selectCta")}
+                          </p>
+                        }
+                      />
                     );
                   })}
                 </div>
@@ -400,18 +397,6 @@ export function PlannerView({ catalog, initialScenarios }: PlannerViewProps) {
                                 </dd>
                               </div>
                             )}
-                            {current && (
-                              <div>
-                                <dt className="text-ink-400">{t("mediaPlanner.dimension.validity")}</dt>
-                                <dd className="text-ink-800">{current.validFrom}{current.validTo ? ` – ${current.validTo}` : ""}</dd>
-                              </div>
-                            )}
-                            {current && (
-                              <div>
-                                <dt className="text-ink-400">{t("mediaPlanner.dimension.source")}</dt>
-                                <dd className="text-ink-800">{current.source}</dd>
-                              </div>
-                            )}
                             <div>
                               <dt className="text-ink-400">{t("mediaPlanner.dimension.publicSignal")}</dt>
                               <dd className="text-ink-800">
@@ -425,6 +410,24 @@ export function PlannerView({ catalog, initialScenarios }: PlannerViewProps) {
                               <dd className="text-ink-800">{explainMissingEfficiencyEstimate(locale)}</dd>
                             </div>
                           </dl>
+
+                          {current && (current.validFrom || current.source) && (
+                            <details className="mt-2 text-xs text-ink-600">
+                              <summary className="cursor-pointer select-none font-medium text-ink-500 outline-none focus-visible:text-primary">
+                                {t("mediaPlanner.moreDetails")}
+                              </summary>
+                              <dl className="mt-1.5 space-y-1.5">
+                                <div>
+                                  <dt className="text-ink-400">{t("mediaPlanner.dimension.validity")}</dt>
+                                  <dd className="text-ink-800">{current.validFrom}{current.validTo ? ` – ${current.validTo}` : ""}</dd>
+                                </div>
+                                <div>
+                                  <dt className="text-ink-400">{t("mediaPlanner.dimension.source")}</dt>
+                                  <dd className="text-ink-800">{current.source}</dd>
+                                </div>
+                              </dl>
+                            </details>
+                          )}
 
                           {current && (
                             <div className="mt-3 border-t border-line pt-2">

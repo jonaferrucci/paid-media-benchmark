@@ -20,7 +20,7 @@ export function CurationGate({ signedIn }: { signedIn: boolean }) {
       <AppHeader onSearchClick={() => setSearchOpen(true)} />
       {searchOpen && <SearchOverlay onClose={() => setSearchOpen(false)} onApply={() => {}} />}
       <DashboardSidebar />
-      <div className="md:pl-56">
+      <div className="md:pl-[var(--sidebar-inset)] transition-[padding-left] duration-150">
         <main className="mx-auto max-w-lg px-4 py-10 md:px-8">
           <div className="rounded-2xl border border-dashed border-line bg-surface p-8 text-center">
             <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-surface2 text-ink-400">

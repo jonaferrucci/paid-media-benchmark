@@ -36,7 +36,7 @@ export function ContributionsList({ datasets }: { datasets: ContributionRow[] })
       <AppHeader onSearchClick={() => setSearchOpen(true)} />
       {searchOpen && <SearchOverlay onClose={() => setSearchOpen(false)} onApply={() => {}} />}
       <DashboardSidebar />
-      <div className="md:pl-56">
+      <div className="md:pl-[var(--sidebar-inset)] transition-[padding-left] duration-150">
         <main className="mx-auto max-w-2xl px-4 py-8 md:px-8">
           <div className="flex items-center justify-between">
             <h1 className="font-display text-xl font-semibold text-ink-900">

@@ -181,7 +181,7 @@ export function BenchmarkExplorer({ taxonomies }: { taxonomies: ContributionTaxo
       <AppHeader onSearchClick={() => setSearchOpen(true)} />
       {searchOpen && <SearchOverlay onClose={() => setSearchOpen(false)} onApply={() => {}} />}
       <DashboardSidebar />
-      <div className="md:pl-56">
+      <div className="md:pl-[var(--sidebar-inset)] transition-[padding-left] duration-150">
         <main className={`mx-auto space-y-6 px-4 py-8 md:px-8 ${response && mode === "single" ? "max-w-[1400px]" : "max-w-2xl"}`}>
           <div>
             <h1 className="font-display text-xl font-semibold text-ink-900">{t("benchmarkLive.title")}</h1>
