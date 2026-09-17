@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, BarChart3, Layers, Users, Upload, FileBarChart, Sparkles, Bookmark } from "lucide-react";
+import { Home, BarChart3, Layers, Users, Upload, FileBarChart, Sparkles, Bookmark, Compass } from "lucide-react";
 import clsx from "clsx";
 import { useTranslation } from "@/lib/i18n/LanguageContext";
 
@@ -19,6 +19,7 @@ export function DashboardSidebar() {
   ];
   const SECONDARY_ITEMS = [
     { href: "/benchmark", label: t("nav.liveBenchmark"), icon: Sparkles },
+    { href: "/planner", label: t("nav.planner"), icon: Compass },
     { href: "/comparisons", label: t("nav.myComparisons"), icon: Bookmark },
     { href: "/contribute", label: t("nav.contributeData"), icon: Upload },
   ];

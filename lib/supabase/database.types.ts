@@ -925,6 +925,49 @@ export interface Database {
           }
         ];
       };
+      // Phase 20 (migration 0015, NOT applied to hosted Supabase) —
+      // see supabase/migrations/0015_media_planning_scenarios.sql.
+      media_planning_scenarios: {
+        Row: {
+          id: string;
+          owner_user_id: string;
+          name: string;
+          budget_amount: number | null;
+          budget_currency: string | null;
+          opportunities: { platformId: string; propertyId: string | null; mediaFormatId: string; quantity: number }[];
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          owner_user_id: string;
+          name: string;
+          budget_amount?: number | null;
+          budget_currency?: string | null;
+          opportunities?: { platformId: string; propertyId: string | null; mediaFormatId: string; quantity: number }[];
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          owner_user_id?: string;
+          name?: string;
+          budget_amount?: number | null;
+          budget_currency?: string | null;
+          opportunities?: { platformId: string; propertyId: string | null; mediaFormatId: string; quantity: number }[];
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "media_planning_scenarios_owner_user_id_fkey";
+            columns: ["owner_user_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          }
+        ];
+      };
       dataset_metric_values: {
         Row: {
           id: string;
