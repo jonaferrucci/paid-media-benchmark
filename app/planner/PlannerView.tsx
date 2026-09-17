@@ -465,7 +465,20 @@ export function PlannerView({ catalog, initialScenarios }: PlannerViewProps) {
                             <div>
                               <dt className="text-ink-400">{t("mediaPlanner.dimension.price")}</dt>
                               <dd className="tabular text-ink-800">
-                                {current ? `${formatPrice(current.price, current.currency)} / ${t(`media.pricingUnit.${current.pricingUnit}`)}` : explainMissingRateCard(locale)}
+                                {current ? (
+                                  `${formatPrice(current.price, current.currency)} / ${t(`media.pricingUnit.${current.pricingUnit}`)}`
+                                ) : (
+                                  <>
+                                    {explainMissingRateCard(locale)}{" "}
+                                    {/* Phase 21B item B9: an outlet without a current rate card stays
+                                        discoverable and comparable (never hidden), but is honestly
+                                        labeled and links to the EXISTING contribution flow — no new
+                                        flow is created here. */}
+                                    <a href="/contribute" className="font-medium text-primary hover:underline">
+                                      {t("mediaPlanner.contributeRateCardCta")}
+                                    </a>
+                                  </>
+                                )}
                               </dd>
                             </div>
                             {group?.previous && group.change && current && (

@@ -8,6 +8,7 @@ import { SearchOverlay } from "@/components/dashboard/SearchOverlay";
 import { EntityCard } from "@/components/ui/EntityCard";
 import { EntityAvatar } from "@/components/ui/EntityAvatar";
 import { Badge } from "@/components/ui/Badge";
+import { PLATFORM_LOGO } from "@/components/dashboard/PlatformLogo";
 import { useTranslation } from "@/lib/i18n/LanguageContext";
 import type { MediaCatalog } from "@/lib/media/catalog";
 import { platformsForCategory, platformsForCountry, searchCatalogAcrossFields, splitPlatformsAndMedia } from "@/lib/media/filter";
@@ -27,6 +28,16 @@ import { platformsForCategory, platformsForCountry, searchCatalogAcrossFields, s
 const PLATFORM_DESC_KEYS = new Set([
   "meta_ads", "google_ads", "tiktok_ads", "mercado_libre_ads", "pinterest_ads", "dsp_programmatic",
 ]);
+
+// Phase 21B item B2: YouTube stays intentionally absent from `platforms`
+// (see migration 0002's comment, respected again by 0016) — planner-
+// facing "YouTube" is google_ads + campaign_types.video_youtube. This
+// view never queries or filters by a "youtube" platform row; it only
+// makes the existing Google Ads card visibly note that YouTube lives
+// there, using the same bundled PLATFORM_LOGO.youtube glyph already
+// used elsewhere (EntityAvatar, benchmark wizard) — a presentational
+// addition only, never a new filterable entity.
+const YOUTUBE_HOST_PLATFORM_KEY = "google_ads";
 
 function FilterChip({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
   return (
@@ -65,6 +76,17 @@ export function MediaCatalogView({ catalog }: { catalog: MediaCatalog }) {
     [filtered, catalog.categories]
   );
 
+  // Phase 21B item B10: country chips should not prominently show a
+  // country with zero digital entities in the catalog. Computed against
+  // the FULL (unfiltered by category/search) digital catalog, so the
+  // country chip list itself doesn't flicker as someone changes the
+  // category or search filters — only reflects "does this country have
+  // any digital media at all today."
+  const countriesWithEntities = useMemo(
+    () => catalog.countries.filter((c) => platformsForCountry(catalog.platforms, catalog.platformCountries, c.id).length > 0),
+    [catalog]
+  );
+
   function categoryLabel(id: string | null): string {
     return catalog.categories.find((c) => c.id === id)?.display_label ?? "";
   }
@@ -78,6 +100,16 @@ export function MediaCatalogView({ catalog }: { catalog: MediaCatalog }) {
   }
 
   const hasRateCard = new Set(catalog.platformsWithRateCard ?? []);
+  // Phase 21B item B8: a third, honest secondary status — an outlet can
+  // have real public data (audience/traffic signals) without a rate
+  // card, and that is different from having nothing at all.
+  const hasPublicData = new Set(catalog.platformsWithPublicData ?? []);
+
+  function resetFilters() {
+    setCategoryId(null);
+    setCountryId(null);
+    setQuery("");
+  }
 
   return (
     <div className="min-h-screen bg-canvas">
@@ -112,31 +144,69 @@ export function MediaCatalogView({ catalog }: { catalog: MediaCatalog }) {
             </div>
           </div>
 
-          <div className="mt-3 -mx-4 flex gap-1.5 overflow-x-auto px-4 pb-1" role="group" aria-label={t("media.categoryLabel")}>
-            <FilterChip label={t("media.allCategories")} active={categoryId === null} onClick={() => setCategoryId(null)} />
-            {catalog.categories.map((c) => (
-              <FilterChip key={c.id} label={c.display_label} active={categoryId === c.id} onClick={() => setCategoryId(c.id)} />
-            ))}
+          {/* Phase 21B item A: wrapping chip groups replace the old
+              horizontal-scroll-row pattern (edge-bleed margins plus a
+              scrolling overflow axis) — every option is visible at
+              once, wrapping into extra rows rather than hiding behind
+              a scrollbar, on desktop AND at narrow (~375px) widths.
+              Each group now has a small, always-VISIBLE label above it
+              (not just an aria-label) — filter logic and chip
+              selected-state styling are both untouched. */}
+          <div className="mt-4">
+            <p id="catalog-category-label" className="text-[11px] font-semibold uppercase tracking-wide text-ink-400">
+              {t("media.categoryLabel")}
+            </p>
+            <div className="mt-1.5 flex flex-wrap gap-1.5" role="group" aria-labelledby="catalog-category-label">
+              <FilterChip label={t("media.allCategories")} active={categoryId === null} onClick={() => setCategoryId(null)} />
+              {catalog.categories.map((c) => (
+                <FilterChip key={c.id} label={c.display_label} active={categoryId === c.id} onClick={() => setCategoryId(c.id)} />
+              ))}
+            </div>
           </div>
-          <div className="mt-1.5 -mx-4 flex gap-1.5 overflow-x-auto px-4 pb-1" role="group" aria-label={t("media.countryLabel")}>
-            <FilterChip label={t("media.allCountries")} active={countryId === null} onClick={() => setCountryId(null)} />
-            {catalog.countries.map((c) => (
-              <FilterChip key={c.id} label={c.display_label} active={countryId === c.id} onClick={() => setCountryId(c.id)} />
-            ))}
+          <div className="mt-3">
+            <p id="catalog-country-label" className="text-[11px] font-semibold uppercase tracking-wide text-ink-400">
+              {t("media.countryLabel")}
+            </p>
+            <div className="mt-1.5 flex flex-wrap gap-1.5" role="group" aria-labelledby="catalog-country-label">
+              <FilterChip label={t("media.allCountries")} active={countryId === null} onClick={() => setCountryId(null)} />
+              {countriesWithEntities.map((c) => (
+                <FilterChip key={c.id} label={c.display_label} active={countryId === c.id} onClick={() => setCountryId(c.id)} />
+              ))}
+            </div>
           </div>
 
           {filtered.length === 0 ? (
             <div className="mt-8 rounded-2xl border border-dashed border-line bg-surface p-8 text-center">
               <Info size={20} className="mx-auto text-ink-400" aria-hidden="true" />
               <p className="mt-3 text-sm text-ink-700">{t("media.emptyResults")}</p>
-              <a href="/contribute" className="mt-3 inline-block rounded-full bg-primary px-4 py-2 text-xs font-semibold text-white hover:opacity-90">
-                {t("media.ctaContribute")}
-              </a>
+              <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
+                <button
+                  type="button"
+                  onClick={resetFilters}
+                  className="rounded-full border border-line bg-surface px-4 py-2 text-xs font-semibold text-ink-700 hover:border-primary/50"
+                >
+                  {t("media.clearFiltersCta")}
+                </button>
+                {countryId !== null && (
+                  <button
+                    type="button"
+                    onClick={() => setCountryId(null)}
+                    className="rounded-full border border-line bg-surface px-4 py-2 text-xs font-semibold text-ink-700 hover:border-primary/50"
+                  >
+                    {t("media.changeCountryCta")}
+                  </button>
+                )}
+                <a href="/contribute" className="inline-block rounded-full bg-primary px-4 py-2 text-xs font-semibold text-white hover:opacity-90">
+                  {t("media.ctaContribute")}
+                </a>
+              </div>
             </div>
           ) : (
             <>
+              <p className="mt-4 text-xs text-ink-500">{t("media.filteredCount", { n: filtered.length })}</p>
+
               {adPlatforms.length > 0 && (
-                <section className="mt-6">
+                <section className="mt-3">
                   <h2 className="font-display text-sm font-semibold text-ink-900">{t("media.platformsSectionTitle")}</h2>
                   <p className="text-xs text-ink-500">{t("media.platformsSectionSubtitle")}</p>
                   <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -150,6 +220,16 @@ export function MediaCatalogView({ catalog }: { catalog: MediaCatalog }) {
                         detail={
                           <>
                             {PLATFORM_DESC_KEYS.has(p.internal_key) && <p>{t(`platformDesc.${p.internal_key}`)}</p>}
+                            {p.internal_key === YOUTUBE_HOST_PLATFORM_KEY && (
+                              <p className="mt-1 flex items-center gap-1 text-ink-500">
+                                {(() => {
+                                  const yt = PLATFORM_LOGO.youtube;
+                                  const YtIcon = yt.Icon;
+                                  return <YtIcon size={12} style={{ color: yt.color }} aria-hidden="true" />;
+                                })()}
+                                {t("media.includesYoutube")}
+                              </p>
+                            )}
                             <p className="mt-1 font-medium text-primary">{t("media.exploreCta")} →</p>
                           </>
                         }
@@ -174,7 +254,13 @@ export function MediaCatalogView({ catalog }: { catalog: MediaCatalog }) {
                         badge={p.status === "pending" ? <Badge tone="warning">{t("media.statusPending")}</Badge> : undefined}
                         detail={
                           <>
-                            <p>{hasRateCard.has(p.id) ? t("media.hasRateCard") : t("media.noRateCard")}</p>
+                            <p>
+                              {hasRateCard.has(p.id)
+                                ? t("media.hasRateCard")
+                                : hasPublicData.has(p.id)
+                                ? t("media.hasPublicData")
+                                : t("media.noDataYet")}
+                            </p>
                             <p className="mt-1 font-medium text-primary">{t("media.viewMediaCta")} →</p>
                           </>
                         }

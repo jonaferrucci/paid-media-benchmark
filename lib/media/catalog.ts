@@ -11,7 +11,7 @@ import { groupRateCardsByIdentity } from "./rateCardHistory";
 export async function getMediaCatalog() {
   const supabase = createServerSupabaseClient();
 
-  const [categories, platforms, platformCountries, countries, formats, metricFamilies, categoryMetrics, metrics, activeRateCards] = await Promise.all([
+  const [categories, platforms, platformCountries, countries, formats, metricFamilies, categoryMetrics, metrics, activeRateCards, activeSnapshots] = await Promise.all([
     supabase.from("media_categories").select("id, internal_key, display_label, display_order").eq("active", true).order("display_order"),
     supabase.from("platforms").select("id, internal_key, display_label, media_category_id, is_global, status, display_order").eq("active", true).order("display_order"),
     supabase.from("platform_countries").select("platform_id, country_id"),
@@ -25,6 +25,13 @@ export async function getMediaCatalog() {
     // "Tarifario disponible" / "Sin tarifario" — never a price value,
     // just whether one exists, and never N+1 (one query, all rows).
     supabase.from("media_rate_cards").select("platform_id").eq("status", "active"),
+    // Phase 21B item 8: a second, equally presence-only check — which
+    // outlets have at least one ACTIVE public metric snapshot — so a
+    // media card can distinguish "no rate card but real public data
+    // exists" from "genuinely nothing yet" instead of collapsing both
+    // into one "Sin tarifario" message. Still never a value, just
+    // whether a row exists; still one query, no N+1.
+    supabase.from("public_media_metric_snapshots").select("platform_id").eq("status", "active"),
   ]);
 
   // Phase 20D item 6: digital-only scope for the current catalog-
@@ -41,6 +48,7 @@ export async function getMediaCatalog() {
     categoryMetrics: categoryMetrics.data ?? [],
     metrics: metrics.data ?? [],
     platformsWithRateCard: Array.from(new Set((activeRateCards.data ?? []).map((rc) => rc.platform_id))),
+    platformsWithPublicData: Array.from(new Set((activeSnapshots.data ?? []).map((s) => s.platform_id))),
     hasError: !!(categories.error || platforms.error || platformCountries.error || countries.error || formats.error),
   };
 }
