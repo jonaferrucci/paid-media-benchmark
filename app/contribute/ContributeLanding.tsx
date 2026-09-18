@@ -15,7 +15,8 @@ import { parseCsv, parseXlsxBuffer, IMPORT_LIMITS } from "@/lib/import/parse";
 import { detectMapping, applyMapping, wouldConflict } from "@/lib/import/mapping";
 import { normalizeAndValidateRow, detectDuplicates } from "@/lib/import/validate";
 import { generateCsvTemplate, generateXlsxTemplate } from "@/lib/import/template";
-import { REQUIRED_FIELDS, OPTIONAL_FIELDS, type CanonicalField, type DetectedMapping, type NormalizedRow, type RawTable } from "@/lib/import/types";
+import { REQUIRED_FIELDS, OPTIONAL_FIELDS, type CanonicalField, type DetectedMapping, type NormalizedRow, type RawTable, type RowIssue } from "@/lib/import/types";
+import { detectExportPlatform, findAdPlatformProfile, AD_PLATFORM_PROFILES, type PlatformDetectionResult } from "@/lib/import/platformExports";
 
 type Mode = "landing" | "quick" | "upload";
 type UploadStep = "file" | "columns" | "review" | "confirm" | "done";
@@ -30,6 +31,20 @@ const FIELD_LABEL_KEYS: Record<CanonicalField, string> = {
   engagements: "contribute.field.engagements", conversions: "contribute.field.conversions",
   attributed_revenue: "contribute.field.attributedRevenue", total_revenue: "contribute.field.totalRevenue",
 };
+
+// §I: identify the row AND the specific field, in plain language —
+// never a bare technical validation string. This is a presentation-
+// only helper: it prefixes the SAME shared messageKey/messageVars
+// lib/import/validate.ts already produces (which other import flows
+// also rely on unchanged) with the field's own translated label, it
+// never touches validate.ts's message keys themselves.
+function formatIssue(issue: RowIssue, t: (key: string, vars?: Record<string, string | number>) => string): string {
+  const message = t(issue.messageKey, issue.messageVars);
+  if (issue.field && FIELD_LABEL_KEYS[issue.field]) {
+    return `${t(FIELD_LABEL_KEYS[issue.field])}: ${message}`;
+  }
+  return message;
+}
 
 export function ContributeLanding({ taxonomies }: { taxonomies: ContributionTaxonomies }) {
   const { t } = useTranslation();
@@ -95,51 +110,66 @@ function LandingChooser({
         </p>
       )}
 
-      {/* Phase 20D item 17: the top-level split is by WHAT the person
-          has (campaign results / public data / a rate card / a bulk
-          file) — never by entry-method speed — so someone with a
-          tarifario in hand doesn't have to first guess "quick" vs
-          "upload". Four equal cards, no card more prominent than
-          another. */}
-      <h2 className="mt-6 text-sm font-medium text-ink-700">{t("contribute.topQuestion")}</h2>
-      <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <button onClick={onQuick} className="group rounded-2xl border border-line bg-surface p-5 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md">
-          <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-brandLavender/20">
-            <Edit3 size={20} className="text-brandLavender" aria-hidden="true" />
+      {/* Post-MVP §B: reverse the old model — instead of four equally
+          weighted cards, the normal campaign-data workflow (a report
+          exported straight from an ad platform) is now one obvious,
+          visually dominant primary action. Platform recognizability
+          (§C's real AD_PLATFORM_PROFILES, not a separately maintained
+          UI list) tells the user Cucurucho already knows their export
+          shape without asking them to pick a platform up front. */}
+      <button
+        onClick={onUpload}
+        className="group mt-6 w-full rounded-3xl border border-line bg-surface p-6 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-primary/50 hover:shadow-md sm:p-8"
+      >
+        <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-brandMint/20">
+          <Upload size={22} className="text-brandMint" aria-hidden="true" />
+        </span>
+        <p className="mt-4 font-display text-lg font-semibold text-ink-900">{t("contribute.primaryTitle")}</p>
+        <p className="mt-1.5 max-w-xl text-sm text-ink-600">{t("contribute.primaryBody")}</p>
+        <div className="mt-4 flex flex-wrap gap-1.5">
+          {AD_PLATFORM_PROFILES.map((p) => (
+            <span key={p.id} className="rounded-full border border-line bg-surface2 px-2.5 py-1 text-[11px] font-medium text-ink-600">
+              {p.displayLabel}
+            </span>
+          ))}
+        </div>
+        <span className="mt-5 inline-block rounded-full bg-primary px-4 py-2 text-xs font-semibold text-white group-hover:opacity-90">
+          {t("contribute.primaryCta")}
+        </span>
+      </button>
+
+      {/* Secondary contribution paths — real, still fully supported,
+          just no longer competing visually with the primary upload
+          workflow. */}
+      <h2 className="mt-8 text-xs font-medium uppercase tracking-wide text-ink-500">{t("contribute.secondaryTitle")}</h2>
+      <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <button onClick={onQuick} className="group rounded-2xl border border-line bg-surface p-4 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md">
+          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-brandLavender/20">
+            <Edit3 size={16} className="text-brandLavender" aria-hidden="true" />
           </span>
-          <p className="mt-3 font-display text-sm font-semibold text-ink-900">{t("contribute.pathQuickTitle")}</p>
+          <p className="mt-2.5 text-sm font-semibold text-ink-900">{t("contribute.pathQuickTitle")}</p>
           <p className="mt-1 text-xs text-ink-600">{t("contribute.pathQuickBody")}</p>
-          <span className="mt-2 inline-block rounded-full bg-pistachio-soft px-2 py-0.5 text-[10px] font-medium text-pistachio">
-            {t("contribute.pathQuickHint")}
-          </span>
         </button>
-        <Link href="/contribute/public-metrics" className="group rounded-2xl border border-line bg-surface p-5 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md">
-          <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-coral/20">
-            <BarChart3 size={20} className="text-coral" aria-hidden="true" />
+        <Link href="/contribute/public-metrics" className="group rounded-2xl border border-line bg-surface p-4 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md">
+          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-coral/20">
+            <BarChart3 size={16} className="text-coral" aria-hidden="true" />
           </span>
-          <p className="mt-3 font-display text-sm font-semibold text-ink-900">{t("contribute.pathPublicMetricsTitle")}</p>
+          <p className="mt-2.5 text-sm font-semibold text-ink-900">{t("contribute.pathPublicMetricsTitle")}</p>
           <p className="mt-1 text-xs text-ink-600">{t("contribute.pathPublicMetricsBody")}</p>
         </Link>
-        <Link href="/contribute/rate-cards" className="group rounded-2xl border border-line bg-surface p-5 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md">
-          <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-brandPeach/20">
-            <FileDown size={20} className="text-brandPeach" aria-hidden="true" />
+        <Link href="/contribute/rate-cards" className="group rounded-2xl border border-line bg-surface p-4 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md">
+          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-brandPeach/20">
+            <FileDown size={16} className="text-brandPeach" aria-hidden="true" />
           </span>
-          <p className="mt-3 font-display text-sm font-semibold text-ink-900">{t("contribute.pathRateCardsTitle")}</p>
+          <p className="mt-2.5 text-sm font-semibold text-ink-900">{t("contribute.pathRateCardsTitle")}</p>
           <p className="mt-1 text-xs text-ink-600">{t("contribute.pathRateCardsBody")}</p>
         </Link>
-        <button onClick={onUpload} className="group rounded-2xl border border-line bg-surface p-5 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md">
-          <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-brandMint/20">
-            <Upload size={20} className="text-brandMint" aria-hidden="true" />
-          </span>
-          <p className="mt-3 font-display text-sm font-semibold text-ink-900">{t("contribute.pathUploadTitle")}</p>
-          <p className="mt-1 text-xs text-ink-600">{t("contribute.pathUploadBody")}</p>
-        </button>
       </div>
 
-      {/* Item 19: template download reachable without picking a file
-          first — a small secondary row, not a fifth competing card. */}
+      {/* Template download is now an explicit fallback, not a fifth
+          competing card. */}
       <div className="mt-3 flex flex-wrap items-center gap-2 rounded-xl border border-dashed border-line bg-surface2/40 px-4 py-3 text-xs text-ink-600">
-        <span>{t("contribute.pathTemplateBody")}</span>
+        <span>{t("contribute.pathTemplateQuestion")}</span>
         <button onClick={downloadCsv} className="rounded-full border border-line bg-surface px-3 py-1 font-medium text-ink-700 hover:border-primary hover:text-primary">CSV</button>
         <button onClick={downloadXlsx} className="rounded-full border border-line bg-surface px-3 py-1 font-medium text-ink-700 hover:border-primary hover:text-primary">XLSX</button>
       </div>
@@ -175,6 +205,13 @@ function UploadFlow({
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<{ imported: number; failed: number } | null>(null);
   const [dragActive, setDragActive] = useState(false);
+  // Post-MVP §D: deterministic platform-export detection, run once per
+  // uploaded file. `manualPlatformOverride` (a real taxonomies.platforms
+  // display_label, or "" for none) always wins over the detector when
+  // set — the user can correct a wrong/ambiguous/unknown guess, and the
+  // detector never silently overrides an explicit choice.
+  const [platformDetection, setPlatformDetection] = useState<PlatformDetectionResult | null>(null);
+  const [manualPlatformOverride, setManualPlatformOverride] = useState<string>("");
   const inputRef = useRef<HTMLInputElement>(null);
 
   const handleFile = useCallback(async (file: File) => {
@@ -203,6 +240,8 @@ function UploadFlow({
     setSourceType(isCsv ? "csv" : "xlsx");
     setTable(result.table);
     setMappings(detectMapping(result.table));
+    setPlatformDetection(detectExportPlatform(result.table.headers));
+    setManualPlatformOverride("");
     setStep("columns");
   }, [t]);
 
@@ -221,10 +260,29 @@ function UploadFlow({
     }));
   }
 
+  // Post-MVP §D/§F: an ad-platform export is inherently single-platform
+  // and typically has no per-row "Platform" column at all — this is the
+  // ONLY new value this task injects into a row, it never invents a
+  // taxonomy value (the label used is either the user's own explicit
+  // choice, or the exact real platforms.display_label the detector
+  // matched, still resolved through the same matchTaxonomyValue() every
+  // other field goes through) and it never overrides a column the user
+  // (or auto-mapping) already mapped to "platform".
+  function resolvedPlatformLabel(): string | null {
+    if (manualPlatformOverride) return manualPlatformOverride;
+    if (platformDetection?.state === "detected" && platformDetection.platformId) {
+      return findAdPlatformProfile(platformDetection.platformId).displayLabel;
+    }
+    return null;
+  }
+
   function runValidation() {
     if (!table) return;
     const mapped = applyMapping(table, mappings);
-    const normalized = mapped.map((row, i) => normalizeAndValidateRow(i + 2, row, taxonomies)); // +2: row 1 is the header
+    const platformColumnMapped = mappings.some((m) => m.state === "mapped" && m.canonicalField === "platform");
+    const inferredPlatform = platformColumnMapped ? null : resolvedPlatformLabel();
+    const rowsWithPlatform = inferredPlatform ? mapped.map((row) => ({ ...row, platform: row.platform ?? inferredPlatform })) : mapped;
+    const normalized = rowsWithPlatform.map((row, i) => normalizeAndValidateRow(i + 2, row, taxonomies)); // +2: row 1 is the header
     setNormalizedRows(detectDuplicates(normalized));
     setStep("review");
   }
@@ -239,6 +297,12 @@ function UploadFlow({
 
   const validCount = normalizedRows.filter((r) => r.status === "valid").length;
   const reviewCount = normalizedRows.filter((r) => r.status !== "valid").length;
+  const recognizedMappingCount = mappings.filter((m) => m.state === "mapped").length;
+  const reviewMappingCount = mappings.filter((m) => m.state === "needs_review").length;
+  const ignoredMappingCount = mappings.filter((m) => m.state === "ignored").length;
+  const detectedPlatformLabel = platformDetection?.state === "detected" && platformDetection.platformId
+    ? findAdPlatformProfile(platformDetection.platformId).displayLabel
+    : null;
 
   const STEP_LABELS: { key: UploadStep; labelKey: string }[] = [
     { key: "file", labelKey: "contribute.import.step.file" },
@@ -295,34 +359,86 @@ function UploadFlow({
 
       {step === "columns" && table && (
         <div>
-          <p className="text-sm text-ink-700">{t("contribute.import.mappingIntro", { file: fileName, count: table.rows.length })}</p>
-          <div className="mt-4 space-y-2">
-            {mappings.map((m) => {
-              const conflict = m.state === "mapped" && m.canonicalField ? wouldConflict(mappings, m.sourceColumnIndex, m.canonicalField) : false;
-              return (
-                <div key={m.sourceColumnIndex} className="flex flex-wrap items-center gap-3 rounded-xl border border-line bg-surface px-3 py-2">
-                  <span className="min-w-[140px] truncate text-sm font-medium text-ink-900">{m.sourceHeader}</span>
-                  <span aria-hidden="true" className="text-ink-400">→</span>
-                  <label className="sr-only" htmlFor={`map-${m.sourceColumnIndex}`}>{t("contribute.import.mapToLabel", { column: m.sourceHeader })}</label>
-                  <select
-                    id={`map-${m.sourceColumnIndex}`}
-                    value={m.state === "ignored" ? "ignore" : m.canonicalField ?? ""}
-                    onChange={(e) => updateMapping(m.sourceColumnIndex, e.target.value === "ignore" ? "ignore" : e.target.value as CanonicalField)}
-                    className="rounded-lg border border-line bg-canvas px-2 py-1 text-xs text-ink-900"
-                  >
-                    <option value="" disabled>{t("contribute.import.selectField")}</option>
-                    {[...REQUIRED_FIELDS, ...OPTIONAL_FIELDS].map((f) => (
-                      <option key={f} value={f}>{t(FIELD_LABEL_KEYS[f])}</option>
-                    ))}
-                    <option value="ignore">{t("contribute.import.ignoreColumn")}</option>
-                  </select>
-                  {m.state === "mapped" && !conflict && <Check size={14} className="text-pistachio" aria-hidden="true" />}
-                  {conflict && <span className="text-[11px] text-caution">{t("contribute.import.duplicateMapping")}</span>}
-                  {m.state === "needs_review" && <span className="text-[11px] text-vanilla">{t("contribute.import.needsReview")}</span>}
-                </div>
-              );
-            })}
+          {/* Post-MVP §D: platform auto-detection banner. Never silently
+              picks a platform on weak evidence — "ambiguous"/"unknown"
+              both surface an explicit manual choice instead of a guess. */}
+          <div className="rounded-xl border border-line bg-surface2/40 px-4 py-3 text-sm">
+            {detectedPlatformLabel && !manualPlatformOverride ? (
+              <p className="font-medium text-ink-800">{t("contribute.import.detectedPlatform", { platform: detectedPlatformLabel })}</p>
+            ) : (
+              <p className="font-medium text-ink-800">
+                {platformDetection?.state === "ambiguous" ? t("contribute.import.detectionAmbiguousTitle") : t("contribute.import.detectionUnknownTitle")}
+              </p>
+            )}
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <label className="text-xs text-ink-500" htmlFor="platform-override">{t("contribute.import.platformOverrideLabel")}</label>
+              <select
+                id="platform-override"
+                value={manualPlatformOverride}
+                onChange={(e) => setManualPlatformOverride(e.target.value)}
+                className="rounded-lg border border-line bg-canvas px-2 py-1 text-xs text-ink-900"
+              >
+                <option value="">
+                  {detectedPlatformLabel ? `${t("contribute.import.platformOverrideChange")} (${detectedPlatformLabel})` : t("contribute.import.platformOverridePlaceholder")}
+                </option>
+                {taxonomies.platforms.map((p) => (
+                  <option key={p.id} value={p.display_label}>{p.display_label}</option>
+                ))}
+              </select>
+            </div>
           </div>
+
+          <p className="mt-4 text-sm text-ink-700">
+            {t("contribute.import.mappingIntro", { file: fileName, count: table.rows.length })}
+            {" "}
+            {t("contribute.import.columnsFound", { count: mappings.length })} · {t("contribute.import.recognizedCount", { n: recognizedMappingCount })}
+            {reviewMappingCount > 0 && <> · {t("contribute.import.reviewCount", { n: reviewMappingCount })}</>}
+            {ignoredMappingCount > 0 && <> · {t("contribute.import.ignoredCount", { n: ignoredMappingCount })}</>}
+          </p>
+
+          {/* §E: the user only ever reviews columns that are genuinely
+              unknown — recognized and auto-ignored columns are shown,
+              never hidden, but grouped apart so they don't have to be
+              individually confirmed one by one. */}
+          {(["mapped", "needs_review", "ignored"] as const).map((groupState) => {
+            const groupMappings = mappings.filter((m) => m.state === groupState);
+            if (groupMappings.length === 0) return null;
+            const groupLabelKey = groupState === "mapped" ? "contribute.import.groupRecognized" : groupState === "needs_review" ? "contribute.import.groupNeedsReview" : "contribute.import.groupIgnored";
+            return (
+              <div key={groupState} className="mt-4">
+                <p className="text-xs font-semibold uppercase tracking-wide text-ink-500">{t(groupLabelKey)}</p>
+                <div className="mt-2 space-y-2">
+                  {groupMappings.map((m) => {
+                    const conflict = m.state === "mapped" && m.canonicalField ? wouldConflict(mappings, m.sourceColumnIndex, m.canonicalField) : false;
+                    return (
+                      <div key={m.sourceColumnIndex} className="flex flex-wrap items-center gap-3 rounded-xl border border-line bg-surface px-3 py-2">
+                        <span className="min-w-[140px] truncate text-sm font-medium text-ink-900">{m.sourceHeader}</span>
+                        <span aria-hidden="true" className="text-ink-400">→</span>
+                        <label className="sr-only" htmlFor={`map-${m.sourceColumnIndex}`}>{t("contribute.import.mapToLabel", { column: m.sourceHeader })}</label>
+                        <select
+                          id={`map-${m.sourceColumnIndex}`}
+                          value={m.state === "ignored" ? "ignore" : m.canonicalField ?? ""}
+                          onChange={(e) => updateMapping(m.sourceColumnIndex, e.target.value === "ignore" ? "ignore" : e.target.value as CanonicalField)}
+                          className="rounded-lg border border-line bg-canvas px-2 py-1 text-xs text-ink-900"
+                        >
+                          <option value="" disabled>{t("contribute.import.selectField")}</option>
+                          {[...REQUIRED_FIELDS, ...OPTIONAL_FIELDS].map((f) => (
+                            <option key={f} value={f}>{t(FIELD_LABEL_KEYS[f])}</option>
+                          ))}
+                          <option value="ignore">{t("contribute.import.ignoreColumn")}</option>
+                        </select>
+                        {m.state === "mapped" && !conflict && <Check size={14} className="text-pistachio" aria-hidden="true" />}
+                        {conflict && <span className="text-[11px] text-caution">{t("contribute.import.duplicateMapping")}</span>}
+                        {m.state === "needs_review" && <span className="text-[11px] text-vanilla">{t("contribute.import.needsReview")}</span>}
+                        {m.state === "ignored" && <span className="text-[11px] text-ink-400">{t("contribute.import.ignoredHint")}</span>}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+
           <button onClick={runValidation} className="mt-5 rounded-full bg-primary px-4 py-2 text-xs font-semibold text-white hover:opacity-90">
             {t("contribute.import.continueToReview")}
           </button>
@@ -331,7 +447,17 @@ function UploadFlow({
 
       {step === "review" && (
         <div>
-          <div className="flex flex-wrap gap-3">
+          {/* Post-MVP §H: the review screen answers four plain-language
+              questions instead of exposing raw table/DB terminology. */}
+          <p className="text-xs font-semibold uppercase tracking-wide text-ink-500">{t("contribute.import.reviewQDetected")}</p>
+          <p className="mt-1 text-sm text-ink-700">
+            {detectedPlatformLabel || manualPlatformOverride
+              ? t("contribute.import.detectedSummary", { platform: manualPlatformOverride || detectedPlatformLabel || "", file: fileName, count: normalizedRows.length })
+              : t("contribute.import.noPlatformDetectedSummary", { file: fileName, count: normalizedRows.length })}
+          </p>
+
+          <p className="mt-4 text-xs font-semibold uppercase tracking-wide text-ink-500">{t("contribute.import.reviewQWillImport")}</p>
+          <div className="mt-2 flex flex-wrap gap-3">
             <SummaryPill tone="pistachio" label={t("contribute.import.readyCount", { n: validCount })} />
             <SummaryPill tone="vanilla" label={t("contribute.import.reviewCount", { n: reviewCount })} />
           </div>
@@ -360,7 +486,7 @@ function UploadFlow({
                       {row.status === "valid" ? (
                         <span className="inline-flex items-center gap-1 rounded-full bg-pistachio-soft px-2 py-0.5 text-[10px] font-medium text-pistachio"><Check size={10} aria-hidden="true" />{t("contribute.import.statusReady")}</span>
                       ) : (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-vanilla-soft px-2 py-0.5 text-[10px] font-medium text-vanilla" title={row.issues.map((i) => t(i.messageKey, i.messageVars)).join(" · ")}>
+                        <span className="inline-flex items-center gap-1 rounded-full bg-vanilla-soft px-2 py-0.5 text-[10px] font-medium text-vanilla" title={row.issues.map((i) => formatIssue(i, t)).join(" · ")}>
                           <AlertTriangle size={10} aria-hidden="true" />{t("contribute.import.statusReview")}
                         </span>
                       )}
@@ -372,13 +498,23 @@ function UploadFlow({
           </div>
 
           {reviewCount > 0 && (
-            <div className="mt-3 space-y-1 text-xs text-ink-600">
-              {normalizedRows.filter((r) => r.status !== "valid").slice(0, 8).map((row) => (
-                <p key={row.rowNumber}>
-                  {t("contribute.import.rowLabel", { n: row.rowNumber })}: {row.issues.map((i) => t(i.messageKey, i.messageVars)).join(" · ")}
-                </p>
-              ))}
-            </div>
+            <>
+              <p className="mt-4 text-xs font-semibold uppercase tracking-wide text-ink-500">{t("contribute.import.reviewQNeedsReview")}</p>
+              <div className="mt-2 space-y-1 text-xs text-ink-600">
+                {normalizedRows.filter((r) => r.status !== "valid").slice(0, 8).map((row) => (
+                  <p key={row.rowNumber}>
+                    {t("contribute.import.rowLabel", { n: row.rowNumber })}: {row.issues.map((i) => formatIssue(i, t)).join(" · ")}
+                  </p>
+                ))}
+              </div>
+            </>
+          )}
+
+          {ignoredMappingCount > 0 && (
+            <>
+              <p className="mt-4 text-xs font-semibold uppercase tracking-wide text-ink-500">{t("contribute.import.reviewQIgnored")}</p>
+              <p className="mt-1 text-xs text-ink-600">{t("contribute.import.ignoredColumnsSummary", { n: ignoredMappingCount })}</p>
+            </>
           )}
 
           <button

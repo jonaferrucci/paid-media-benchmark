@@ -6,9 +6,7 @@ import { usePathname } from "next/navigation";
 import {
   Home,
   Layers,
-  Users,
   Upload,
-  FileBarChart,
   Sparkles,
   Bookmark,
   Compass,
@@ -34,32 +32,44 @@ interface NavGroup {
   items: NavItem[];
 }
 
+// Post-MVP sidebar simplification: the primary rail is now exactly
+// EXPLORAR (3) / TRABAJAR (3) / ADMINISTRAR (1) — Platforms/Verticals/
+// Audiences routes are NOT deleted (their pages, translation keys, and
+// links from other product flows/search all still work); Verticals and
+// Audiences simply no longer occupy a permanent sidebar slot, and the
+// remaining catalog item uses the user-facing "Medios" label rather
+// than the internal "platforms" wording. Kept as a plain data
+// structure (no hook, no t()) so it's directly unit-testable — see
+// scripts/test-postmvp-import.mts's nav-shape assertions.
+export const NAV_GROUP_STRUCTURE: { groupKey: string; items: { href: string; labelKey: string; icon: typeof Home }[] }[] = [
+  {
+    groupKey: "nav.groupExplore",
+    items: [
+      { href: "/", labelKey: "nav.home", icon: Home },
+      { href: "/benchmark", labelKey: "nav.liveBenchmark", icon: Sparkles },
+      { href: "/platforms", labelKey: "nav.media", icon: Layers },
+    ],
+  },
+  {
+    groupKey: "nav.groupWork",
+    items: [
+      { href: "/planner", labelKey: "nav.planner", icon: Compass },
+      { href: "/comparisons", labelKey: "nav.myComparisons", icon: Bookmark },
+      { href: "/contribute", labelKey: "nav.contributeData", icon: Upload },
+    ],
+  },
+  {
+    groupKey: "nav.groupAdmin",
+    items: [{ href: "/curation", labelKey: "nav.curation", icon: ShieldCheck }],
+  },
+];
+
 function useNavGroups(): NavGroup[] {
   const { t } = useTranslation();
-  return [
-    {
-      label: t("nav.groupExplore"),
-      items: [
-        { href: "/", label: t("nav.home"), icon: Home },
-        { href: "/benchmark", label: t("nav.liveBenchmark"), icon: Sparkles },
-        { href: "/platforms", label: t("nav.platforms"), icon: Layers },
-        { href: "/verticals", label: t("nav.verticals"), icon: FileBarChart },
-        { href: "/audiences", label: t("nav.audiences"), icon: Users },
-      ],
-    },
-    {
-      label: t("nav.groupWork"),
-      items: [
-        { href: "/planner", label: t("nav.planner"), icon: Compass },
-        { href: "/comparisons", label: t("nav.myComparisons"), icon: Bookmark },
-        { href: "/contribute", label: t("nav.contributeData"), icon: Upload },
-      ],
-    },
-    {
-      label: t("nav.groupAdmin"),
-      items: [{ href: "/curation", label: t("nav.curation"), icon: ShieldCheck }],
-    },
-  ];
+  return NAV_GROUP_STRUCTURE.map((group) => ({
+    label: t(group.groupKey),
+    items: group.items.map((item) => ({ href: item.href, label: t(item.labelKey), icon: item.icon })),
+  }));
 }
 
 function isItemActive(pathname: string, href: string): boolean {
