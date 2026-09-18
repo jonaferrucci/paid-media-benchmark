@@ -15,12 +15,17 @@ const HEADER_LABELS: Record<string, string> = {
   landing_page_views: "Vistas de landing", video_views: "Reproducciones de video",
   engagements: "Interacciones", conversions: "Conversiones", attributed_revenue: "Ingresos atribuidos",
   total_revenue: "Ingresos totales",
+  // Post-MVP row-level fix (§3): shown/downloadable like any other
+  // optional field — never persisted (see the "campaign_name"
+  // CanonicalField comment in lib/import/types.ts).
+  campaign_name: "Nombre de la campaña",
 };
 
 const EXAMPLE_ROW: Record<string, string> = {
   platform: "Meta Ads", objective: "Traffic", vertical: "Beauty & Personal Care", country: "Argentina",
   start_date: "2026-08-01", end_date: "2026-08-31", currency: "ARS", ad_spend: "1500000",
   impressions: "4800000", reach: "1700000", clicks: "62000", landing_page_views: "49000",
+  campaign_name: "Campaña Verano",
 };
 
 const ALL_FIELDS = [...REQUIRED_FIELDS, ...OPTIONAL_FIELDS];

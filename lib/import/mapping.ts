@@ -67,6 +67,17 @@ const ALIASES: Record<CanonicalField, string[]> = {
   // marketplace "facturación" figure is typically broader than a single
   // ad's last-click attributed revenue.
   total_revenue: ["total revenue", "ingresos totales", "ingresos", "facturación", "facturacion"],
+  // Post-MVP row-level fix (§3): "Nombre de la campaña" (and its EN/
+  // generic equivalents) is a REAL, existing field a source column maps
+  // to now — previously bucketed into IGNORED_HEADERS as disposable
+  // row-identity metadata. It flows through the same pipeline as every
+  // other field (auto-recognized, shown in preview) but is never
+  // persisted — see the "campaign_name" CanonicalField comment in
+  // types.ts. "Ad set name"/"ad name"/"ad group name"/"campaign type"
+  // stay in IGNORED_HEADERS below: those are a finer breakdown level
+  // Cucurucho's schema has no field for at all, not the campaign's own
+  // identity.
+  campaign_name: ["campaign", "campaign name", "nombre de la campaña", "nombre de campaña", "campaña"],
 };
 
 // Real ad-platform export columns that Cucurucho recognizes but never
@@ -100,7 +111,18 @@ const ALIASES: Record<CanonicalField, string[]> = {
 // IGNORED_HEADER_SET/IGNORED_HEADER_REASONS built below.
 const CURRENCY_SUFFIX_RE = /\s*\((usd|ars|mxn|brl|clp|cop|pen|uyu|eur|gbp|cad|aud)\)\s*$/i;
 
-type IgnoredReason = "derived" | "context";
+// Post-MVP row-level fix (§4): exposes the actual matched currency code
+// from a header's trailing "(USD)"-style suffix — normalizeHeader below
+// only ever DISCARDS this suffix for matching purposes; this is the one
+// place that reads the code itself, so platformExports.ts's
+// detectReportCurrency can auto-detect the report's currency from
+// header shape alone, without a dedicated currency column.
+export function extractCurrencySuffix(header: string): string | null {
+  const match = header.match(CURRENCY_SUFFIX_RE);
+  return match ? match[1].toUpperCase() : null;
+}
+
+type IgnoredReason = "derived" | "context" | "row_semantic";
 const IGNORED_HEADERS: { header: string; reason: IgnoredReason }[] = [
   // Derived/calculated metrics — never trusted from the source file.
   { header: "ctr", reason: "derived" },
@@ -119,11 +141,13 @@ const IGNORED_HEADERS: { header: string; reason: IgnoredReason }[] = [
   // A distinct, narrower definition than Cucurucho's own "video views"
   // (a 6-second-minimum view) — never conflated with the generic field.
   { header: "6 second video views", reason: "derived" },
-  // Row-identity / breakdown columns with no canonical field.
-  { header: "campaign", reason: "context" },
-  { header: "campaign name", reason: "context" },
-  { header: "nombre de la campaña", reason: "context" },
-  { header: "campaña", reason: "context" },
+  // Row-identity / breakdown columns with no canonical field. NOTE:
+  // "campaign"/"campaign name"/"nombre de la campaña"/"campaña" moved
+  // OUT of this list in the row-level fix (§3) — they're now a real
+  // ALIASES.campaign_name mapping instead, since campaign identity is
+  // never disposable. What's left here is a finer breakdown level
+  // ("which ad set/ad within the campaign") Cucurucho's schema has no
+  // field for at all.
   { header: "ad set name", reason: "context" },
   { header: "ad name", reason: "context" },
   { header: "ad group name", reason: "context" },
@@ -143,11 +167,18 @@ const IGNORED_HEADERS: { header: string; reason: IgnoredReason }[] = [
   { header: "coste por 1000 cuentas de meta alcanzadas", reason: "derived" },
   { header: "cpm (coste por 1000 impresiones)", reason: "derived" },
   { header: "cpc (todos)", reason: "derived" },
-  // "Indicador de resultado" has no canonical field of its own — it's
-  // consulted (see resolveMetaResultsMapping in platformExports.ts)
-  // ONLY to decide whether the paired "Resultados" column can be
-  // safely interpreted, never imported as a value in itself.
-  { header: "indicador de resultado", reason: "context" },
+  // Post-MVP row-level fix (§2/§8): "Resultados" and its paired
+  // "Indicador de resultado" have no SINGLE canonical field for the
+  // whole file — a real Meta report can (and, per the canonical
+  // fixture, does) mix result types row by row. Both are recognized
+  // and classified as a distinct "row_semantic" reason (never dumped
+  // into "needs review" as a giant unresolved mapping) — the review UI
+  // shows a "Resultado contextual" explanation instead of a column
+  // picker, and the ACTUAL per-row interpretation happens in
+  // resolveMetaResultForRow (platformExports.ts), reading the raw
+  // per-row values directly rather than a static header alias.
+  { header: "resultados", reason: "row_semantic" },
+  { header: "indicador de resultado", reason: "row_semantic" },
   // Meta's own campaign delivery/status label — real metadata, no
   // canonical field.
   { header: "entrega de la campaña", reason: "context" },

@@ -1,5 +1,5 @@
-import { normalizeHeader } from "./mapping";
-import type { CanonicalField, RawTable } from "./types";
+import { normalizeHeader, extractCurrencySuffix } from "./mapping";
+import type { CanonicalField } from "./types";
 
 // Post-MVP usability improvement: real ad-platform export detection.
 // Pure, deterministic, no external/AI dependency — exactly the same
@@ -129,22 +129,20 @@ export function findAdPlatformProfile(id: AdPlatformId): AdPlatformProfile {
   return AD_PLATFORM_PROFILES.find((p) => p.id === id)!;
 }
 
-// §5/post-MVP real-Meta-export fix: Meta's own "Resultados" column is
+// Post-MVP row-level fix (§2): Meta's own "Resultados" column is
 // objective-dependent — its meaning is only knowable by reading the
 // paired "Indicador de resultado" column's actual VALUE, never by the
-// header name alone (unlike every other field, this is a per-file,
-// value-based decision, not a static header alias). This resolves
-// that pairing ONCE per file — a Meta report is one objective for its
-// whole date range, so the indicator is expected to be constant across
-// rows — into, at most, a single dynamic "Resultados" -> canonical
-// field mapping, and ONLY for indicator values whose meaning is
-// unambiguous and already supported by Cucurucho's own conversions
-// concept. An unrecognized, missing, or inconsistent indicator leaves
-// "Resultados" unmapped (needs_review) rather than guessed — this
-// deliberately does NOT attempt to generalize to every possible Meta
-// objective (video views, engagement, reach, awareness); it only ever
-// resolves the common "this is a conversion count" case the task's
-// own examples describe.
+// header name alone. UNLIKE the file-level resolver this replaces, the
+// real canonical fixture for this task proves a single Meta report can
+// mix result types PER ROW (one campaign optimizing for profile visits,
+// another for landing-page views, another just reporting reach) — so
+// this resolves the pairing for ONE row at a time, never assuming a
+// uniform meaning across the whole file.
+//
+// Only indicator values whose meaning is unambiguous AND already backed
+// by a real canonical field Cucurucho has are mapped; everything else is
+// left as contextual/unmapped rather than guessed. This deliberately
+// does not attempt to cover every possible Meta objective.
 const SAFE_RESULT_INDICATORS: Record<string, CanonicalField> = {
   leads: "conversions",
   lead: "conversions",
@@ -156,45 +154,92 @@ const SAFE_RESULT_INDICATORS: Record<string, CanonicalField> = {
   conversiones: "conversions",
   sales: "conversions",
   ventas: "conversions",
+  // Meta's internal action-name form is "actions:<type>", sometimes with
+  // a cross-channel "omni_" qualifier (normalizeResultIndicator strips
+  // both generically below) — "landing_page_view"/"link_click" resolve
+  // to real canonical fields Cucurucho already has, unlike e.g.
+  // "total_profile_visits" (no matching field, so left unmapped).
+  "landing page view": "landing_page_views",
+  "landing page views": "landing_page_views",
+  "link click": "link_clicks",
+  "link clicks": "link_clicks",
 };
 
-export type MetaResultsReason = "mapped" | "unknown_indicator" | "inconsistent_indicator" | "no_indicator_column" | "no_results_column";
+// A result whose indicator just re-labels a raw metric Cucurucho already
+// captures from its OWN dedicated column (Alcance/Reach, Impresiones/
+// Impressions) — mapping it again as a "result" would double-count the
+// same figure under a different field, so these are always left
+// contextual regardless of SAFE_RESULT_INDICATORS.
+const DUPLICATE_METRIC_INDICATORS = new Set(["reach", "alcance", "impressions", "impresiones"]);
 
-export interface MetaResultsResolution {
-  canonicalField: CanonicalField | null;
-  reason: MetaResultsReason;
-  // The (normalized) indicator value found, when there was one — used
-  // by the UI to explain an unresolved "Resultados" mapping (e.g.
-  // "Indicador de resultado: {indicatorSample}").
-  indicatorSample: string | null;
+// Normalizes a Meta "Indicador de resultado" raw value for lookup:
+// reuses normalizeHeader's own lowercase/accent-strip/punctuation
+// collapsing (a colon isn't one of normalizeHeader's own stripped
+// punctuation characters, so it's turned into a space first), then
+// strips Meta's "actions:"/"action_" wrapper and "omni_" qualifier —
+// generically, not by hardcoding every possible action name — so e.g.
+// "actions:omni_landing_page_view" normalizes the same as a bare
+// "landing_page_view".
+function normalizeResultIndicator(raw: string): string {
+  const normalized = normalizeHeader(raw.replace(/:/g, " "));
+  return normalized.replace(/^actions? /, "").replace(/^omni /, "");
 }
 
-export function resolveMetaResultsMapping(table: RawTable): MetaResultsResolution {
-  const resultsIdx = table.headers.findIndex((h) => normalizeHeader(h) === "resultados");
-  if (resultsIdx === -1) return { canonicalField: null, reason: "no_results_column", indicatorSample: null };
+export type RowResultReason = "mapped" | "duplicates_existing_metric" | "unknown_indicator" | "no_indicator" | "no_result_value";
 
-  // Deliberately the PRIMARY "Indicador de resultado" only — never its
-  // "(inicial)" companion, which lib/import/mapping.ts's IGNORED_HEADERS
-  // already keeps out of any interpretation to avoid double-counting
-  // the same conversion concept from two paired columns.
-  const indicatorIdx = table.headers.findIndex((h) => normalizeHeader(h) === "indicador de resultado");
-  if (indicatorIdx === -1) return { canonicalField: null, reason: "no_indicator_column", indicatorSample: null };
+export interface RowResultResolution {
+  canonicalField: CanonicalField | null;
+  reason: RowResultReason;
+  // The normalized indicator value found, when there was one — used by
+  // the review UI to explain a contextual (non-imported) result (e.g.
+  // "Indicador: total_profile_visits").
+  indicatorSample: string | null;
+  // The raw "Resultados" value itself, when present — shown alongside
+  // indicatorSample so the review UI can display "type: value" even
+  // when the result isn't imported.
+  resultValue: string | null;
+}
 
-  const values = new Set(
-    table.rows
-      .map((row) => normalizeHeader(row[indicatorIdx] ?? ""))
-      .filter((v) => v !== "")
-  );
-  if (values.size === 0) return { canonicalField: null, reason: "no_indicator_column", indicatorSample: null };
-  if (values.size > 1) {
-    // A single report mixing more than one result type can't be
-    // safely collapsed into one field — flag for review rather than
-    // arbitrarily picking one.
-    return { canonicalField: null, reason: "inconsistent_indicator", indicatorSample: [...values][0] };
+export function resolveMetaResultForRow(resultsRaw: string | undefined, indicatorRaw: string | undefined): RowResultResolution {
+  const resultValue = (resultsRaw ?? "").trim() || null;
+  if (!resultValue) return { canonicalField: null, reason: "no_result_value", indicatorSample: null, resultValue: null };
+
+  const indicatorTrimmed = (indicatorRaw ?? "").trim();
+  if (!indicatorTrimmed) return { canonicalField: null, reason: "no_indicator", indicatorSample: null, resultValue };
+
+  const indicator = normalizeResultIndicator(indicatorTrimmed);
+  if (DUPLICATE_METRIC_INDICATORS.has(indicator)) {
+    return { canonicalField: null, reason: "duplicates_existing_metric", indicatorSample: indicator, resultValue };
   }
 
-  const indicator = [...values][0];
   const field = SAFE_RESULT_INDICATORS[indicator];
-  if (!field) return { canonicalField: null, reason: "unknown_indicator", indicatorSample: indicator };
-  return { canonicalField: field, reason: "mapped", indicatorSample: indicator };
+  if (!field) return { canonicalField: null, reason: "unknown_indicator", indicatorSample: indicator, resultValue };
+  return { canonicalField: field, reason: "mapped", indicatorSample: indicator, resultValue };
+}
+
+export type CurrencyDetectionState = "detected" | "ambiguous" | "none";
+
+export interface CurrencyDetectionResult {
+  state: CurrencyDetectionState;
+  currency: string | null;
+}
+
+// Post-MVP row-level fix (§4/§11): real ad-platform exports often
+// express the report's currency only as a suffix on monetary column
+// headers (e.g. "Importe gastado (USD)") rather than a dedicated
+// currency column or value. Deterministic and evidence-based — collects
+// the distinct currency codes found across every header. A single
+// consistent code across the file is auto-detected; more than one is
+// flagged "ambiguous" (never silently picked); none found falls back to
+// "none", which callers treat exactly like the existing safe default
+// (no FX conversion is ever performed here or anywhere else).
+export function detectReportCurrency(headers: string[]): CurrencyDetectionResult {
+  const codes = new Set<string>();
+  for (const header of headers) {
+    const code = extractCurrencySuffix(header);
+    if (code) codes.add(code);
+  }
+  if (codes.size === 0) return { state: "none", currency: null };
+  if (codes.size > 1) return { state: "ambiguous", currency: null };
+  return { state: "detected", currency: [...codes][0] };
 }

@@ -16,7 +16,7 @@ import { detectMapping, applyMapping, wouldConflict, normalizeHeader, ignoredRea
 import { normalizeAndValidateRow, detectDuplicates } from "@/lib/import/validate";
 import { generateCsvTemplate, generateXlsxTemplate } from "@/lib/import/template";
 import { REQUIRED_FIELDS, OPTIONAL_FIELDS, type CanonicalField, type DetectedMapping, type NormalizedRow, type RawTable, type RowIssue } from "@/lib/import/types";
-import { detectExportPlatform, findAdPlatformProfile, AD_PLATFORM_PROFILES, resolveMetaResultsMapping, type PlatformDetectionResult, type AdPlatformId, type MetaResultsResolution } from "@/lib/import/platformExports";
+import { detectExportPlatform, findAdPlatformProfile, AD_PLATFORM_PROFILES, resolveMetaResultForRow, detectReportCurrency, type PlatformDetectionResult, type AdPlatformId, type RowResultResolution, type CurrencyDetectionResult } from "@/lib/import/platformExports";
 
 type Mode = "landing" | "quick" | "upload";
 type UploadStep = "file" | "columns" | "review" | "confirm" | "done";
@@ -30,6 +30,7 @@ const FIELD_LABEL_KEYS: Record<CanonicalField, string> = {
   landing_page_views: "contribute.field.landingPageViews", video_views: "contribute.field.videoViews",
   engagements: "contribute.field.engagements", conversions: "contribute.field.conversions",
   attributed_revenue: "contribute.field.attributedRevenue", total_revenue: "contribute.field.totalRevenue",
+  campaign_name: "contribute.field.campaignName",
 };
 
 // §I: identify the row AND the specific field, in plain language —
@@ -212,11 +213,14 @@ function UploadFlow({
   // detector never silently overrides an explicit choice.
   const [platformDetection, setPlatformDetection] = useState<PlatformDetectionResult | null>(null);
   const [manualPlatformOverride, setManualPlatformOverride] = useState<string>("");
-  // §5 real-Meta-export fix: the outcome of pairing "Resultados" with
-  // "Indicador de resultado" for THIS file, kept alongside the mapping
-  // state so the columns step can explain an unresolved "Resultados"
-  // row instead of a bare "Necesita revisión".
-  const [metaResultsResolution, setMetaResultsResolution] = useState<MetaResultsResolution | null>(null);
+  // Post-MVP row-level fix (§4): the file's detected report currency
+  // (from header currency-code suffixes), computed once per upload.
+  const [currencyDetection, setCurrencyDetection] = useState<CurrencyDetectionResult | null>(null);
+  // §2: the per-row "Resultados"/"Indicador de resultado" resolution for
+  // THIS file, in the same row order as normalizedRows — populated by
+  // runValidation, read by the review step to show a per-campaign
+  // result column instead of a single file-wide guess.
+  const [rowResultResolutions, setRowResultResolutions] = useState<RowResultResolution[]>([]);
   // §10: optional, explicit "where did you download this from" hint —
   // never required, never silently forces a mapping; only pre-fills
   // the manual override when auto-detection itself couldn't confirm a
@@ -251,23 +255,17 @@ function UploadFlow({
     setTable(result.table);
 
     const baseMappings = detectMapping(result.table);
-    const resultsResolution = resolveMetaResultsMapping(result.table);
-    setMetaResultsResolution(resultsResolution);
-    // §5: dynamically resolve "Resultados" -> a canonical field for
-    // THIS file only, and only when safe — never a static alias (see
-    // resolveMetaResultsMapping's own comment for why), and never
-    // overriding a column some OTHER header already explicitly claimed.
-    const alreadyClaimed = resultsResolution.canonicalField
-      ? baseMappings.some((m) => m.state === "mapped" && m.canonicalField === resultsResolution.canonicalField)
-      : false;
-    const adjustedMappings = resultsResolution.reason === "mapped" && resultsResolution.canonicalField && !alreadyClaimed
-      ? baseMappings.map((m) =>
-          normalizeHeader(m.sourceHeader) === "resultados"
-            ? { ...m, canonicalField: resultsResolution.canonicalField, state: "mapped" as const }
-            : m
-        )
-      : baseMappings;
-    setMappings(adjustedMappings);
+    setMappings(baseMappings);
+    // §2 is resolved PER ROW (runValidation, once the columns step is
+    // confirmed) — "Resultados"/"Indicador de resultado" are already
+    // classified "ignored"/"row_semantic" by detectMapping itself (see
+    // mapping.ts's IGNORED_HEADERS), so there's no file-wide mapping to
+    // adjust here any more.
+
+    // §4: detect the report's currency from header currency-code
+    // suffixes alone (e.g. "Importe gastado (USD)") — a single
+    // consistent code across the file, or ambiguous/none.
+    setCurrencyDetection(detectReportCurrency(result.table.headers));
 
     const detection = detectExportPlatform(result.table.headers);
     setPlatformDetection(detection);
@@ -316,7 +314,55 @@ function UploadFlow({
     const platformColumnMapped = mappings.some((m) => m.state === "mapped" && m.canonicalField === "platform");
     const inferredPlatform = platformColumnMapped ? null : resolvedPlatformLabel();
     const rowsWithPlatform = inferredPlatform ? mapped.map((row) => ({ ...row, platform: row.platform ?? inferredPlatform })) : mapped;
-    const normalized = rowsWithPlatform.map((row, i) => normalizeAndValidateRow(i + 2, row, taxonomies)); // +2: row 1 is the header
+
+    // §4: inject the file-detected report currency into every row, same
+    // injection pattern as platform above — only when no column is
+    // already statically mapped to "currency", and only when detection
+    // is unambiguous (an ambiguous file is flagged for review below,
+    // never guessed).
+    const currencyColumnMapped = mappings.some((m) => m.state === "mapped" && m.canonicalField === "currency");
+    const inferredCurrency = !currencyColumnMapped && currencyDetection?.state === "detected" ? currencyDetection.currency : null;
+    const rowsWithCurrency = inferredCurrency
+      ? rowsWithPlatform.map((row) => ({ ...row, currency: row.currency ?? inferredCurrency }))
+      : rowsWithPlatform;
+
+    // §2: resolve "Resultados"/"Indicador de resultado" PER ROW — never
+    // a single file-wide guess. Reads the raw table values directly
+    // (both columns are "ignored"/row_semantic in `mappings`, so
+    // applyMapping never carries them into `mapped`), and injects the
+    // resolved field only when Cucurucho has a safe canonical field for
+    // THAT row's indicator and no column already explicitly claims it.
+    const resultsIdx = table.headers.findIndex((h) => normalizeHeader(h) === "resultados");
+    const indicatorIdx = table.headers.findIndex((h) => normalizeHeader(h) === "indicador de resultado");
+    const resolutions: RowResultResolution[] = [];
+    const rowsWithResults = resultsIdx === -1
+      ? rowsWithCurrency
+      : rowsWithCurrency.map((row, i) => {
+          const resultsRaw = table.rows[i]?.[resultsIdx];
+          const indicatorRaw = indicatorIdx !== -1 ? table.rows[i]?.[indicatorIdx] : undefined;
+          const resolution = resolveMetaResultForRow(resultsRaw, indicatorRaw);
+          resolutions.push(resolution);
+          if (resolution.reason === "mapped" && resolution.canonicalField && row[resolution.canonicalField] === undefined) {
+            return { ...row, [resolution.canonicalField]: resultsRaw };
+          }
+          return row;
+        });
+    setRowResultResolutions(resolutions);
+
+    const normalizedBase = rowsWithResults.map((row, i) => normalizeAndValidateRow(i + 2, row, taxonomies)); // +2: row 1 is the header
+
+    // §4: an ambiguous report currency can't be safely defaulted to any
+    // single code — every row is flagged for review rather than
+    // silently keeping validate.ts's normal USD fallback (which is only
+    // meant for the "no currency information at all" case).
+    const normalized = currencyDetection?.state === "ambiguous"
+      ? normalizedBase.map((row) => row.status === "duplicate" ? row : {
+          ...row,
+          status: "needs_review" as const,
+          issues: [...row.issues, { field: "currency" as const, severity: "warning" as const, messageKey: "import.issue.ambiguousReportCurrency" }],
+        })
+      : normalizedBase;
+
     setNormalizedRows(detectDuplicates(normalized));
     setStep("review");
   }
@@ -333,7 +379,13 @@ function UploadFlow({
   const reviewCount = normalizedRows.filter((r) => r.status !== "valid").length;
   const recognizedMappingCount = mappings.filter((m) => m.state === "mapped").length;
   const reviewMappingCount = mappings.filter((m) => m.state === "needs_review").length;
-  const ignoredMappingCount = mappings.filter((m) => m.state === "ignored").length;
+  // §8: "Resultados"/"Indicador de resultado" are counted and shown
+  // separately from the general "no necesarias" group — they aren't
+  // unneeded, their meaning is just resolved per row (see the
+  // "row_semantic" group below), so lumping them into a plain ignored
+  // count would misrepresent them as simply unused.
+  const ignoredMappingCount = mappings.filter((m) => m.state === "ignored" && ignoredReasonForHeader(m.sourceHeader) !== "row_semantic").length;
+  const rowSemanticMappingCount = mappings.filter((m) => m.state === "ignored" && ignoredReasonForHeader(m.sourceHeader) === "row_semantic").length;
   const detectedPlatformLabel = platformDetection?.state === "detected" && platformDetection.platformId
     ? findAdPlatformProfile(platformDetection.platformId).displayLabel
     : null;
@@ -344,21 +396,44 @@ function UploadFlow({
     detectedPlatformLabel && platformHint && platformHint !== "other" && platformHint !== platformDetection?.platformId
   );
 
-  // §5: a plain-language reason for an unresolved "Resultados" mapping
-  // row, instead of the generic "Necesita revisión" every other
-  // needs_review column gets.
-  function resultsReviewHint(sourceHeader: string): string | null {
-    if (normalizeHeader(sourceHeader) !== "resultados" || !metaResultsResolution) return null;
-    switch (metaResultsResolution.reason) {
-      case "unknown_indicator":
-        return t("contribute.import.resultsNeedsReviewUnknown", { indicator: metaResultsResolution.indicatorSample ?? "" });
-      case "inconsistent_indicator":
-        return t("contribute.import.resultsNeedsReviewInconsistent");
-      case "no_indicator_column":
-        return t("contribute.import.resultsNeedsReviewNoIndicator");
-      default:
-        return null;
+  // §3/§9: whether campaign identity was found in this file at all —
+  // gates the additive "Campaign" review column and the
+  // persistence-limitation caption, so a generic (non-campaign) import
+  // looks exactly as it did before this fix.
+  const hasCampaignNames = mappings.some((m) => m.state === "mapped" && m.canonicalField === "campaign_name");
+  // §8/§9: the rest of the additive per-campaign review columns (dates,
+  // reach, currency, result) are only useful together with campaign
+  // identity or on a confirmed Meta import — never shown for a plain
+  // generic CSV, so its review table stays visually unchanged.
+  const isMetaImport = detectedPlatformLabel === "Meta Ads" || manualPlatformOverride === "Meta Ads";
+  const showCampaignReviewColumns = hasCampaignNames || isMetaImport;
+
+  // §9: a plain-language explanation for a per-row "Resultado
+  // contextual" result — never a raw technical reason code.
+  function renderResultCell(resolution?: RowResultResolution) {
+    if (!resolution) return <span className="text-ink-400">—</span>;
+    if (resolution.reason === "mapped" && resolution.canonicalField) {
+      return (
+        <span className="text-ink-800" title={resolution.indicatorSample ?? ""}>
+          {t(FIELD_LABEL_KEYS[resolution.canonicalField])}: {resolution.resultValue ?? "—"}
+        </span>
+      );
     }
+    const reasonKey = resolution.reason === "duplicates_existing_metric"
+      ? "contribute.import.resultReasonDuplicatesMetric"
+      : resolution.reason === "unknown_indicator"
+      ? "contribute.import.resultReasonUnknownIndicator"
+      : resolution.reason === "no_indicator"
+      ? "contribute.import.resultReasonNoIndicator"
+      : "contribute.import.resultReasonNoValue";
+    const title = resolution.indicatorSample
+      ? `${t(reasonKey)} (${resolution.indicatorSample}${resolution.resultValue ? `: ${resolution.resultValue}` : ""})`
+      : t(reasonKey);
+    return (
+      <span className="text-ink-500" title={title}>
+        {t("contribute.import.resultContextualLabel")}
+      </span>
+    );
   }
 
   const STEP_LABELS: { key: UploadStep; labelKey: string }[] = [
@@ -486,21 +561,65 @@ function UploadFlow({
             {t("contribute.import.columnsFound", { count: mappings.length })} · {t("contribute.import.recognizedCount", { n: recognizedMappingCount })}
             {reviewMappingCount > 0 && <> · {t("contribute.import.reviewCount", { n: reviewMappingCount })}</>}
             {ignoredMappingCount > 0 && <> · {t("contribute.import.ignoredCount", { n: ignoredMappingCount })}</>}
+            {rowSemanticMappingCount > 0 && <> · {t("contribute.import.rowSemanticCount", { n: rowSemanticMappingCount })}</>}
           </p>
+
+          {/* §4/§8: currency and campaign-count facts, shown only when
+              this file actually has evidence for them — a plain generic
+              import shows neither line. */}
+          {currencyDetection && currencyDetection.state !== "none" && (
+            <p className="mt-1 text-xs text-ink-600">
+              {currencyDetection.state === "detected"
+                ? t("contribute.import.currencyDetected", { currency: currencyDetection.currency ?? "" })
+                : <span className="text-caution">{t("contribute.import.currencyAmbiguous")}</span>}
+            </p>
+          )}
+          {hasCampaignNames && (
+            <p className="mt-1 text-xs text-ink-600">{t("contribute.import.campaignCount", { n: table.rows.length })}</p>
+          )}
 
           {/* §E: the user only ever reviews columns that are genuinely
               unknown — recognized and auto-ignored columns are shown,
               never hidden, but grouped apart so they don't have to be
               individually confirmed one by one. */}
-          {(["mapped", "needs_review", "ignored"] as const).map((groupState) => {
-            const groupMappings = mappings.filter((m) => m.state === groupState);
+          {(["mapped", "needs_review", "ignored", "row_semantic"] as const).map((groupState) => {
+            // §8: "Resultados"/"Indicador de resultado" get their own
+            // distinct group (never lumped into the generic "no
+            // necesarias" bucket) — their meaning is resolved per row,
+            // not simply unneeded, so a plain ignored explanation would
+            // misrepresent them.
+            const groupMappings = groupState === "row_semantic"
+              ? mappings.filter((m) => m.state === "ignored" && ignoredReasonForHeader(m.sourceHeader) === "row_semantic")
+              : groupState === "ignored"
+              ? mappings.filter((m) => m.state === "ignored" && ignoredReasonForHeader(m.sourceHeader) !== "row_semantic")
+              : mappings.filter((m) => m.state === groupState);
             if (groupMappings.length === 0) return null;
-            const groupLabelKey = groupState === "mapped" ? "contribute.import.groupRecognized" : groupState === "needs_review" ? "contribute.import.groupNeedsReview" : "contribute.import.groupIgnored";
+            const groupLabelKey = groupState === "mapped"
+              ? "contribute.import.groupRecognized"
+              : groupState === "needs_review"
+              ? "contribute.import.groupNeedsReview"
+              : groupState === "row_semantic"
+              ? "contribute.import.groupRowSemantic"
+              : "contribute.import.groupIgnored";
             return (
               <div key={groupState} className="mt-4">
                 <p className="text-xs font-semibold uppercase tracking-wide text-ink-500">{t(groupLabelKey)}</p>
+                {groupState === "row_semantic" && (
+                  <p className="mt-1 text-xs text-ink-500">{t("contribute.import.groupRowSemanticNote")}</p>
+                )}
                 <div className="mt-2 space-y-2">
                   {groupMappings.map((m) => {
+                    if (groupState === "row_semantic") {
+                      // §8: a static explanation, never a column picker —
+                      // there is no single field this header could be
+                      // manually mapped to, its meaning varies per row.
+                      return (
+                        <div key={m.sourceColumnIndex} className="flex flex-wrap items-center gap-3 rounded-xl border border-line bg-surface px-3 py-2">
+                          <span className="min-w-[140px] truncate text-sm font-medium text-ink-900">{m.sourceHeader}</span>
+                          <span className="text-[11px] text-ink-500">{t("contribute.import.rowSemanticHint")}</span>
+                        </div>
+                      );
+                    }
                     const conflict = m.state === "mapped" && m.canonicalField ? wouldConflict(mappings, m.sourceColumnIndex, m.canonicalField) : false;
                     return (
                       <div key={m.sourceColumnIndex} className="flex flex-wrap items-center gap-3 rounded-xl border border-line bg-surface px-3 py-2">
@@ -522,7 +641,7 @@ function UploadFlow({
                         {m.state === "mapped" && !conflict && <Check size={14} className="text-pistachio" aria-hidden="true" />}
                         {conflict && <span className="text-[11px] text-caution">{t("contribute.import.duplicateMapping")}</span>}
                         {m.state === "needs_review" && (
-                          <span className="text-[11px] text-vanilla">{resultsReviewHint(m.sourceHeader) ?? t("contribute.import.needsReview")}</span>
+                          <span className="text-[11px] text-vanilla">{t("contribute.import.needsReview")}</span>
                         )}
                         {m.state === "ignored" && (
                           <span className="text-[11px] text-ink-400">
@@ -560,26 +679,48 @@ function UploadFlow({
             <SummaryPill tone="vanilla" label={t("contribute.import.reviewCount", { n: reviewCount })} />
           </div>
 
+          {/* §3/§13: campaign identity is shown for review, but never
+              persisted — the schema has no name/title column and this
+              fix creates no migration to add one. Told plainly here
+              rather than silently dropped from the review experience. */}
+          {hasCampaignNames && (
+            <p className="mt-2 rounded-lg border border-dashed border-line bg-surface2/40 px-3 py-2 text-[11px] text-ink-500">
+              {t("contribute.import.campaignNameNotPersisted")}
+            </p>
+          )}
+
           <div className="mt-4 max-h-96 overflow-y-auto overflow-x-auto rounded-xl border border-line">
             <table className="w-full min-w-[640px] text-left text-xs">
               <thead className="sticky top-0 bg-surface2 text-ink-500">
                 <tr>
                   <th scope="col" className="px-3 py-2">{t("contribute.import.colRow")}</th>
+                  {hasCampaignNames && <th scope="col" className="px-3 py-2">{t("contribute.field.campaignName")}</th>}
                   <th scope="col" className="px-3 py-2">{t("contribute.field.platform")}</th>
                   <th scope="col" className="px-3 py-2">{t("contribute.field.objective")}</th>
                   <th scope="col" className="px-3 py-2">{t("contribute.field.country")}</th>
+                  {showCampaignReviewColumns && <th scope="col" className="px-3 py-2">{t("contribute.import.colDates")}</th>}
                   <th scope="col" className="px-3 py-2">{t("contribute.field.adSpend")}</th>
+                  {showCampaignReviewColumns && <th scope="col" className="px-3 py-2">{t("contribute.field.reach")}</th>}
+                  {showCampaignReviewColumns && <th scope="col" className="px-3 py-2">{t("contribute.field.currency")}</th>}
+                  {showCampaignReviewColumns && <th scope="col" className="px-3 py-2">{t("contribute.import.colResult")}</th>}
                   <th scope="col" className="px-3 py-2">{t("contribute.import.colStatus")}</th>
                 </tr>
               </thead>
               <tbody>
-                {normalizedRows.map((row) => (
+                {normalizedRows.map((row, idx) => (
                   <tr key={row.rowNumber} className="border-t border-line">
                     <td className="px-3 py-2 text-ink-500">{row.rowNumber}</td>
+                    {hasCampaignNames && <td className="px-3 py-2 text-ink-800">{row.campaignName ?? "—"}</td>}
                     <td className="px-3 py-2 text-ink-800">{row.platform ?? "—"}</td>
                     <td className="px-3 py-2 text-ink-800">{row.objective ?? "—"}</td>
                     <td className="px-3 py-2 text-ink-800">{row.country ?? "—"}</td>
+                    {showCampaignReviewColumns && (
+                      <td className="px-3 py-2 text-ink-800">{row.startDate ?? "—"}{row.endDate ? ` → ${row.endDate}` : ""}</td>
+                    )}
                     <td className="px-3 py-2 text-ink-800">{row.adSpend ?? "—"}</td>
+                    {showCampaignReviewColumns && <td className="px-3 py-2 text-ink-800">{row.rawMetrics.reach ?? "—"}</td>}
+                    {showCampaignReviewColumns && <td className="px-3 py-2 text-ink-800">{row.currency}</td>}
+                    {showCampaignReviewColumns && <td className="px-3 py-2">{renderResultCell(rowResultResolutions[idx])}</td>}
                     <td className="px-3 py-2">
                       {row.status === "valid" ? (
                         <span className="inline-flex items-center gap-1 rounded-full bg-pistachio-soft px-2 py-0.5 text-[10px] font-medium text-pistachio"><Check size={10} aria-hidden="true" />{t("contribute.import.statusReady")}</span>

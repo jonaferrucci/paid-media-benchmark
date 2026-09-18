@@ -31,7 +31,16 @@ export type CanonicalField =
   | "engagements"
   | "conversions"
   | "attributed_revenue"
-  | "total_revenue";
+  | "total_revenue"
+  // Post-MVP real-Meta-export fix (§3): a real, existing field a
+  // source column can map to — NOT a new persisted database column.
+  // It flows through the same mapping/normalize pipeline as every
+  // other field so it can be auto-recognized and shown in preview
+  // (never a giant "no necesarias" dump for campaign identity), but
+  // app/contribute/bulk-actions.ts never writes it anywhere: the
+  // performance_datasets schema has no campaign-name/title column,
+  // and this task creates no migration to add one.
+  | "campaign_name";
 
 export const REQUIRED_FIELDS: CanonicalField[] = [
   "platform",
@@ -58,6 +67,7 @@ export const OPTIONAL_FIELDS: CanonicalField[] = [
   "conversions",
   "attributed_revenue",
   "total_revenue",
+  "campaign_name",
 ];
 
 // A raw parsed table, before any mapping — the direct output of the
@@ -98,6 +108,12 @@ export interface RowIssue {
 // preview table and the confirm/persist step both consume.
 export interface NormalizedRow {
   rowNumber: number; // 1-based, matches what a spreadsheet user expects
+  // Post-MVP real-Meta-export fix (§3): a passthrough string, never
+  // taxonomy-resolved and never validated — purely so the review UI
+  // can show which real-world campaign each row belongs to instead of
+  // an anonymous row number. NOT persisted (see the CanonicalField
+  // "campaign_name" comment in this file for why).
+  campaignName: string | null;
   platform: string | null; // resolved taxonomy internal_key
   objective: string | null;
   vertical: string | null;

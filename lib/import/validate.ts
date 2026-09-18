@@ -131,8 +131,14 @@ export function normalizeAndValidateRow(
   const hasError = issues.some((i) => i.severity === "error");
   const status: NormalizedRow["status"] = hasError ? "needs_review" : "valid";
 
+  // Post-MVP real-Meta-export fix (§3): a plain passthrough, never
+  // taxonomy-resolved or validated — see the "campaign_name"
+  // CanonicalField comment in types.ts for why this is display-only.
+  const campaignName = mapped.campaign_name?.trim() || null;
+
   return {
     rowNumber,
+    campaignName,
     platform,
     objective,
     vertical,

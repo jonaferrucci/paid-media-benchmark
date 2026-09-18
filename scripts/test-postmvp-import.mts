@@ -96,7 +96,14 @@ const metaMappings = detectMapping(metaHeaders);
 assertEqual(metaMappings.find((m) => m.sourceHeader === "Amount spent")?.canonicalField, "ad_spend", "Meta 'Amount spent' maps to ad_spend");
 assertEqual(metaMappings.find((m) => m.sourceHeader === "Purchases")?.canonicalField, "conversions", "Meta 'Purchases' maps to conversions");
 assertEqual(metaMappings.find((m) => m.sourceHeader === "Purchase conversion value")?.canonicalField, "attributed_revenue", "Meta 'Purchase conversion value' maps to attributed_revenue");
-assertEqual(metaMappings.find((m) => m.sourceHeader === "Campaign name")?.state, "ignored", "Meta 'Campaign name' (row-identity, no canonical field) is auto-ignored, not needs_review");
+// POST-MVP IMPORT FIX 2 (row-level fix, §3): campaign identity was
+// previously disposable row-identity metadata (auto-ignored) — it's now
+// a real ALIASES.campaign_name mapping instead, since campaign identity
+// must be preserved for review rather than dropped. See
+// scripts/test-real-meta-import.mts and test-row-level-meta-import.mts
+// for the full campaign-identity-preservation coverage.
+assertEqual(metaMappings.find((m) => m.sourceHeader === "Campaign name")?.state, "mapped", "Meta 'Campaign name' is auto-mapped to campaign_name (row-level fix §3), not ignored");
+assertEqual(metaMappings.find((m) => m.sourceHeader === "Campaign name")?.canonicalField, "campaign_name", "Meta 'Campaign name' maps to the campaign_name field");
 
 const esMappings = detectMapping(table(["Importe gastado", "Impresiones", "Clientes potenciales", "Facturación"]));
 assertEqual(esMappings.find((m) => m.sourceHeader === "Importe gastado")?.canonicalField, "ad_spend", "Spanish 'Importe gastado' maps to ad_spend");

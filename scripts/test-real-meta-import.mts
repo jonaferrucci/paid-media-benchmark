@@ -1,17 +1,28 @@
-// Real-Meta-export regression fixture (post-MVP fix). The exact 18
-// headers below were confirmed against an actual Meta Ads export and
-// used as the canonical regression fixture for this task — the fix
-// itself is generalized (new mapping.ts aliases/ignore-reasons, a
-// currency-suffix-aware normalizeHeader, new Meta detection
-// signatures, and a dynamic "Resultados" resolver in
-// platformExports.ts), never hardcoded to this one filename, but this
-// script pins the exact real header/value shape so a future change
-// can't silently regress the real-world case that prompted the fix.
+// Real-Meta-export regression fixture (post-MVP fix, updated for the
+// row-level follow-up fix). The exact 18 headers below were confirmed
+// against an actual Meta Ads export and used as the canonical
+// regression fixture for the original fix — the fix itself is
+// generalized (new mapping.ts aliases/ignore-reasons, a currency-
+// suffix-aware normalizeHeader, new Meta detection signatures), never
+// hardcoded to this one filename, but this script pins the exact
+// real header/value shape so a future change can't silently regress
+// the real-world case that prompted it.
+//
+// Updated for POST-MVP IMPORT FIX 2 (row-level result semantics,
+// campaign identity, currency): "Nombre de la campaña" is now a real
+// ALIASES.campaign_name mapping (not disposable context), and
+// "Resultados"/"Indicador de resultado" are resolved PER ROW via
+// resolveMetaResultForRow (lib/import/platformExports.ts), not the
+// removed file-level resolveMetaResultsMapping. This fixture uses a
+// uniform indicator across all rows, so the row-level resolution is
+// behaviorally equivalent to the old file-level one for THIS file —
+// see test-row-level-meta-import.mts for the fixture that actually
+// exercises mixed per-row indicators.
 
 import { detectMapping, applyMapping, ignoredReasonForHeader, normalizeHeader } from "../lib/import/mapping";
 import { normalizeAndValidateRow } from "../lib/import/validate";
-import { detectExportPlatform, resolveMetaResultsMapping, findAdPlatformProfile } from "../lib/import/platformExports";
-import type { RawTable, DetectedMapping, CanonicalField } from "../lib/import/types";
+import { detectExportPlatform, resolveMetaResultForRow, findAdPlatformProfile } from "../lib/import/platformExports";
+import type { RawTable, MappedRow } from "../lib/import/types";
 
 let passed = 0;
 let failed = 0;
@@ -26,7 +37,7 @@ function assertTrue(cond: boolean, label: string) {
   else { failed++; console.error(`FAIL: ${label}`); }
 }
 
-// Verbatim, exactly as given in the task's real-export fixture.
+// Verbatim, exactly as given in the original task's real-export fixture.
 const REAL_META_HEADERS = [
   "Inicio del informe",
   "Fin del informe",
@@ -48,20 +59,23 @@ const REAL_META_HEADERS = [
   "Indicador de resultados (inicial)",
 ];
 
-// This is the app's own post-processing step (ContributeLanding.tsx's
-// handleFile), reproduced here so the pure pipeline can be tested
+// The app's own row-level injection logic (ContributeLanding.tsx's
+// runValidation), reproduced here so the pure pipeline can be tested
 // end-to-end without a browser — mirrors the real component exactly,
 // not a simplified stand-in.
-function applyResultsResolution(table: RawTable, mappings: DetectedMapping[]): DetectedMapping[] {
-  const resolution = resolveMetaResultsMapping(table);
-  if (resolution.reason !== "mapped" || !resolution.canonicalField) return mappings;
-  const alreadyClaimed = mappings.some((m) => m.state === "mapped" && m.canonicalField === resolution.canonicalField);
-  if (alreadyClaimed) return mappings;
-  return mappings.map((m) =>
-    normalizeHeader(m.sourceHeader) === "resultados"
-      ? { ...m, canonicalField: resolution.canonicalField as CanonicalField, state: "mapped" as const }
-      : m
-  );
+function applyRowResultInjections(table: RawTable, mappedRows: MappedRow[]): MappedRow[] {
+  const resultsIdx = table.headers.findIndex((h) => normalizeHeader(h) === "resultados");
+  const indicatorIdx = table.headers.findIndex((h) => normalizeHeader(h) === "indicador de resultado");
+  if (resultsIdx === -1) return mappedRows;
+  return mappedRows.map((row, i) => {
+    const resultsRaw = table.rows[i]?.[resultsIdx];
+    const indicatorRaw = indicatorIdx !== -1 ? table.rows[i]?.[indicatorIdx] : undefined;
+    const resolution = resolveMetaResultForRow(resultsRaw, indicatorRaw);
+    if (resolution.reason === "mapped" && resolution.canonicalField && row[resolution.canonicalField] === undefined) {
+      return { ...row, [resolution.canonicalField]: resultsRaw };
+    }
+    return row;
+  });
 }
 
 function buildFixture(indicatorValue: string): RawTable {
@@ -93,8 +107,8 @@ function buildFixture(indicatorValue: string): RawTable {
 }
 
 // ---------------------------------------------------------------------
-// §2: Meta must be detected from this exact real header combination,
-// with no literal "Meta Ads" column value required for detection.
+// §2 (original fix): Meta must be detected from this exact real header
+// combination, with no literal "Meta Ads" column value required.
 // ---------------------------------------------------------------------
 const table = buildFixture("Clientes potenciales");
 const detection = detectExportPlatform(table.headers);
@@ -104,7 +118,7 @@ assertEqual(findAdPlatformProfile("meta_ads").displayLabel, "Meta Ads", "the UI'
 
 // ---------------------------------------------------------------------
 // §3/§6/§7: safe raw fields auto-map — reach, impressions, spend,
-// report dates, and platform — with zero manual work.
+// report dates, platform, AND (row-level fix §3) campaign identity.
 // ---------------------------------------------------------------------
 const baseMappings = detectMapping(table);
 const byHeader = (h: string) => baseMappings.find((m) => m.sourceHeader === h);
@@ -116,15 +130,15 @@ assertEqual(byHeader("Plataforma")?.canonicalField, "platform", "'Plataforma' au
 assertEqual(byHeader("Inicio del informe")?.canonicalField, "start_date", "'Inicio del informe' auto-maps to start_date");
 assertEqual(byHeader("Fin del informe")?.canonicalField, "end_date", "'Fin del informe' auto-maps to end_date");
 
-// §7: campaign name has no canonical field in the schema (confirmed:
-// performance_datasets has no name/identity column) — classified
-// clearly as context metadata, not dumped into needs_review.
-assertEqual(byHeader("Nombre de la campaña")?.state, "ignored", "'Nombre de la campaña' is recognized-but-not-imported, not needs_review");
-assertEqual(ignoredReasonForHeader("Nombre de la campaña"), "context", "'Nombre de la campaña' is classified as context metadata, not a derived metric");
+// Row-level fix §3: campaign identity is now a real mapped field (never
+// disposable metadata) — auto-recognized, shown in preview, but never
+// persisted (see the "campaign_name" CanonicalField comment in types.ts).
+assertEqual(byHeader("Nombre de la campaña")?.state, "mapped", "'Nombre de la campaña' is now auto-mapped, not ignored");
+assertEqual(byHeader("Nombre de la campaña")?.canonicalField, "campaign_name", "'Nombre de la campaña' maps to the campaign_name field");
 
 // ---------------------------------------------------------------------
-// §4: known calculated/derived Meta fields never require manual
-// mapping — recognized as "no necesarias" (derived), not needs_review.
+// §4 (original fix): known calculated/derived Meta fields never require
+// manual mapping — recognized as "no necesarias" (derived).
 // ---------------------------------------------------------------------
 for (const h of ["Frecuencia", "Coste por 1000 cuentas de Meta alcanzadas (USD)", "CPM (coste por 1000 impresiones) (USD)", "ACOS", "CPC (todos) (USD)"]) {
   assertEqual(byHeader(h)?.state, "ignored", `'${h}' is auto-ignored, never needs_review`);
@@ -137,87 +151,102 @@ assertEqual(byHeader("Seguidores de Instagram")?.state, "ignored", "'Seguidores 
 assertEqual(ignoredReasonForHeader("Seguidores de Instagram"), "context", "'Seguidores de Instagram' is classified as context, not a calculation conflict");
 
 // ---------------------------------------------------------------------
-// §5: "Resultados" is interpreted via its paired "Indicador de
-// resultado" value — never blindly mapped to a single metric.
+// Row-level fix §2/§8: "Resultados"/"Indicador de resultado" are never
+// a single static column mapping — recognized-but-not-column-mapped
+// with the distinct "row_semantic" reason, and interpreted PER ROW by
+// resolveMetaResultForRow (not the removed file-level resolver).
 // ---------------------------------------------------------------------
+assertEqual(byHeader("Resultados")?.state, "ignored", "'Resultados' is never a static column mapping (its meaning is resolved per row)");
 assertEqual(byHeader("Resultados")?.canonicalField, null, "'Resultados' is NOT statically aliased to any canonical field");
+assertEqual(ignoredReasonForHeader("Resultados"), "row_semantic", "'Resultados' is classified with the distinct row_semantic reason");
 assertEqual(byHeader("Indicador de resultado")?.state, "ignored", "'Indicador de resultado' itself is recognized-but-not-imported (interpretation-only)");
+assertEqual(ignoredReasonForHeader("Indicador de resultado"), "row_semantic", "'Indicador de resultado' is classified with the distinct row_semantic reason");
 
-const safeResolution = resolveMetaResultsMapping(table);
-assertEqual(safeResolution, { canonicalField: "conversions", reason: "mapped", indicatorSample: "clientes potenciales" }, "a safe indicator ('Clientes potenciales') resolves Resultados -> conversions");
+const safeRowResolution = resolveMetaResultForRow(table.rows[0][4], table.rows[0][5]);
+assertEqual(safeRowResolution, { canonicalField: "conversions", reason: "mapped", indicatorSample: "clientes potenciales", resultValue: "25" }, "a safe indicator ('Clientes potenciales') resolves this row's Resultados -> conversions");
 
-const adjustedMappings = applyResultsResolution(table, baseMappings);
-assertEqual(adjustedMappings.find((m) => m.sourceHeader === "Resultados")?.canonicalField, "conversions", "after resolution, 'Resultados' is dynamically mapped to conversions for this file");
-assertEqual(adjustedMappings.find((m) => m.sourceHeader === "Resultados")?.state, "mapped", "after resolution, 'Resultados' is 'mapped', not needs_review");
+const mappedRowsBase = applyMapping(table, baseMappings);
+const injectedRows = applyRowResultInjections(table, mappedRowsBase);
+assertEqual(injectedRows[0].conversions, "25", "after row-level injection, every row's Resultados value (25) lands on conversions");
+assertTrue(
+  injectedRows.every((r) => r.conversions === "25"),
+  "the row-level injection applies independently to every row, not just the first"
+);
 
-// An unknown/unsupported indicator leaves Resultados unmapped —
-// flagged for review, never guessed.
+// An unknown/unsupported indicator leaves that row's Resultados
+// unmapped — flagged as contextual, never guessed — while every OTHER
+// safe column on the SAME row is still auto-recognized.
 const unknownIndicatorTable = buildFixture("Recuerdo del anuncio");
-const unknownResolution = resolveMetaResultsMapping(unknownIndicatorTable);
-assertEqual(unknownResolution.reason, "unknown_indicator", "an unsupported indicator value leaves Resultados unresolved (unknown_indicator)");
-const unknownAdjusted = applyResultsResolution(unknownIndicatorTable, detectMapping(unknownIndicatorTable));
-assertEqual(unknownAdjusted.find((m) => m.sourceHeader === "Resultados")?.state, "needs_review", "with an unsupported indicator, only 'Resultados' itself needs review");
-// Every OTHER safe column is still auto-recognized — the user is never
-// made to re-review unrelated safe columns just because one field is
-// genuinely ambiguous.
-assertEqual(unknownAdjusted.find((m) => m.sourceHeader === "Alcance")?.state, "mapped", "an ambiguous 'Resultados' never blocks unrelated safe columns like Alcance");
-assertEqual(unknownAdjusted.find((m) => m.sourceHeader === "Importe gastado (USD)")?.state, "mapped", "an ambiguous 'Resultados' never blocks unrelated safe columns like Importe gastado");
+const unknownRowResolution = resolveMetaResultForRow(unknownIndicatorTable.rows[0][4], unknownIndicatorTable.rows[0][5]);
+assertEqual(unknownRowResolution.reason, "unknown_indicator", "an unsupported indicator value leaves that row's result unresolved (unknown_indicator)");
+const unknownInjected = applyRowResultInjections(unknownIndicatorTable, applyMapping(unknownIndicatorTable, detectMapping(unknownIndicatorTable)));
+assertTrue(unknownInjected[0].conversions === undefined, "with an unsupported indicator, conversions is never guessed for that row");
+assertEqual(unknownInjected[0].reach, "120000", "an unresolved result never blocks unrelated safe columns like Alcance on the same row");
+assertEqual(unknownInjected[0].ad_spend, "1500.00", "an unresolved result never blocks unrelated safe columns like Importe gastado on the same row");
 
-// A row mixing more than one result type is flagged, not guessed.
-const indicatorColumnIdx = REAL_META_HEADERS.indexOf("Indicador de resultado");
-const mixedRowA = [...buildFixture("x").rows[0]];
-mixedRowA[indicatorColumnIdx] = "Clientes potenciales";
-const mixedRowB = [...buildFixture("x").rows[0]];
-mixedRowB[indicatorColumnIdx] = "Compras";
-const mixedTable: RawTable = { headers: REAL_META_HEADERS, rows: [mixedRowA, mixedRowB] };
-assertEqual(resolveMetaResultsMapping(mixedTable).reason, "inconsistent_indicator", "an indicator that varies across rows in the same file is flagged, not arbitrarily resolved");
+// Row-level fix §2/§10: rows within the SAME file can safely have
+// DIFFERENT result semantics — this is the exact scenario the original
+// file-level resolver could not handle (it required one consistent
+// indicator for the whole file).
+const mixedTable: RawTable = {
+  headers: REAL_META_HEADERS,
+  rows: [
+    [...buildFixture("Clientes potenciales").rows[0]],
+    (() => { const r = [...buildFixture("x").rows[0]]; r[5] = "Alcance"; return r; })(),
+  ],
+};
+const mixedInjected = applyRowResultInjections(mixedTable, applyMapping(mixedTable, detectMapping(mixedTable)));
+assertEqual(mixedInjected[0].conversions, "25", "row 1's safe 'Clientes potenciales' indicator still resolves to conversions");
+assertTrue(mixedInjected[1].conversions === undefined, "row 2's 'Alcance' indicator is never imported as a conversion");
+assertEqual(resolveMetaResultForRow(mixedTable.rows[1][4], mixedTable.rows[1][5]).reason, "duplicates_existing_metric", "a 'reach'-type indicator never duplicates into conversions, since Alcance already captures that raw value");
 
-// No indicator column at all -> Resultados can't be interpreted.
-const noIndicatorTable: RawTable = { headers: REAL_META_HEADERS.filter((h) => h !== "Indicador de resultado"), rows: [buildFixture("x").rows[0].filter((_, i) => REAL_META_HEADERS[i] !== "Indicador de resultado")] };
-assertEqual(resolveMetaResultsMapping(noIndicatorTable).reason, "no_indicator_column", "with no 'Indicador de resultado' column at all, Resultados can't be interpreted");
+// No indicator column at all -> Resultados can't be interpreted for
+// that row.
+assertEqual(resolveMetaResultForRow("25", undefined).reason, "no_indicator", "with no indicator value at all, a row's Resultados can't be interpreted");
 
-// §5: no double-counting — the "(iniciales)"/"(inicial)" companions
-// are always recognized-but-not-imported, regardless of how the
-// PRIMARY Resultados/Indicador de resultado pair resolves.
+// §5 (original fix): no double-counting — the "(iniciales)"/"(inicial)"
+// companions are always recognized-but-not-imported, regardless of how
+// the PRIMARY Resultados/Indicador de resultado pair resolves.
 assertEqual(byHeader("Resultados (iniciales)")?.state, "ignored", "'Resultados (iniciales)' is never imported (avoids double-counting the primary result)");
 assertEqual(byHeader("Indicador de resultados (inicial)")?.state, "ignored", "'Indicador de resultados (inicial)' is never imported");
 assertTrue(
-  adjustedMappings.filter((m) => m.canonicalField === "conversions").length === 1,
-  "exactly one column (the primary 'Resultados') ever maps to conversions — never both the primary and the initial snapshot"
+  injectedRows.every((r) => Object.keys(r).filter((k) => k === "conversions").length <= 1),
+  "each row has at most one 'conversions' value — never both the primary and the initial snapshot"
 );
 
 // ---------------------------------------------------------------------
-// §9: minimum manual work, zero unsafe guessing — end-to-end column
-// counts for the real 18-header file, in the safe-indicator case.
+// §9 (original fix): minimum manual work, zero unsafe guessing —
+// end-to-end column counts for the real 18-header file.
 // ---------------------------------------------------------------------
-const mappedCount = adjustedMappings.filter((m) => m.state === "mapped").length;
-const reviewCountCols = adjustedMappings.filter((m) => m.state === "needs_review").length;
-const ignoredCountCols = adjustedMappings.filter((m) => m.state === "ignored").length;
-assertEqual(adjustedMappings.length, 18, "all 18 real columns are accounted for");
-assertEqual(reviewCountCols, 0, "with a safe result indicator, ZERO columns require manual review (down from the reported 12/18)");
-assertEqual(mappedCount, 7, "7 columns are safely auto-mapped (start_date, end_date, platform, reach, impressions, ad_spend, and the dynamically-resolved Resultados->conversions)");
-assertEqual(ignoredCountCols, 11, "11 columns are recognized-but-not-needed (derived metrics + context/identity fields), never requiring the user's attention");
+const mappedCount = baseMappings.filter((m) => m.state === "mapped").length;
+const reviewCountCols = baseMappings.filter((m) => m.state === "needs_review").length;
+const ignoredCountCols = baseMappings.filter((m) => m.state === "ignored").length;
+assertEqual(baseMappings.length, 18, "all 18 real columns are accounted for");
+assertEqual(reviewCountCols, 0, "ZERO columns require manual review (down from the reported 12/18)");
+assertEqual(mappedCount, 7, "7 columns are statically auto-mapped (start_date, end_date, platform, reach, impressions, ad_spend, campaign_name)");
+assertEqual(ignoredCountCols, 11, "11 columns are recognized-but-not-column-mapped (derived metrics + context/identity + the 2 row_semantic result columns)");
 
 // ---------------------------------------------------------------------
 // Row-level: the mapped/injected fields actually reach
 // normalizeAndValidateRow correctly (LATAM number parsing, taxonomy
-// resolution) — a lightweight end-to-end sanity check, not a full
-// duplicate of the Phase 16 suite's own number/date parsing coverage.
+// resolution, campaign name passthrough) — a lightweight end-to-end
+// sanity check, not a full duplicate of the Phase 16 suite's own
+// number/date parsing coverage.
 // ---------------------------------------------------------------------
 const platforms = [{ internal_key: "meta_ads", display_label: "Meta Ads" }];
 const objectives = [{ internal_key: "conversions", display_label: "Conversiones" }];
 const verticals = [{ internal_key: "retail", display_label: "Retail" }];
 const countries = [{ iso_code: "AR", display_label: "Argentina" }];
-const mappedRows = applyMapping(table, adjustedMappings);
-const normalized = normalizeAndValidateRow(2, { ...mappedRows[0], objective: "conversiones", vertical: "retail", country: "argentina" }, {
+const normalized = normalizeAndValidateRow(2, { ...injectedRows[0], objective: "conversiones", vertical: "retail", country: "argentina" }, {
   platforms, objectives, verticals, countries, businessModels: [], audienceStrategies: [], funnelStages: [],
 });
+assertEqual(normalized.campaignName, "Campaña Verano", "'Nombre de la campaña' reaches NormalizedRow.campaignName");
 assertEqual(normalized.platform, "meta_ads", "the auto-mapped 'Plataforma' column resolves through the same real taxonomy matching every other field uses");
 assertEqual(normalized.rawMetrics.reach, 120000, "'Alcance' value (120000) parses correctly into reach");
 assertEqual(normalized.adSpend, 1500, "'Importe gastado (USD)' value (1500.00) parses correctly into ad_spend, currency suffix included");
 assertEqual(normalized.startDate, "2026-08-01", "'Inicio del informe' parses into startDate");
 assertEqual(normalized.endDate, "2026-08-31", "'Fin del informe' parses into endDate");
-assertEqual(normalized.rawMetrics.conversions, 25, "the dynamically-resolved 'Resultados' value (25) parses correctly into conversions");
+assertEqual(normalized.rawMetrics.conversions, 25, "the row-level-resolved 'Resultados' value (25) parses correctly into conversions");
 
 // ---------------------------------------------------------------------
 // No regression to generic (non-Meta) CSV imports: an unrelated, truly

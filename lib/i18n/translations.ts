@@ -337,6 +337,10 @@ const es = {
       negativeNumber: "\"{value}\" no puede ser negativo.",
       ambiguousNumber: "El número \"{value}\" tiene un formato ambiguo — revisalo.",
       unrecognizedCurrency: "\"{value}\" no es un código de moneda reconocido.",
+      // Post-MVP row-level fix (§4): the file's own headers express more
+      // than one currency code (e.g. mixing "(USD)" and "(ARS)"
+      // suffixes) — never silently defaulted to one of them.
+      ambiguousReportCurrency: "El archivo mezcla más de una moneda — no pudimos detectar una moneda única de forma segura.",
       possibleDuplicate: "Podría ser un duplicado de la fila {row}.",
       unknownMediaOutlet: "No encontramos este medio en el catálogo.",
       unknownMetricDefinition: "No reconocemos esta métrica pública.",
@@ -403,6 +407,10 @@ const es = {
       landingPageViews: "Vistas de landing", videoViews: "Reproducciones de video",
       engagements: "Interacciones", conversions: "Conversiones", attributedRevenue: "Ingresos atribuidos",
       totalRevenue: "Ingresos totales",
+      // Post-MVP row-level fix (§3): shown in the columns/review steps
+      // like any other field — never persisted (see the "campaign_name"
+      // CanonicalField comment in lib/import/types.ts).
+      campaignName: "Nombre de la campaña",
     },
     import: {
       stepperLabel: "Progreso de importación",
@@ -458,12 +466,29 @@ const es = {
       groupIgnored: "No necesarias",
       ignoredHintDerived: "Cucurucho ya la calcula.",
       ignoredHintContext: "Metadato de contexto — no se importa.",
-      // §5: a plain-language reason for the one column ("Resultados")
-      // whose meaning genuinely depends on a paired indicator column,
-      // shown instead of the generic "Necesita revisión".
-      resultsNeedsReviewUnknown: "Depende de \"Indicador de resultado\" ({indicator}) — no pudimos interpretarlo de forma segura.",
-      resultsNeedsReviewInconsistent: "El archivo mezcla más de un tipo de resultado — no pudimos interpretarlo de forma segura.",
-      resultsNeedsReviewNoIndicator: "No encontramos la columna \"Indicador de resultado\" para interpretar este campo.",
+      // Post-MVP row-level fix (§2/§8): "Resultados"/"Indicador de
+      // resultado" get their own group — their meaning varies per row
+      // within the same file, so they're never shown as a single
+      // unresolved column nor lumped into "No necesarias".
+      rowSemanticCount: "{n} con resultado contextual",
+      groupRowSemantic: "Resultado contextual",
+      groupRowSemanticNote: "El significado de estas columnas puede variar por campaña — lo resolvemos fila por fila en la revisión, no como una sola columna.",
+      rowSemanticHint: "Se interpreta por fila — ver detalle en la revisión.",
+      // §4/§11: report-level currency auto-detection from header
+      // currency-code suffixes (e.g. "Importe gastado (USD)").
+      currencyDetected: "Moneda detectada: {currency}",
+      currencyAmbiguous: "El archivo mezcla más de una moneda — revisá los encabezados antes de continuar.",
+      // §3/§8: campaign identity found in the file.
+      campaignCount: "{n} campañas",
+      campaignNameNotPersisted: "El nombre de campaña se muestra solo para tu revisión — todavía no se guarda en la base de datos.",
+      // §9: additive review-table columns/result badges.
+      colDates: "Período",
+      colResult: "Resultado",
+      resultContextualLabel: "Resultado contextual — no se usará para benchmark",
+      resultReasonDuplicatesMetric: "Duplica una métrica ya capturada (alcance/impresiones).",
+      resultReasonUnknownIndicator: "Indicador sin campo canónico seguro.",
+      resultReasonNoIndicator: "Sin \"Indicador de resultado\" para interpretar el valor.",
+      resultReasonNoValue: "Sin valor de \"Resultados\" en esta fila.",
       // §10: optional platform hint, shown before upload.
       platformHintLabel: "¿Desde dónde descargaste el reporte? (opcional)",
       platformHintPlaceholder: "Elegí una plataforma",
@@ -1372,6 +1397,9 @@ const en: typeof es = {
       negativeNumber: "\"{value}\" can't be negative.",
       ambiguousNumber: "The number \"{value}\" has an ambiguous format — please review it.",
       unrecognizedCurrency: "\"{value}\" isn't a recognized currency code.",
+      // Post-MVP row-level fix (§4): the file's own headers express more
+      // than one currency code — never silently defaulted to one.
+      ambiguousReportCurrency: "The file mixes more than one currency — we couldn't safely detect a single currency.",
       possibleDuplicate: "May be a duplicate of row {row}.",
       unknownMediaOutlet: "We couldn't find this outlet in the catalog.",
       unknownMetricDefinition: "We don't recognize this public metric.",
@@ -1434,6 +1462,7 @@ const en: typeof es = {
       landingPageViews: "Landing page views", videoViews: "Video views",
       engagements: "Engagements", conversions: "Conversions", attributedRevenue: "Attributed revenue",
       totalRevenue: "Total revenue",
+      campaignName: "Campaign name",
     },
     import: {
       stepperLabel: "Import progress",
@@ -1483,9 +1512,29 @@ const en: typeof es = {
       groupIgnored: "Not needed",
       ignoredHintDerived: "Cucurucho already calculates this.",
       ignoredHintContext: "Context metadata — not imported.",
-      resultsNeedsReviewUnknown: "Depends on \"Result indicator\" ({indicator}) — we couldn't safely interpret it.",
-      resultsNeedsReviewInconsistent: "The file mixes more than one result type — we couldn't safely interpret it.",
-      resultsNeedsReviewNoIndicator: "We couldn't find the \"Result indicator\" column to interpret this field.",
+      // Post-MVP row-level fix (§2/§8): "Results"/"Result indicator" get
+      // their own group — their meaning varies per row within the same
+      // file, so they're never shown as a single unresolved column nor
+      // lumped into "Not needed".
+      rowSemanticCount: "{n} with contextual result",
+      groupRowSemantic: "Contextual result",
+      groupRowSemanticNote: "These columns' meaning can vary by campaign — we resolve it row by row in review, not as a single column.",
+      rowSemanticHint: "Interpreted per row — see detail in review.",
+      // §4/§11: report-level currency auto-detection from header
+      // currency-code suffixes (e.g. "Amount spent (USD)").
+      currencyDetected: "Currency detected: {currency}",
+      currencyAmbiguous: "The file mixes more than one currency — review the headers before continuing.",
+      // §3/§8: campaign identity found in the file.
+      campaignCount: "{n} campaigns",
+      campaignNameNotPersisted: "Campaign name is shown for review only — it isn't saved to the database yet.",
+      // §9: additive review-table columns/result badges.
+      colDates: "Date range",
+      colResult: "Result",
+      resultContextualLabel: "Contextual result — won't be used for benchmarking",
+      resultReasonDuplicatesMetric: "Duplicates a metric already captured (reach/impressions).",
+      resultReasonUnknownIndicator: "Indicator has no safe canonical field.",
+      resultReasonNoIndicator: "No \"Result indicator\" to interpret the value.",
+      resultReasonNoValue: "No \"Results\" value on this row.",
       platformHintLabel: "Where did you download this report from? (optional)",
       platformHintPlaceholder: "Choose a platform",
       platformHintOther: "Other",
