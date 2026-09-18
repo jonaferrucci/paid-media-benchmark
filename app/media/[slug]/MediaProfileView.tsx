@@ -11,13 +11,14 @@ import type { MediaProfile } from "@/lib/media/catalog";
 import { AddMetricSnapshotForm, AddRateCardForm } from "./ContributionForms";
 import { freshnessLabel } from "@/lib/media/trend";
 import { plannerHrefForMedia, contributeRateCardHref, contributePublicDataHref } from "@/lib/media/contextLinks";
+import { resolveMediaCompleteness, resolveMediaNextAction, describeRateCardChange } from "@/lib/intelligence/mediaIntelligence";
 
 function formatPrice(price: number, currency: string): string {
   return `${currency} ${new Intl.NumberFormat("es-AR").format(price)}`;
 }
 
 function RateCardGroupCard({ group }: { group: MediaProfile["rateCardGroups"][number] }) {
-  const { t } = useTranslation();
+  const { t, locale } = useTranslation();
   const [historyOpen, setHistoryOpen] = useState(false);
   const { current, previous, change, history, isPendingOnly, pendingCount, format } = group;
 
@@ -60,6 +61,13 @@ function RateCardGroupCard({ group }: { group: MediaProfile["rateCardGroups"][nu
           )}
         </div>
       </div>
+      {/* Phase 23 §13: one compact, deterministic sentence version of the
+          exact same change data shown numerically above — only ever
+          built from a real resolved comparable change, never a new
+          comparison. */}
+      {change !== null && previous !== null && (
+        <p className="mt-1.5 text-[11px] text-ink-500">{describeRateCardChange(change, locale)}</p>
+      )}
       <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-ink-400">
         <span>{t("media.validFrom")} {current.validFrom}</span>
         {current.validTo && <span>{t("media.validUntil")} {current.validTo}</span>}
@@ -103,6 +111,16 @@ export function MediaProfileView({ profile }: { profile: MediaProfile }) {
   const [searchOpen, setSearchOpen] = useState(false);
   const { platform, category, countries, latestMetrics, rateCardGroups, metricDefinitions, formats } = profile;
 
+  // Phase 23 §9/§10/§11: the SAME two data categories the sections
+  // below already render, just read once here to drive a plain,
+  // qualitative "how much do we know about this outlet" summary and a
+  // single contextual secondary action — never a score, never more than
+  // one secondary CTA alongside the always-present "Planificar" one.
+  const hasPublicMetrics = latestMetrics.length > 0;
+  const hasCurrentRateCard = rateCardGroups.some((g) => g.current !== null);
+  const completeness = resolveMediaCompleteness(hasPublicMetrics, hasCurrentRateCard);
+  const secondaryAction = resolveMediaNextAction(hasPublicMetrics, hasCurrentRateCard);
+
   return (
     <div className="min-h-screen bg-canvas">
       <AppHeader onSearchClick={() => setSearchOpen(true)} />
@@ -131,20 +149,47 @@ export function MediaProfileView({ profile }: { profile: MediaProfile }) {
               </p>
             )}
             {platform.is_global && <p className="mt-1 text-xs text-ink-500">{t("media.globalAvailability")}</p>}
-            {/* Phase 22 §D: the one, primary Media -> Planner connection
-                point — the profile page (not the catalog grid, whose
-                cards are themselves full-card links; nesting a second
-                link inside would break that pattern). No fabricated
-                opportunity is created here — this only carries the
-                outlet's own slug into the planner's discovery filters,
-                the same real, existing identifier the rest of the app
-                already uses. */}
-            <Link
-              href={plannerHrefForMedia({ mediaSlug: platform.internal_key, categoryId: platform.media_category_id })}
-              className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-primary px-3.5 py-1.5 text-xs font-semibold text-white hover:opacity-90"
-            >
-              <Compass size={13} aria-hidden="true" /> {t("media.planWithThisMediaCta")}
-            </Link>
+
+            {/* Phase 23 §9/§10: "Qué datos tenemos / Qué falta" — plain
+                presence/absence, plus a qualitative (never numeric)
+                completeness read of the same two categories. */}
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <span className="rounded-full bg-surface2 px-2.5 py-1 text-[11px] font-medium text-ink-600">
+                {t(`media.completeness.${completeness}`)}
+              </span>
+              <span className="text-[11px] text-ink-500">
+                {hasPublicMetrics ? "✓" : "—"} {t(hasPublicMetrics ? "media.hasPublicData" : "media.noDataYet")}
+              </span>
+              <span className="text-[11px] text-ink-500">
+                {hasCurrentRateCard ? "✓" : "—"} {t(hasCurrentRateCard ? "media.hasRateCard" : "media.noRateCard")}
+              </span>
+            </div>
+
+            {/* Phase 22 §D / Phase 23 §11: "Planificar" is always the
+                one primary action (the outlet is always discoverable,
+                Phase 22 §D); at most one secondary contextual CTA is
+                added on top, picking whichever data category is
+                actually missing — never both contribution links at
+                once here (they remain individually available inside
+                their own sections below). */}
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <Link
+                href={plannerHrefForMedia({ mediaSlug: platform.internal_key, categoryId: platform.media_category_id })}
+                className="inline-flex items-center gap-1.5 rounded-full bg-primary px-3.5 py-1.5 text-xs font-semibold text-white hover:opacity-90"
+              >
+                <Compass size={13} aria-hidden="true" /> {t("media.planWithThisMediaCta")}
+              </Link>
+              {secondaryAction === "contribute_rate_card" && (
+                <Link href={contributeRateCardHref(platform.internal_key)} className="text-xs font-medium text-primary hover:underline">
+                  {t("media.importRateCardsCta")}
+                </Link>
+              )}
+              {secondaryAction === "contribute_public_data" && (
+                <Link href={contributePublicDataHref(platform.internal_key)} className="text-xs font-medium text-primary hover:underline">
+                  {t("media.importMetricsCta")}
+                </Link>
+              )}
+            </div>
             </div>
           </div>
 

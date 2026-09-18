@@ -6,6 +6,7 @@ import type { MetricComparisonInput } from "@/lib/diagnostics/types";
 import { computePercentDiff, isContextualPosition, type ContextualPosition, type PerformanceLabel } from "@/lib/comparison/classify";
 import { LABEL_STYLE } from "./ComparisonDetail";
 import type { BenchmarkResponse } from "./actions";
+import { resolveDiagnosticActionKey } from "@/lib/intelligence/benchmarkIntelligence";
 
 interface CampaignResultRowLike {
   metric: string;
@@ -73,6 +74,13 @@ export function DiagnosticSection({
         </p>
         <p className="mt-2 text-sm leading-relaxed text-ink-700">
           {t(`diagnostics.${result.primary.rule.interpretationKey}`)}
+        </p>
+        {/* Phase 23 §8: a restrained, category-level "what can you check"
+            follow-up — never a new causal claim about the specific
+            numbers, just a generic next step tied to the SAME category
+            the matched rule already belongs to. */}
+        <p className="mt-2 text-sm font-medium text-ink-800">
+          {t(`diagnostics.${resolveDiagnosticActionKey(result.primary.rule.category)}`)}
         </p>
 
         <div className="mt-3">

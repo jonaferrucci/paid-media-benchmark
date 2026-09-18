@@ -16,6 +16,7 @@ import { ComparisonDetail } from "./ComparisonDetail";
 import { CampaignExplorer } from "./CampaignExplorer";
 import { SaveComparisonButton } from "@/app/comparisons/SaveComparisonButton";
 import { getSavedComparisonAction, type SavedComparison } from "@/app/comparisons/actions";
+import { resolveNoDataAction } from "@/lib/intelligence/benchmarkIntelligence";
 
 const PRIMARY_METRICS = ["cpm", "ctr", "cpc", "reach", "frequency", "cpv"];
 
@@ -437,16 +438,24 @@ export function ResultView({
   }
 
   if (response.status === "no_data") {
+    // §7: never stop at "no hay datos" — one useful action always
+    // follows. There is no relaxation suggestion at all for a hard
+    // no_data result (nothing computed to relax), so the honest next
+    // step is contributing the missing campaigns.
     return (
       <section className="rounded-2xl border border-dashed border-line bg-surface p-6 text-center">
         <Info size={20} className="mx-auto text-ink-400" aria-hidden="true" />
         <p className="mt-2 font-display text-base font-semibold text-ink-900">{t("benchmarkLive.noDataTitle")}</p>
         <p className="mt-2 text-sm text-ink-600">{t("benchmarkLive.noDataBody")}</p>
+        <a href="/contribute" className="mt-3 inline-block rounded-full border border-line bg-canvas px-4 py-2 text-xs font-medium text-ink-900 hover:border-primary hover:text-primary">
+          {t("media.ctaContribute")}
+        </a>
       </section>
     );
   }
 
   if (response.status === "insufficient_sample") {
+    const nextAction = resolveNoDataAction(!!response.relaxationSuggestion);
     return (
       <section className="rounded-2xl border border-caution/30 bg-caution-soft p-6">
         <Info size={20} className="text-caution" aria-hidden="true" />
@@ -455,7 +464,7 @@ export function ResultView({
         <p className="mt-1 text-xs text-ink-600">
           n = {response.sampleSize} (cohort: {response.cohortSampleSize})
         </p>
-        {response.relaxationSuggestion && (
+        {nextAction === "expand_filters" && response.relaxationSuggestion ? (
           <button
             onClick={onApplySuggestion}
             className="mt-3 rounded-full border border-line bg-surface px-4 py-2 text-xs font-medium text-ink-900 hover:border-primary hover:text-primary"
@@ -463,6 +472,10 @@ export function ResultView({
             {t("benchmarkLive.applySuggestion")}: {t(`benchmarkLive.dimensionLabels.${response.relaxationSuggestion.dimension}`)} (
             ~{response.relaxationSuggestion.estimatedSampleSize})
           </button>
+        ) : (
+          <a href="/contribute" className="mt-3 inline-block rounded-full border border-line bg-surface px-4 py-2 text-xs font-medium text-ink-900 hover:border-primary hover:text-primary">
+            {t("media.ctaContribute")}
+          </a>
         )}
       </section>
     );

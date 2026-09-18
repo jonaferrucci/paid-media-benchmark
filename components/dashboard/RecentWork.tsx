@@ -6,6 +6,7 @@ import { ArrowRight, Search } from "lucide-react";
 import { useTranslation } from "@/lib/i18n/LanguageContext";
 import { useSupabaseUser } from "@/lib/supabase/useUser";
 import { listSavedComparisonsAction, type SavedComparison } from "@/app/comparisons/actions";
+import { listScenariosAction, type SavedPlanningScenario } from "@/app/planner/actions";
 
 // Lightweight fallback formatter for stored internal_key values
 // (e.g. "meta_ads" -> "Meta ads"). This component intentionally
@@ -29,10 +30,15 @@ export function RecentWork() {
   const { t, locale } = useTranslation();
   const { user, loading: userLoading } = useSupabaseUser();
   const [items, setItems] = useState<SavedComparison[] | null>(null);
+  // Phase 23 §20: "Planes guardados" alongside "Comparaciones guardadas"
+  // — same continuity idea, reusing the EXISTING listScenariosAction
+  // (Phase 20), no new activity-tracking table.
+  const [plans, setPlans] = useState<SavedPlanningScenario[] | null>(null);
 
   useEffect(() => {
-    if (!user) { setItems(null); return; }
+    if (!user) { setItems(null); setPlans(null); return; }
     listSavedComparisonsAction(3).then(setItems);
+    listScenariosAction().then((all) => setPlans(all.slice(0, 3)));
   }, [user]);
 
   // Anonymous visitors: nothing to show, nothing to prompt (the save
@@ -80,6 +86,35 @@ export function RecentWork() {
               </div>
             </Link>
           ))}
+        </div>
+      )}
+
+      {plans && plans.length > 0 && (
+        <div className="mt-4">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-semibold uppercase tracking-wide text-ink-500">{t("mediaPlanner.savedScenariosTitle")}</p>
+            <Link href="/planner" className="text-xs font-medium text-primary hover:underline">
+              {t("comparisons.viewAll")}
+            </Link>
+          </div>
+          <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
+            {plans.map((p) => (
+              <Link
+                key={p.id}
+                href="/planner"
+                className="group rounded-xl border border-l-[3px] border-l-brandPeach border-line bg-surface p-3 transition-colors hover:bg-surface2/40"
+              >
+                <p className="truncate text-xs font-semibold text-ink-900">{p.name}</p>
+                <p className="mt-0.5 truncate text-[11px] text-ink-500">
+                  {t("mediaPlanner.savedPlanItemCount", { n: p.opportunities.length })}
+                </p>
+                <div className="mt-1.5 flex items-center justify-between">
+                  <span className="text-[10px] text-ink-400">{formatUpdatedAt(p.updatedAt, locale)}</span>
+                  <ArrowRight size={11} className="text-ink-400 group-hover:text-primary" aria-hidden="true" />
+                </div>
+              </Link>
+            ))}
+          </div>
         </div>
       )}
     </section>

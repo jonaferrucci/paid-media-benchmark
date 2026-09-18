@@ -11,6 +11,7 @@ import type { ContributionTaxonomies } from "@/lib/contribute/taxonomies";
 import { submitContributionAction } from "./actions";
 import { SUPPORTED_CURRENCIES, isSupportedCurrencyCode } from "@/lib/config/currencies";
 import { platformsForCategory, platformsForCountry, formatsForCategory, metricsForCategory } from "@/lib/media/filter";
+import { resolveContributionSuccessActions } from "@/lib/intelligence/contributionIntelligence";
 
 interface Draft {
   platformUiId: string | null;
@@ -330,6 +331,24 @@ export function ContributeWizard({ taxonomies }: { taxonomies: ContributionTaxon
   const canProceedContext = draft.platformId && draft.objectiveId && draft.verticalId && draft.countryId;
 
   if (submitted) {
+    // Phase 23 §19: "Listo." alone never explains what happens next.
+    // "Qué se cargó" reuses the exact context the user just chose (no
+    // re-fetch, no new data); "Qué pasa ahora" is the same pending-
+    // review fact submitSuccess already states; "Dónde continuar" is a
+    // restrained, contextual set of links (never all destinations).
+    const nextActions = resolveContributionSuccessActions("campaign_results");
+    const ACTION_HREF: Record<string, string> = {
+      view_benchmarks: "/benchmark",
+      explore_media: "/platforms",
+      view_contributions: "/account/contributions",
+      home: "/",
+    };
+    const ACTION_LABEL_KEY: Record<string, string> = {
+      view_benchmarks: "contribute.successViewBenchmarks",
+      explore_media: "media.exploreCta",
+      view_contributions: "contribute.viewMyContributions",
+      home: "nav.home",
+    };
     return (
       <Shell searchOpen={searchOpen} setSearchOpen={setSearchOpen}>
         <div className="mx-auto max-w-md rounded-2xl border border-line bg-surface p-8 text-center shadow-sm">
@@ -337,12 +356,24 @@ export function ContributeWizard({ taxonomies }: { taxonomies: ContributionTaxon
             <Check size={22} />
           </span>
           <p className="mt-4 text-sm text-ink-900">{t("contribute.submitSuccess")}</p>
-          <button
-            onClick={() => router.push("/account/contributions")}
-            className="mt-5 rounded-full bg-primary px-5 py-2.5 text-sm font-medium text-white hover:opacity-90"
-          >
-            {t("contribute.viewMyContributions")}
-          </button>
+          <p className="mt-2 text-xs text-ink-600">
+            {t("contribute.successLoaded", { platform: platformLabel ?? "—", objective: objectiveLabel ?? "—" })}
+          </p>
+          <div className="mt-5 flex flex-wrap justify-center gap-2">
+            {nextActions.map((action) => (
+              <button
+                key={action}
+                onClick={() => router.push(ACTION_HREF[action])}
+                className={
+                  action === nextActions[0]
+                    ? "rounded-full bg-primary px-5 py-2.5 text-sm font-medium text-white hover:opacity-90"
+                    : "rounded-full border border-line px-5 py-2.5 text-sm font-medium text-ink-700 hover:bg-surface2"
+                }
+              >
+                {t(ACTION_LABEL_KEY[action])}
+              </button>
+            ))}
+          </div>
         </div>
       </Shell>
     );

@@ -23,6 +23,7 @@ import { assessPriceComparability, type ComparabilityState } from "@/lib/plannin
 import { explainPriceComparability, explainMissingRateCard, explainMissingEfficiencyEstimate, explainRequiresCommercialReview } from "@/lib/planning/explain";
 import { computeMultiOpportunityTotals, requiresCommercialReview, type PlannedLineItem } from "@/lib/planning/budget";
 import { resolveMediaContext, resolveIdContext, contributeRateCardHref } from "@/lib/media/contextLinks";
+import { buildPlanSummaryLines, groupPlannerWarnings, countStaleSignals } from "@/lib/intelligence/plannerIntelligence";
 import { fetchPlanningOpportunitiesAction, saveScenarioAction, deleteScenarioAction, getScenarioAction, type SavedPlanningScenario } from "./actions";
 
 type Opportunity = PlanningResult["opportunities"][number];
@@ -178,6 +179,28 @@ export function PlannerView({ catalog, initialScenarios }: PlannerViewProps) {
   });
 
   const totals = budgetValid ? computeMultiOpportunityTotals(lineItems, budgetAmountNum, budgetCurrency) : null;
+
+  // Phase 23 §14/§15: a concise, factual restatement of the plan
+  // state already computed above — no new math, no score, no winner.
+  const withRateCardCount = selectedOpportunities.filter(hasCurrentCommercialOffer).length;
+  const planSummaryLines = buildPlanSummaryLines(
+    {
+      selectedCount: selectedOpportunities.length,
+      withRateCardCount,
+      budgetValid: !!totals,
+      overBudget: totals?.overBudget ?? false,
+      formattedBudgetDelta: totals ? formatPrice(Math.abs(totals.difference), budgetCurrency) : null,
+    },
+    locale
+  );
+  const plannerWarnings = groupPlannerWarnings({
+    pairwiseReasons: pairwiseComparability.map((p) => p.result.reasons),
+    missingRateCardCount: selectedOpportunities.length - withRateCardCount,
+    staleSignalCount: countStaleSignals(
+      selectedOpportunities.flatMap((o) => result?.latestSignalsByPlatform[o.platformId] ?? []),
+      new Date()
+    ),
+  });
 
   async function handleSaveScenario() {
     if (!user) return;
@@ -446,6 +469,33 @@ export function PlannerView({ catalog, initialScenarios }: PlannerViewProps) {
                   </span>
                 )}
               </div>
+            </section>
+          )}
+
+          {/* Phase 23 §14: a plain-language restatement of the plan's
+              current state — no score, no winner, just what's already
+              true about the selection above. */}
+          {planSummaryLines.length > 0 && (
+            <section className="mt-3 rounded-xl border border-line bg-canvas p-3">
+              <ul className="space-y-0.5 text-xs text-ink-700">
+                {planSummaryLines.map((line, idx) => (
+                  <li key={idx}>{line}</li>
+                ))}
+              </ul>
+            </section>
+          )}
+
+          {/* Phase 23 §15: warnings grouped by category (never scattered
+              — the per-card detail below still exists for context, this
+              is the "at a glance" roll-up). */}
+          {plannerWarnings.length > 0 && (
+            <section className="mt-2 flex flex-wrap gap-2">
+              {plannerWarnings.map((w) => (
+                <span key={w.id} className="inline-flex items-center gap-1 rounded-full bg-vanilla-soft px-2.5 py-1 text-[11px] font-medium text-vanilla">
+                  <AlertTriangle size={11} aria-hidden="true" />
+                  {t(`mediaPlanner.warnings.${w.id}`, { n: w.count })}
+                </span>
+              ))}
             </section>
           )}
 
