@@ -67,6 +67,22 @@ function isItemActive(pathname: string, href: string): boolean {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
+// Phase 22 §A1/§A3: ONE shared icon-slot geometry, used by every
+// interactive row in the rail (nav links here, and the pin control
+// below) — this is what actually fixes the "icons don't share a
+// center axis" bug. Previously an icon sat directly in a `gap-3` flex
+// row next to a label span; even with the label's opacity at 0, its
+// full (untruncated) text still reserved real layout width, so the
+// icon effectively floated at "rail padding + 0", never at the rail's
+// true horizontal center. Wrapping the icon in a fixed 40px box (the
+// rail's collapsed 64px width minus its 12px+12px horizontal padding,
+// i.e. derived from --sidebar-rail-width) means the icon is always
+// dead-center in that box regardless of whether a label exists, is
+// hidden, or is mid hover-reveal — and expansion never moves it,
+// since the label is a sibling that appears AFTER this fixed slot
+// rather than something the icon shares space with (§A6).
+const RAIL_ICON_SLOT = "flex h-10 w-10 shrink-0 items-center justify-center";
+
 function NavLink({
   item,
   active,
@@ -84,15 +100,17 @@ function NavLink({
       aria-current={active ? "page" : undefined}
       title={showLabelNow ? undefined : item.label}
       className={clsx(
-        "relative flex items-center gap-3 rounded-full px-3 py-2.5 text-sm transition-colors duration-150",
+        "relative flex w-full items-center gap-3 rounded-full pr-3 text-sm transition-colors duration-150",
         active ? "bg-white/[0.08] font-medium text-white" : "text-ink-400 hover:bg-white/5 hover:text-white"
       )}
     >
       {active && <span className="absolute -left-3 h-5 w-1 rounded-r-full bg-brandGradient" aria-hidden="true" />}
-      <Icon size={16} strokeWidth={1.75} aria-hidden="true" className={clsx("shrink-0", active && "text-brandLavender")} />
+      <span className={RAIL_ICON_SLOT}>
+        <Icon size={16} strokeWidth={1.75} aria-hidden="true" className={clsx(active && "text-brandLavender")} />
+      </span>
       <span
         className={clsx(
-          "truncate transition-opacity duration-100",
+          "truncate py-2.5 transition-opacity duration-100",
           labelVisibility === "always" && "opacity-100",
           labelVisibility === "hidden" && "opacity-0",
           labelVisibility === "onHover" && "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100"
@@ -154,14 +172,23 @@ export function DashboardSidebar() {
         )}
       >
         <SidebarNav groups={groups} pathname={pathname} showLabels={pinned} revealOnHover={!pinned} />
-        <div className="border-t border-white/5 p-3">
+        {/* Phase 22 §A7: the pin row's OWN left inset must equal the nav
+            rows' (12px, matching <nav>'s px-3) so its icon lands on the
+            same RAIL_ICON_SLOT-centered axis — previously this wrapper's
+            p-3 (12px) stacked with the button's own px-3 (another 12px),
+            pushing the pin icon 12px further right than every nav icon
+            above it. The button itself no longer sets its own horizontal
+            padding; only this wrapper does. */}
+        <div className="border-t border-white/5 px-3 py-3">
           <button
             type="button"
             onClick={togglePinned}
             aria-pressed={pinned}
-            className="flex w-full items-center gap-3 rounded-full px-3 py-2 text-xs text-ink-400 transition-colors hover:bg-white/5 hover:text-white"
+            className="flex w-full items-center gap-3 rounded-full py-2 text-xs text-ink-400 transition-colors hover:bg-white/5 hover:text-white"
           >
-            {pinned ? <PinOff size={15} strokeWidth={1.75} aria-hidden="true" className="shrink-0" /> : <Pin size={15} strokeWidth={1.75} aria-hidden="true" className="shrink-0" />}
+            <span className={RAIL_ICON_SLOT}>
+              {pinned ? <PinOff size={15} strokeWidth={1.75} aria-hidden="true" /> : <Pin size={15} strokeWidth={1.75} aria-hidden="true" />}
+            </span>
             <span
               className={clsx(
                 "truncate transition-opacity duration-100",

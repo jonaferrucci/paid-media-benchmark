@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { Compass, Wallet, Bookmark, X, AlertTriangle, Info, TrendingUp, Trash2 } from "lucide-react";
 import { AppHeader } from "@/components/dashboard/AppHeader";
 import { DashboardSidebar } from "@/components/dashboard/DashboardSidebar";
@@ -17,10 +18,11 @@ import { SUPPORTED_CURRENCIES } from "@/lib/config/currencies";
 import { freshnessLabel } from "@/lib/media/trend";
 import type { MediaCatalog } from "@/lib/media/catalog";
 import type { PlanningResult } from "@/lib/planning/queries";
-import { hasCurrentCommercialOffer } from "@/lib/planning/opportunity";
+import { hasCurrentCommercialOffer, toggleOpportunitySelection } from "@/lib/planning/opportunity";
 import { assessPriceComparability, type ComparabilityState } from "@/lib/planning/comparability";
 import { explainPriceComparability, explainMissingRateCard, explainMissingEfficiencyEstimate, explainRequiresCommercialReview } from "@/lib/planning/explain";
 import { computeMultiOpportunityTotals, requiresCommercialReview, type PlannedLineItem } from "@/lib/planning/budget";
+import { resolveMediaContext, resolveIdContext, contributeRateCardHref } from "@/lib/media/contextLinks";
 import { fetchPlanningOpportunitiesAction, saveScenarioAction, deleteScenarioAction, getScenarioAction, type SavedPlanningScenario } from "./actions";
 
 type Opportunity = PlanningResult["opportunities"][number];
@@ -50,15 +52,39 @@ export function PlannerView({ catalog, initialScenarios }: PlannerViewProps) {
   const { t, locale } = useTranslation();
   const { user } = useSupabaseUser();
   const [searchOpen, setSearchOpen] = useState(false);
+  const searchParams = useSearchParams();
+
+  // Phase 22 §D/§S: arriving from "Planificar con este medio" (a media
+  // profile page) carries ?media=<internal_key> and, when the outlet
+  // has one, its own category id as ?category=<id> — both resolved
+  // against the REAL catalog this component already has (never
+  // trusted blindly; an unknown/stale value simply resolves to null
+  // and the planner falls back to its normal empty start state). This
+  // never bypasses validation: it only pre-selects the same filters a
+  // person could pick by hand.
+  const mediaContext = useMemo(
+    () => resolveMediaContext(searchParams.get("media"), catalog.platforms),
+    [searchParams, catalog.platforms]
+  );
 
   // §3: discovery filters — progressive disclosure (category -> country
   // -> format), never the full taxonomy dumped at once.
-  const [categoryId, setCategoryId] = useState<string>("");
-  const [countryId, setCountryId] = useState<string>("");
+  const [categoryId, setCategoryId] = useState<string>(
+    () => resolveIdContext(searchParams.get("category"), catalog.categories)?.id ?? mediaContext?.media_category_id ?? ""
+  );
+  const [countryId, setCountryId] = useState<string>(() => resolveIdContext(searchParams.get("country"), catalog.countries)?.id ?? "");
   const [mediaFormatId, setMediaFormatId] = useState<string>("");
-  const [hasSearched, setHasSearched] = useState(false);
+  const [hasSearched, setHasSearched] = useState(() => !!(searchParams.get("media") || searchParams.get("category") || searchParams.get("country")));
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<PlanningResult | null>(null);
+
+  // Runs once, only when arriving with real navigation context — a
+  // plain visit to /planner still starts from the friendly empty state
+  // (§F), never an automatic query nobody asked for.
+  useEffect(() => {
+    if (hasSearched) runSearch();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // §6: 2-4 selected opportunities, keyed by exact commercial variant.
   const [selectedKeys, setSelectedKeys] = useState<string[]>([]);
@@ -117,11 +143,7 @@ export function PlannerView({ catalog, initialScenarios }: PlannerViewProps) {
 
   function toggleSelect(o: Opportunity) {
     const key = opportunityKey(o);
-    setSelectedKeys((prev) => {
-      if (prev.includes(key)) return prev.filter((k) => k !== key);
-      if (prev.length >= 4) return prev; // §6: cap at 4
-      return [...prev, key];
-    });
+    setSelectedKeys((prev) => toggleOpportunitySelection(prev, key)); // §6: cap at 4, never a duplicate
   }
 
   const selectedOpportunities = useMemo(
@@ -232,6 +254,15 @@ export function PlannerView({ catalog, initialScenarios }: PlannerViewProps) {
             <h1 className="font-display text-xl font-semibold text-ink-900">{t("mediaPlanner.title")}</h1>
           </div>
           <p className="mt-1 max-w-2xl text-sm text-ink-600">{t("mediaPlanner.subtitle")}</p>
+
+          {/* Phase 22 §D: honest confirmation that arriving-with-context
+              actually took — never silent, and never implying anything
+              beyond "this filter is pre-selected for you". */}
+          {mediaContext && (
+            <p className="mt-2 inline-block rounded-full border border-primary/30 bg-primary-soft/30 px-3 py-1 text-xs font-medium text-ink-700">
+              {t("mediaPlanner.contextBannerLabel", { name: mediaContext.display_label })}
+            </p>
+          )}
 
           {/* §3: discovery start state */}
           <Card className="mt-4">
@@ -444,6 +475,7 @@ export function PlannerView({ catalog, initialScenarios }: PlannerViewProps) {
                       const group = o.rateCardGroup;
                       const current = group?.current ?? null;
                       const signals = result?.latestSignalsByPlatform[o.platformId] ?? [];
+                      const outletSlug = result?.platforms.find((p) => p.id === o.platformId)?.internal_key ?? null;
                       return (
                         <Card key={key} className="relative p-4">
                           <button
@@ -470,11 +502,12 @@ export function PlannerView({ catalog, initialScenarios }: PlannerViewProps) {
                                 ) : (
                                   <>
                                     {explainMissingRateCard(locale)}{" "}
-                                    {/* Phase 21B item B9: an outlet without a current rate card stays
-                                        discoverable and comparable (never hidden), but is honestly
-                                        labeled and links to the EXISTING contribution flow — no new
-                                        flow is created here. */}
-                                    <a href="/contribute" className="font-medium text-primary hover:underline">
+                                    {/* Phase 21B item B9 / Phase 22 §R: an outlet without a current
+                                        rate card stays discoverable and comparable (never hidden), but
+                                        is honestly labeled and links to the EXISTING contribution flow
+                                        — no new flow is created here, only this exact outlet's own real
+                                        slug carried along so the destination knows who it's for. */}
+                                    <a href={contributeRateCardHref(outletSlug)} className="font-medium text-primary hover:underline">
                                       {t("mediaPlanner.contributeRateCardCta")}
                                     </a>
                                   </>

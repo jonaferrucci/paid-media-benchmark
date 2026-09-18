@@ -29,6 +29,20 @@ function comboKey(c: { platformId: string; propertyId: string | null; mediaForma
   return [c.platformId, c.propertyId ?? "", c.mediaFormatId].join("|");
 }
 
+// Phase 22 §I/§AD: the exact selection rule the planner's "tray" UI
+// needs — toggle a key in/out of the selected set, never allow a
+// duplicate (an already-selected key toggles OFF, not a second copy),
+// and never exceed the max (4, per §6/§I's "Seleccionados (2/4)").
+// Extracted from PlannerView's inline toggle handler into a pure,
+// directly-testable function; the component's behavior is unchanged,
+// it just now calls this instead of repeating the same three lines
+// inline.
+export function toggleOpportunitySelection(selectedKeys: string[], key: string, max = 4): string[] {
+  if (selectedKeys.includes(key)) return selectedKeys.filter((k) => k !== key);
+  if (selectedKeys.length >= max) return selectedKeys;
+  return [...selectedKeys, key];
+}
+
 // Merges a taxonomy-driven set of outlet+format combinations (discovery
 // must surface a combo even before any rate card exists at all, so an
 // outlet can show "Sin tarifario vigente" rather than disappearing —

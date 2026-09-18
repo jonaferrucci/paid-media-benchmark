@@ -2,6 +2,7 @@
 
 import { useCallback, useRef, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { Upload, ArrowLeft, Check, AlertTriangle, FileDown, TrendingUp } from "lucide-react";
 import { AppHeader } from "@/components/dashboard/AppHeader";
 import { DashboardSidebar } from "@/components/dashboard/DashboardSidebar";
@@ -9,6 +10,7 @@ import { SearchOverlay } from "@/components/dashboard/SearchOverlay";
 import { useTranslation } from "@/lib/i18n/LanguageContext";
 import { parseCsv, parseXlsxBuffer, IMPORT_LIMITS } from "@/lib/import/parse";
 import { detectSnapshotMapping, applySnapshotMapping, validateSnapshotRow, markSnapshotDuplicates, type SnapshotColumnMapping, type ValidatedSnapshotRow, type SnapshotField } from "@/lib/media/importSnapshots";
+import { resolveMediaContext } from "@/lib/media/contextLinks";
 import { generateSnapshotCsvTemplate, generateSnapshotXlsxTemplate } from "@/lib/media/snapshotTemplate";
 import { bulkSubmitSnapshotsAction } from "@/lib/media/actions";
 import type { RawTable } from "@/lib/import/types";
@@ -36,6 +38,10 @@ export function PublicMetricImportFlow({
   knownMetrics: { internal_key: string; display_label: string }[];
 }) {
   const { t } = useTranslation();
+  const searchParams = useSearchParams();
+  // Phase 22 §R/§S — see the identical note in RateCardImportFlow.tsx:
+  // a context banner only, never a per-row prefill/shortcut.
+  const mediaContext = resolveMediaContext(searchParams.get("media"), knownPlatforms);
   const [searchOpen, setSearchOpen] = useState(false);
   const [step, setStep] = useState<Step>("file");
   const [fileName, setFileName] = useState("");
@@ -132,6 +138,11 @@ export function PublicMetricImportFlow({
             <h1 className="font-display text-xl font-semibold text-ink-900">{t("media.importMetricsTitle")}</h1>
           </div>
           <p className="mt-1 text-sm text-ink-600">{t("media.importMetricsSubtitle")}</p>
+          {mediaContext && (
+            <p className="mt-2 inline-block rounded-full border border-primary/30 bg-primary-soft/30 px-3 py-1 text-xs font-medium text-ink-700">
+              {t("contribute.contextBannerLabel", { name: mediaContext.display_label })}
+            </p>
+          )}
 
           {step === "file" && (
             <div className="mt-3">

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Info, TrendingUp, Tag, BarChart3, ChevronDown, ChevronUp } from "lucide-react";
+import { ArrowLeft, Info, TrendingUp, Tag, BarChart3, ChevronDown, ChevronUp, Compass } from "lucide-react";
 import { AppHeader } from "@/components/dashboard/AppHeader";
 import { DashboardSidebar } from "@/components/dashboard/DashboardSidebar";
 import { SearchOverlay } from "@/components/dashboard/SearchOverlay";
@@ -10,6 +10,7 @@ import { useTranslation } from "@/lib/i18n/LanguageContext";
 import type { MediaProfile } from "@/lib/media/catalog";
 import { AddMetricSnapshotForm, AddRateCardForm } from "./ContributionForms";
 import { freshnessLabel } from "@/lib/media/trend";
+import { plannerHrefForMedia, contributeRateCardHref, contributePublicDataHref } from "@/lib/media/contextLinks";
 
 function formatPrice(price: number, currency: string): string {
   return `${currency} ${new Intl.NumberFormat("es-AR").format(price)}`;
@@ -130,6 +131,20 @@ export function MediaProfileView({ profile }: { profile: MediaProfile }) {
               </p>
             )}
             {platform.is_global && <p className="mt-1 text-xs text-ink-500">{t("media.globalAvailability")}</p>}
+            {/* Phase 22 §D: the one, primary Media -> Planner connection
+                point — the profile page (not the catalog grid, whose
+                cards are themselves full-card links; nesting a second
+                link inside would break that pattern). No fabricated
+                opportunity is created here — this only carries the
+                outlet's own slug into the planner's discovery filters,
+                the same real, existing identifier the rest of the app
+                already uses. */}
+            <Link
+              href={plannerHrefForMedia({ mediaSlug: platform.internal_key, categoryId: platform.media_category_id })}
+              className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-primary px-3.5 py-1.5 text-xs font-semibold text-white hover:opacity-90"
+            >
+              <Compass size={13} aria-hidden="true" /> {t("media.planWithThisMediaCta")}
+            </Link>
             </div>
           </div>
 
@@ -165,7 +180,7 @@ export function MediaProfileView({ profile }: { profile: MediaProfile }) {
             )}
             <div className="mt-2 flex flex-wrap items-center gap-2">
               <AddMetricSnapshotForm platformId={platform.id} metricDefinitions={metricDefinitions} />
-              <Link href="/contribute/public-metrics" className="mt-2 text-xs font-medium text-primary hover:underline">
+              <Link href={contributePublicDataHref(platform.internal_key)} className="mt-2 text-xs font-medium text-primary hover:underline">
                 {t("media.importMetricsCta")}
               </Link>
             </div>
@@ -186,7 +201,7 @@ export function MediaProfileView({ profile }: { profile: MediaProfile }) {
               </div>
             )}
             <AddRateCardForm platformId={platform.id} formats={formats} />
-            <Link href="/contribute/rate-cards" className="mt-2 block text-xs font-medium text-primary hover:underline">
+            <Link href={contributeRateCardHref(platform.internal_key)} className="mt-2 block text-xs font-medium text-primary hover:underline">
               {t("media.importRateCardsCta")}
             </Link>
           </section>

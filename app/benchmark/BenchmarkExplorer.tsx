@@ -659,6 +659,20 @@ function ComparisonSection({
               />
             </div>
           )}
+
+          {/* Phase 22 §E: navigation/context only, after a real result —
+              never a claim that benchmark performance decides which
+              media is "best" (no ranking, no ids carried across, both
+              links are plain and generic on purpose). */}
+          <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-line pt-4">
+            <span className="text-xs text-ink-500">{t("benchmarkLive.nextActionsLabel")}</span>
+            <a href="/platforms" className="rounded-full border border-line bg-surface px-3.5 py-1.5 text-xs font-medium text-ink-700 hover:border-primary hover:text-primary">
+              {t("benchmarkLive.exploreMediaCta")}
+            </a>
+            <a href="/planner" className="rounded-full border border-line bg-surface px-3.5 py-1.5 text-xs font-medium text-ink-700 hover:border-primary hover:text-primary">
+              {t("benchmarkLive.buildPlanCta")}
+            </a>
+          </div>
         </div>
       )}
     </div>

@@ -143,6 +143,19 @@ html {
   --sidebar-inset: 14rem;
 }
 
+/* Phase 22 §A1: the ONE geometry constant the collapsed rail's icon
+   column is measured against — logo, nav icons, active-state
+   background, and the bottom pin control all derive their horizontal
+   centering from this single value (see DashboardSidebar.tsx's
+   RAIL_ICON_SLOT and AppHeader.tsx's logo container). Deliberately a
+   separate variable from --sidebar-inset above: --sidebar-inset also
+   changes when the rail is pinned open (4rem -> 14rem), but the
+   collapsed icon column's own width never should — it stays 4rem
+   whether the rail happens to be pinned or not. */
+:root {
+  --sidebar-rail-width: 4rem;
+}
+
 body {
   background-color: var(--color-background);
   color: var(--color-text-primary);

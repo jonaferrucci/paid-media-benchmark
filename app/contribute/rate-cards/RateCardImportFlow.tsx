@@ -2,6 +2,7 @@
 
 import { useCallback, useRef, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { Upload, ArrowLeft, Check, AlertTriangle, FileDown, Tag } from "lucide-react";
 import { AppHeader } from "@/components/dashboard/AppHeader";
 import { DashboardSidebar } from "@/components/dashboard/DashboardSidebar";
@@ -9,6 +10,7 @@ import { SearchOverlay } from "@/components/dashboard/SearchOverlay";
 import { useTranslation } from "@/lib/i18n/LanguageContext";
 import { parseCsv, parseXlsxBuffer, IMPORT_LIMITS } from "@/lib/import/parse";
 import { detectRateCardMapping, applyRateCardMapping, validateRateCardRow, markRateCardDuplicates, type RateCardColumnMapping, type ValidatedRateCardRow, type RateCardField } from "@/lib/media/importRateCards";
+import { resolveMediaContext } from "@/lib/media/contextLinks";
 import { generateRateCardCsvTemplate, generateRateCardXlsxTemplate } from "@/lib/media/rateCardTemplate";
 import { bulkSubmitRateCardsAction } from "@/lib/media/actions";
 import type { RawTable } from "@/lib/import/types";
@@ -38,6 +40,13 @@ export function RateCardImportFlow({
   knownFormats: { internal_key: string; display_label: string }[];
 }) {
   const { t } = useTranslation();
+  const searchParams = useSearchParams();
+  // Phase 22 §R/§S: an outlet-context banner only — this bulk CSV/XLSX
+  // importer has no single-outlet field to safely prefill (each row
+  // maps its OWN outlet column independently), so nothing here skips
+  // or shortcuts that per-row validation. It just confirms, honestly,
+  // which outlet a contextual "Aportar tarifario" link was for.
+  const mediaContext = resolveMediaContext(searchParams.get("media"), knownPlatforms);
   const [searchOpen, setSearchOpen] = useState(false);
   const [step, setStep] = useState<Step>("file");
   const [fileName, setFileName] = useState("");
@@ -139,6 +148,11 @@ export function RateCardImportFlow({
           </div>
           <p className="mt-1 text-sm text-ink-600">{t("media.importRateCardsSubtitle")}</p>
           <p className="mt-1 text-xs text-ink-400">{t("media.rateCardPendingNote")}</p>
+          {mediaContext && (
+            <p className="mt-2 inline-block rounded-full border border-primary/30 bg-primary-soft/30 px-3 py-1 text-xs font-medium text-ink-700">
+              {t("contribute.contextBannerLabel", { name: mediaContext.display_label })}
+            </p>
+          )}
 
           {step === "file" && (
             <div className="mt-3">

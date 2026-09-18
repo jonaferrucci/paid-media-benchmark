@@ -20,7 +20,21 @@ export function AppHeader({ onSearchClick }: AppHeaderProps) {
   return (
     <header className="sticky top-0 z-20 border-b border-line bg-surface px-4 py-3 md:px-6">
       <div className="flex max-w-[1400px] items-center gap-3">
-        <Link href="/" className="flex items-center pr-1" aria-label={t("app.name")}>
+        {/* Phase 22 §A4: the logo's visual center must land on the same
+            horizontal axis as the sidebar rail's icons below it
+            (--sidebar-rail-width / 2 = 32px from the viewport's left
+            edge, where the rail itself sits flush). At md+ (the only
+            breakpoint where the rail renders), a fixed rail-width box
+            plus a negative margin canceling this header's own md:px-6
+            start padding replaces that padding with the rail's own
+            geometry for just this one element — mobile (no rail) is
+            untouched. Only the container is repositioned; the approved
+            mark asset itself (LogoMark) is never resized or redrawn. */}
+        <Link
+          href="/"
+          className="flex items-center pr-1 md:mr-0 md:w-[var(--sidebar-rail-width)] md:justify-center md:pr-0 md:[margin-left:-1.5rem]"
+          aria-label={t("app.name")}
+        >
           <LogoMark size={34} variant="gradient" />
         </Link>
 
