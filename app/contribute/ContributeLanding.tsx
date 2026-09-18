@@ -12,11 +12,11 @@ import type { ContributionTaxonomies } from "@/lib/contribute/taxonomies";
 import { ContributeWizard } from "./ContributeWizard";
 import { bulkSubmitContributionsAction } from "./bulk-actions";
 import { parseCsv, parseXlsxBuffer, IMPORT_LIMITS } from "@/lib/import/parse";
-import { detectMapping, applyMapping, wouldConflict } from "@/lib/import/mapping";
+import { detectMapping, applyMapping, wouldConflict, normalizeHeader, ignoredReasonForHeader } from "@/lib/import/mapping";
 import { normalizeAndValidateRow, detectDuplicates } from "@/lib/import/validate";
 import { generateCsvTemplate, generateXlsxTemplate } from "@/lib/import/template";
 import { REQUIRED_FIELDS, OPTIONAL_FIELDS, type CanonicalField, type DetectedMapping, type NormalizedRow, type RawTable, type RowIssue } from "@/lib/import/types";
-import { detectExportPlatform, findAdPlatformProfile, AD_PLATFORM_PROFILES, type PlatformDetectionResult } from "@/lib/import/platformExports";
+import { detectExportPlatform, findAdPlatformProfile, AD_PLATFORM_PROFILES, resolveMetaResultsMapping, type PlatformDetectionResult, type AdPlatformId, type MetaResultsResolution } from "@/lib/import/platformExports";
 
 type Mode = "landing" | "quick" | "upload";
 type UploadStep = "file" | "columns" | "review" | "confirm" | "done";
@@ -212,6 +212,16 @@ function UploadFlow({
   // detector never silently overrides an explicit choice.
   const [platformDetection, setPlatformDetection] = useState<PlatformDetectionResult | null>(null);
   const [manualPlatformOverride, setManualPlatformOverride] = useState<string>("");
+  // §5 real-Meta-export fix: the outcome of pairing "Resultados" with
+  // "Indicador de resultado" for THIS file, kept alongside the mapping
+  // state so the columns step can explain an unresolved "Resultados"
+  // row instead of a bare "Necesita revisión".
+  const [metaResultsResolution, setMetaResultsResolution] = useState<MetaResultsResolution | null>(null);
+  // §10: optional, explicit "where did you download this from" hint —
+  // never required, never silently forces a mapping; only pre-fills
+  // the manual override when auto-detection itself couldn't confirm a
+  // platform, and is otherwise just informational.
+  const [platformHint, setPlatformHint] = useState<AdPlatformId | "other" | "">("");
   const inputRef = useRef<HTMLInputElement>(null);
 
   const handleFile = useCallback(async (file: File) => {
@@ -239,11 +249,35 @@ function UploadFlow({
     setFileName(file.name);
     setSourceType(isCsv ? "csv" : "xlsx");
     setTable(result.table);
-    setMappings(detectMapping(result.table));
-    setPlatformDetection(detectExportPlatform(result.table.headers));
-    setManualPlatformOverride("");
+
+    const baseMappings = detectMapping(result.table);
+    const resultsResolution = resolveMetaResultsMapping(result.table);
+    setMetaResultsResolution(resultsResolution);
+    // §5: dynamically resolve "Resultados" -> a canonical field for
+    // THIS file only, and only when safe — never a static alias (see
+    // resolveMetaResultsMapping's own comment for why), and never
+    // overriding a column some OTHER header already explicitly claimed.
+    const alreadyClaimed = resultsResolution.canonicalField
+      ? baseMappings.some((m) => m.state === "mapped" && m.canonicalField === resultsResolution.canonicalField)
+      : false;
+    const adjustedMappings = resultsResolution.reason === "mapped" && resultsResolution.canonicalField && !alreadyClaimed
+      ? baseMappings.map((m) =>
+          normalizeHeader(m.sourceHeader) === "resultados"
+            ? { ...m, canonicalField: resultsResolution.canonicalField, state: "mapped" as const }
+            : m
+        )
+      : baseMappings;
+    setMappings(adjustedMappings);
+
+    const detection = detectExportPlatform(result.table.headers);
+    setPlatformDetection(detection);
+    // §10: the hint pre-fills the manual override ONLY when detection
+    // itself couldn't confirm a platform — it never overrides a
+    // confident (possibly different) automatic detection.
+    const hintProfile = platformHint && platformHint !== "other" ? findAdPlatformProfile(platformHint) : null;
+    setManualPlatformOverride(detection.state !== "detected" && hintProfile ? hintProfile.displayLabel : "");
     setStep("columns");
-  }, [t]);
+  }, [t, platformHint]);
 
   function onDrop(e: React.DragEvent) {
     e.preventDefault();
@@ -303,6 +337,29 @@ function UploadFlow({
   const detectedPlatformLabel = platformDetection?.state === "detected" && platformDetection.platformId
     ? findAdPlatformProfile(platformDetection.platformId).displayLabel
     : null;
+  // §10: only a soft note, never a forced correction — the file's own
+  // detected evidence and the user's stated hint disagree, so both are
+  // shown and the user picks.
+  const platformHintMismatch = !!(
+    detectedPlatformLabel && platformHint && platformHint !== "other" && platformHint !== platformDetection?.platformId
+  );
+
+  // §5: a plain-language reason for an unresolved "Resultados" mapping
+  // row, instead of the generic "Necesita revisión" every other
+  // needs_review column gets.
+  function resultsReviewHint(sourceHeader: string): string | null {
+    if (normalizeHeader(sourceHeader) !== "resultados" || !metaResultsResolution) return null;
+    switch (metaResultsResolution.reason) {
+      case "unknown_indicator":
+        return t("contribute.import.resultsNeedsReviewUnknown", { indicator: metaResultsResolution.indicatorSample ?? "" });
+      case "inconsistent_indicator":
+        return t("contribute.import.resultsNeedsReviewInconsistent");
+      case "no_indicator_column":
+        return t("contribute.import.resultsNeedsReviewNoIndicator");
+      default:
+        return null;
+    }
+  }
 
   const STEP_LABELS: { key: UploadStep; labelKey: string }[] = [
     { key: "file", labelKey: "contribute.import.step.file" },
@@ -330,30 +387,62 @@ function UploadFlow({
       )}
 
       {step === "file" && (
-        <div
-          onDragOver={(e) => { e.preventDefault(); setDragActive(true); }}
-          onDragLeave={() => setDragActive(false)}
-          onDrop={onDrop}
-          className={`rounded-2xl border-2 border-dashed p-10 text-center transition-colors ${dragActive ? "border-primary bg-primary-soft" : "border-line bg-surface"}`}
-        >
-          <Upload size={28} className="mx-auto text-ink-400" aria-hidden="true" />
-          <p className="mt-3 text-sm text-ink-700">{t("contribute.import.dropzoneText")}</p>
-          <p className="mt-1 text-xs text-ink-500">{t("contribute.import.supportedFormats")}</p>
-          <label className="mt-4 inline-block cursor-pointer rounded-full bg-primary px-4 py-2 text-xs font-semibold text-white hover:opacity-90">
-            {t("contribute.import.browseButton")}
-            <input
-              ref={inputRef}
-              type="file"
-              accept=".csv,.xlsx"
-              className="sr-only"
-              onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); }}
-            />
-          </label>
-          {fileError && (
-            <p role="alert" className="mt-3 inline-flex items-center gap-1.5 text-xs text-caution">
-              <AlertTriangle size={12} aria-hidden="true" /> {fileError}
-            </p>
-          )}
+        <div>
+          {/* §10: optional platform hint — auto-detection works fully
+              without it; this only pre-fills the manual override when
+              detection itself can't confirm a platform, and is never
+              forced onto a confident, disagreeing automatic result. */}
+          <div className="mb-3 flex flex-wrap items-center gap-2 text-xs text-ink-600">
+            <label htmlFor="platform-hint">{t("contribute.import.platformHintLabel")}</label>
+            <select
+              id="platform-hint"
+              value={platformHint}
+              onChange={(e) => setPlatformHint(e.target.value as AdPlatformId | "other" | "")}
+              className="rounded-lg border border-line bg-canvas px-2 py-1 text-xs text-ink-900"
+            >
+              <option value="">{t("contribute.import.platformHintPlaceholder")}</option>
+              {AD_PLATFORM_PROFILES.map((p) => (
+                <option key={p.id} value={p.id}>{p.displayLabel}</option>
+              ))}
+              <option value="other">{t("contribute.import.platformHintOther")}</option>
+            </select>
+          </div>
+
+          <div
+            onDragOver={(e) => { e.preventDefault(); setDragActive(true); }}
+            onDragLeave={() => setDragActive(false)}
+            onDrop={onDrop}
+            className={`rounded-2xl border-2 border-dashed p-10 text-center transition-colors ${dragActive ? "border-primary bg-primary-soft" : "border-line bg-surface"}`}
+          >
+            <Upload size={28} className="mx-auto text-ink-400" aria-hidden="true" />
+            <p className="mt-3 text-sm text-ink-700">{t("contribute.import.dropzoneText")}</p>
+            <p className="mt-1 text-xs text-ink-500">{t("contribute.import.supportedFormats")}</p>
+            <label className="mt-4 inline-block cursor-pointer rounded-full bg-primary px-4 py-2 text-xs font-semibold text-white hover:opacity-90">
+              {t("contribute.import.browseButton")}
+              <input
+                ref={inputRef}
+                type="file"
+                accept=".csv,.xlsx"
+                className="sr-only"
+                onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); }}
+              />
+            </label>
+            {fileError && (
+              <p role="alert" className="mt-3 inline-flex items-center gap-1.5 text-xs text-caution">
+                <AlertTriangle size={12} aria-hidden="true" /> {fileError}
+              </p>
+            )}
+          </div>
+
+          {/* §11: concise, platform-specific download guidance — never
+              a rigid single preset; partial exports are still supported. */}
+          <div className="mt-3 rounded-xl border border-dashed border-line bg-surface2/40 px-4 py-3 text-xs text-ink-600">
+            <p>{t("contribute.import.downloadGuidanceGeneric")}</p>
+            {platformHint === "meta_ads" && (
+              <p className="mt-1.5 whitespace-pre-line">{t("contribute.import.downloadGuidanceMeta")}</p>
+            )}
+            <p className="mt-1.5">{t("contribute.import.downloadGuidanceRecommendedFields")}</p>
+          </div>
         </div>
       )}
 
@@ -369,6 +458,9 @@ function UploadFlow({
               <p className="font-medium text-ink-800">
                 {platformDetection?.state === "ambiguous" ? t("contribute.import.detectionAmbiguousTitle") : t("contribute.import.detectionUnknownTitle")}
               </p>
+            )}
+            {platformHintMismatch && (
+              <p className="mt-1 text-xs text-caution">{t("contribute.import.platformHintMismatch", { detected: detectedPlatformLabel ?? "", hint: findAdPlatformProfile(platformHint as AdPlatformId).displayLabel })}</p>
             )}
             <div className="mt-2 flex flex-wrap items-center gap-2">
               <label className="text-xs text-ink-500" htmlFor="platform-override">{t("contribute.import.platformOverrideLabel")}</label>
@@ -429,8 +521,14 @@ function UploadFlow({
                         </select>
                         {m.state === "mapped" && !conflict && <Check size={14} className="text-pistachio" aria-hidden="true" />}
                         {conflict && <span className="text-[11px] text-caution">{t("contribute.import.duplicateMapping")}</span>}
-                        {m.state === "needs_review" && <span className="text-[11px] text-vanilla">{t("contribute.import.needsReview")}</span>}
-                        {m.state === "ignored" && <span className="text-[11px] text-ink-400">{t("contribute.import.ignoredHint")}</span>}
+                        {m.state === "needs_review" && (
+                          <span className="text-[11px] text-vanilla">{resultsReviewHint(m.sourceHeader) ?? t("contribute.import.needsReview")}</span>
+                        )}
+                        {m.state === "ignored" && (
+                          <span className="text-[11px] text-ink-400">
+                            {ignoredReasonForHeader(m.sourceHeader) === "derived" ? t("contribute.import.ignoredHintDerived") : t("contribute.import.ignoredHintContext")}
+                          </span>
+                        )}
                       </div>
                     );
                   })}

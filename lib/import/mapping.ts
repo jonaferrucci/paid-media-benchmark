@@ -22,8 +22,10 @@ const ALIASES: Record<CanonicalField, string[]> = {
   // Post-MVP: "Reporting starts"/"Reporting ends" are the exact column
   // names a Meta Ads Manager export uses for a date-range report — a
   // real, existing alias for the SAME canonical field, not a new one.
-  start_date: ["start date", "fecha inicio", "fecha de inicio", "inicio", "start", "reporting starts"],
-  end_date: ["end date", "fecha fin", "fecha de fin", "fin", "end", "reporting ends"],
+  // "Inicio del informe"/"Fin del informe" are the exact ES equivalent,
+  // confirmed against a real Meta export (post-MVP fix) — same field.
+  start_date: ["start date", "fecha inicio", "fecha de inicio", "inicio", "start", "reporting starts", "inicio del informe"],
+  end_date: ["end date", "fecha fin", "fecha de fin", "fin", "end", "reporting ends", "fin del informe"],
   currency: ["currency", "moneda", "divisa"],
   // "amount spent"/"importe gastado" (Meta) and bare "cost" (Google/
   // TikTok/Pinterest all label spend this way) are real platform-export
@@ -78,26 +80,109 @@ const ALIASES: Record<CanonicalField, string[]> = {
 // instead of dumping it into "needs review" — the user never has to
 // manually dismiss a column Cucurucho already understands and
 // deliberately won't use.
-const IGNORED_HEADER_ALIASES: string[] = [
+// A small, known currency-code allowlist — NOT a bare \([a-z]{3}\)
+// heuristic, which would risk stripping a real 3-letter semantic
+// qualifier (e.g. "(all)", "(new)") that happens to fit the same
+// shape. Real ad-platform exports commonly append a trailing
+// "(USD)"-style currency-code suffix to monetary/derived-metric column
+// headers (confirmed against a real Meta export: "Importe gastado
+// (USD)", "CPM (coste por 1000 impresiones) (USD)") — stripping ONLY
+// this specific, deterministic shape lets e.g. "Importe gastado (USD)"
+// still match the exact same alias as bare "Importe gastado", without
+// risking an accidental match on some other trailing parenthetical
+// (like "Resultados (iniciales)", which must stay distinct from bare
+// "Resultados" — see IGNORED_HEADERS below).
+//
+// Declared here (before IGNORED_HEADERS/normalizeHeader's first call)
+// because — unlike normalizeHeader itself, a hoisted function
+// declaration — a `const` is NOT usable before its own declaration
+// runs; normalizeHeader references this at module-init time via the
+// IGNORED_HEADER_SET/IGNORED_HEADER_REASONS built below.
+const CURRENCY_SUFFIX_RE = /\s*\((usd|ars|mxn|brl|clp|cop|pen|uyu|eur|gbp|cad|aud)\)\s*$/i;
+
+type IgnoredReason = "derived" | "context";
+const IGNORED_HEADERS: { header: string; reason: IgnoredReason }[] = [
   // Derived/calculated metrics — never trusted from the source file.
-  "ctr", "ctr (link click through rate)", "cpm", "cpc", "avg cpc", "cost / conv", "cost per conversion",
-  "roas", "acos", "frequency", "frecuencia", "search impr share", "conv value",
+  { header: "ctr", reason: "derived" },
+  { header: "ctr (link click through rate)", reason: "derived" },
+  { header: "cpm", reason: "derived" },
+  { header: "cpc", reason: "derived" },
+  { header: "avg cpc", reason: "derived" },
+  { header: "cost / conv", reason: "derived" },
+  { header: "cost per conversion", reason: "derived" },
+  { header: "roas", reason: "derived" },
+  { header: "acos", reason: "derived" },
+  { header: "frequency", reason: "derived" },
+  { header: "frecuencia", reason: "derived" },
+  { header: "search impr share", reason: "derived" },
+  { header: "conv value", reason: "derived" },
   // A distinct, narrower definition than Cucurucho's own "video views"
   // (a 6-second-minimum view) — never conflated with the generic field.
-  "6 second video views",
+  { header: "6 second video views", reason: "derived" },
   // Row-identity / breakdown columns with no canonical field.
-  "campaign", "campaign name", "nombre de la campaña", "campaña", "ad set name", "ad name",
-  "ad group name", "campaign type", "day", "día",
+  { header: "campaign", reason: "context" },
+  { header: "campaign name", reason: "context" },
+  { header: "nombre de la campaña", reason: "context" },
+  { header: "campaña", reason: "context" },
+  { header: "ad set name", reason: "context" },
+  { header: "ad name", reason: "context" },
+  { header: "ad group name", reason: "context" },
+  { header: "campaign type", reason: "context" },
+  { header: "day", reason: "context" },
+  { header: "día", reason: "context" },
+  // Post-MVP real-Meta-export fix: headers confirmed against an actual
+  // Meta Ads export that weren't previously recognized at all (they
+  // fell into "needs review" even though Cucurucho already understands
+  // exactly what they are and exactly why it won't import them).
+  //
+  // "Coste por 1000 cuentas de Meta alcanzadas" and "CPM (coste por
+  // 1000 impresiones)"/"CPC (todos)" are Meta-specific calculated cost
+  // metrics (after normalizeHeader strips the trailing "(USD)"
+  // currency suffix — see CURRENCY_SUFFIX_RE below) — same "derived,
+  // never trusted from the file" reasoning as bare cpm/cpc/roas/acos.
+  { header: "coste por 1000 cuentas de meta alcanzadas", reason: "derived" },
+  { header: "cpm (coste por 1000 impresiones)", reason: "derived" },
+  { header: "cpc (todos)", reason: "derived" },
+  // "Indicador de resultado" has no canonical field of its own — it's
+  // consulted (see resolveMetaResultsMapping in platformExports.ts)
+  // ONLY to decide whether the paired "Resultados" column can be
+  // safely interpreted, never imported as a value in itself.
+  { header: "indicador de resultado", reason: "context" },
+  // Meta's own campaign delivery/status label — real metadata, no
+  // canonical field.
+  { header: "entrega de la campaña", reason: "context" },
+  // An audience/account-level count, not a per-campaign performance
+  // raw metric Cucurucho's schema tracks.
+  { header: "seguidores de instagram", reason: "context" },
+  // "(iniciales)"/"(inicial)": Meta's pre-attribution-window snapshot
+  // of the same result Cucurucho already captures from the primary
+  // "Resultados"/"Indicador de resultado" pair — importing these too
+  // would double-count the same conversion concept, so they're always
+  // recognized-but-not-imported, regardless of how "Resultados" itself
+  // resolves.
+  { header: "resultados (iniciales)", reason: "context" },
+  { header: "indicador de resultados (inicial)", reason: "context" },
 ];
 // normalizeHeader is a hoisted function declaration (defined just
 // below), so it's safely callable here even though this const is
 // initialized first at module load — same normalization used
 // everywhere else in this file and by platformExports.ts's detector.
-const IGNORED_HEADER_SET = new Set(IGNORED_HEADER_ALIASES.map((h) => normalizeHeader(h)));
+const IGNORED_HEADER_SET = new Set(IGNORED_HEADERS.map((h) => normalizeHeader(h.header)));
+const IGNORED_HEADER_REASONS = new Map<string, IgnoredReason>(IGNORED_HEADERS.map((h) => [normalizeHeader(h.header), h.reason]));
+
+// Returns why a given source header was auto-ignored — used by the
+// review UI to explain itself instead of a bare "Ignoradas" (post-MVP
+// real-Meta-export fix): "context" is a safe default for a header not
+// found here (callers only ever call this for a header already known
+// to be in the "ignored" state).
+export function ignoredReasonForHeader(header: string): IgnoredReason {
+  return IGNORED_HEADER_REASONS.get(normalizeHeader(header)) ?? "context";
+}
 
 export function normalizeHeader(h: string): string {
   return h
     .toLowerCase()
+    .replace(CURRENCY_SUFFIX_RE, "")
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "") // strip accents for comparison
     .replace(/[_\-.]/g, " ")
@@ -128,7 +213,7 @@ export function detectMapping(table: RawTable): DetectedMapping[] {
       return { sourceHeader: header, sourceColumnIndex: index, canonicalField: candidate, state: "mapped" as const };
     }
     // Post-MVP ad-platform import: a column Cucurucho RECOGNIZES as a
-    // derived metric or a row-identity label (see IGNORED_HEADER_ALIASES
+    // derived metric or a row-identity label (see IGNORED_HEADERS
     // above) is auto-ignored rather than dumped into "needs review" —
     // the user only ever reviews columns that are genuinely unknown.
     if (IGNORED_HEADER_SET.has(normalized)) {

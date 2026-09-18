@@ -1,4 +1,5 @@
 import { normalizeHeader } from "./mapping";
+import type { CanonicalField, RawTable } from "./types";
 
 // Post-MVP usability improvement: real ad-platform export detection.
 // Pure, deterministic, no external/AI dependency — exactly the same
@@ -47,8 +48,21 @@ const SIGNATURES: Record<AdPlatformId, { strong: string[]; supporting: string[] 
       "ctr (link click through rate)",
       "website purchases conversion value",
       "purchase conversion value",
+      // Confirmed against a real Meta Ads export (post-MVP fix) — each
+      // is essentially unique Meta/Instagram terminology.
+      "indicador de resultado",
+      "coste por 1000 cuentas de meta alcanzadas",
+      "seguidores de instagram",
     ],
-    supporting: ["link clicks", "reach"],
+    supporting: [
+      "link clicks",
+      "reach",
+      // "campana" (accent-stripped "campaña") here is Meta's own
+      // "Entrega de la campaña" (delivery status) column, not a
+      // standalone "campaign" word — kept SUPPORTING (not strong)
+      // since "campaign delivery" as a concept isn't unique to Meta.
+      "entrega de la campana",
+    ],
   },
   google_ads: {
     strong: ["campaign type", "avg cpc", "cost / conv", "search impr share"],
@@ -113,4 +127,74 @@ export function findAdPlatformProfile(id: AdPlatformId): AdPlatformProfile {
   // AD_PLATFORM_PROFILES is a fixed, exhaustive literal covering every
   // AdPlatformId — this lookup cannot fail for a valid id.
   return AD_PLATFORM_PROFILES.find((p) => p.id === id)!;
+}
+
+// §5/post-MVP real-Meta-export fix: Meta's own "Resultados" column is
+// objective-dependent — its meaning is only knowable by reading the
+// paired "Indicador de resultado" column's actual VALUE, never by the
+// header name alone (unlike every other field, this is a per-file,
+// value-based decision, not a static header alias). This resolves
+// that pairing ONCE per file — a Meta report is one objective for its
+// whole date range, so the indicator is expected to be constant across
+// rows — into, at most, a single dynamic "Resultados" -> canonical
+// field mapping, and ONLY for indicator values whose meaning is
+// unambiguous and already supported by Cucurucho's own conversions
+// concept. An unrecognized, missing, or inconsistent indicator leaves
+// "Resultados" unmapped (needs_review) rather than guessed — this
+// deliberately does NOT attempt to generalize to every possible Meta
+// objective (video views, engagement, reach, awareness); it only ever
+// resolves the common "this is a conversion count" case the task's
+// own examples describe.
+const SAFE_RESULT_INDICATORS: Record<string, CanonicalField> = {
+  leads: "conversions",
+  lead: "conversions",
+  "clientes potenciales": "conversions",
+  purchases: "conversions",
+  purchase: "conversions",
+  compras: "conversions",
+  conversions: "conversions",
+  conversiones: "conversions",
+  sales: "conversions",
+  ventas: "conversions",
+};
+
+export type MetaResultsReason = "mapped" | "unknown_indicator" | "inconsistent_indicator" | "no_indicator_column" | "no_results_column";
+
+export interface MetaResultsResolution {
+  canonicalField: CanonicalField | null;
+  reason: MetaResultsReason;
+  // The (normalized) indicator value found, when there was one — used
+  // by the UI to explain an unresolved "Resultados" mapping (e.g.
+  // "Indicador de resultado: {indicatorSample}").
+  indicatorSample: string | null;
+}
+
+export function resolveMetaResultsMapping(table: RawTable): MetaResultsResolution {
+  const resultsIdx = table.headers.findIndex((h) => normalizeHeader(h) === "resultados");
+  if (resultsIdx === -1) return { canonicalField: null, reason: "no_results_column", indicatorSample: null };
+
+  // Deliberately the PRIMARY "Indicador de resultado" only — never its
+  // "(inicial)" companion, which lib/import/mapping.ts's IGNORED_HEADERS
+  // already keeps out of any interpretation to avoid double-counting
+  // the same conversion concept from two paired columns.
+  const indicatorIdx = table.headers.findIndex((h) => normalizeHeader(h) === "indicador de resultado");
+  if (indicatorIdx === -1) return { canonicalField: null, reason: "no_indicator_column", indicatorSample: null };
+
+  const values = new Set(
+    table.rows
+      .map((row) => normalizeHeader(row[indicatorIdx] ?? ""))
+      .filter((v) => v !== "")
+  );
+  if (values.size === 0) return { canonicalField: null, reason: "no_indicator_column", indicatorSample: null };
+  if (values.size > 1) {
+    // A single report mixing more than one result type can't be
+    // safely collapsed into one field — flag for review rather than
+    // arbitrarily picking one.
+    return { canonicalField: null, reason: "inconsistent_indicator", indicatorSample: [...values][0] };
+  }
+
+  const indicator = [...values][0];
+  const field = SAFE_RESULT_INDICATORS[indicator];
+  if (!field) return { canonicalField: null, reason: "unknown_indicator", indicatorSample: indicator };
+  return { canonicalField: field, reason: "mapped", indicatorSample: indicator };
 }
