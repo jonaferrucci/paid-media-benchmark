@@ -282,6 +282,34 @@ export function ignoredReasonForHeader(header: string): IgnoredReason {
   return IGNORED_HEADER_REASONS.get(normalizeHeader(header)) ?? "context";
 }
 
+// ADAPTIVE PLATFORM IMPORT ARCHITECTURE (§6): a coarser, UI-facing
+// classification collapsing DetectedMapping's 3 pipeline states + the
+// ignored reason into the 4 labels a review screen actually needs to
+// show. "exact" (a real alias-dictionary match — every current mapping
+// is a deterministic exact match, never a fuzzy guess, so there is no
+// separate "high_confidence" tier to distinguish it from yet: a real
+// future fuzzy-matched case would be the first to earn that label).
+// "derived"/"contextual" mirror IGNORED_HEADERS' own reasons 1:1
+// (row_semantic folds into "contextual" — a per-row-resolved result is
+// exactly as non-blocking and non-configurable as a static context
+// column, from the review screen's point of view). "ambiguous" is the
+// ONLY state that should ever demand a manual dropdown (§6: "Only
+// ambiguous fields should demand manual action"). "unsupported" is
+// reserved for a column Cucurucho recognizes but that this file's
+// PLATFORM/PROFILE can't safely use — no real case exists yet (every
+// recognized column today is either always-safe or always-derived), so
+// it's declared for completeness but never returned; a real future case
+// would return it here rather than inventing a second classifier.
+export type FieldConfidence = "exact" | "high_confidence" | "contextual" | "derived" | "unsupported" | "ambiguous";
+
+export function classifyFieldConfidence(mapping: DetectedMapping): FieldConfidence {
+  if (mapping.state === "mapped") return "exact";
+  if (mapping.state === "needs_review") return "ambiguous";
+  // state === "ignored"
+  const reason = ignoredReasonForHeader(mapping.sourceHeader);
+  return reason === "derived" ? "derived" : "contextual";
+}
+
 export function normalizeHeader(h: string): string {
   return h
     .toLowerCase()

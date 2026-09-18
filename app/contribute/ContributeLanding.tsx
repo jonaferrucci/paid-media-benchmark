@@ -16,7 +16,7 @@ import { detectMapping, applyMapping, wouldConflict, normalizeHeader, ignoredRea
 import { normalizeAndValidateRow, detectDuplicates } from "@/lib/import/validate";
 import { generateCsvTemplate, generateXlsxTemplate } from "@/lib/import/template";
 import { REQUIRED_FIELDS, OPTIONAL_FIELDS, type CanonicalField, type DetectedMapping, type NormalizedRow, type RawTable, type RowIssue } from "@/lib/import/types";
-import { detectExportPlatform, findAdPlatformProfile, AD_PLATFORM_PROFILES, resolveMetaResultForRow, detectReportCurrency, type PlatformDetectionResult, type AdPlatformId, type RowResultResolution, type CurrencyDetectionResult } from "@/lib/import/platformExports";
+import { detectExportPlatform, findAdPlatformProfile, AD_PLATFORM_PROFILES, resolveMetaResultForRow, detectReportCurrency, classifyExportProfile, type PlatformDetectionResult, type AdPlatformId, type RowResultResolution, type CurrencyDetectionResult } from "@/lib/import/platformExports";
 import { suggestObjectiveFromCampaignNames } from "@/lib/import/suggestions";
 
 type Mode = "landing" | "quick" | "upload";
@@ -490,6 +490,19 @@ function UploadFlow({
     detectedPlatformLabel && platformHint && platformHint !== "other" && platformHint !== platformDetection?.platformId
   );
 
+  // §1/§2/§20: a SEPARATE second classification — which export FAMILY
+  // this file belongs to (e.g. "Search report" vs. a plain "Campaign
+  // report") — computed only once a platform is resolved and never
+  // conflated with platform detection itself. Purely additive: it only
+  // feeds the columns-step banner label, it never changes any mapping,
+  // currency, or validation decision.
+  const resolvedDetectionPlatformId: AdPlatformId | null = manualPlatformOverride
+    ? AD_PLATFORM_PROFILES.find((p) => p.displayLabel === manualPlatformOverride)?.id ?? null
+    : platformDetection?.state === "detected" ? platformDetection.platformId : null;
+  const exportProfile = table && resolvedDetectionPlatformId
+    ? classifyExportProfile(resolvedDetectionPlatformId, table, mappings)
+    : null;
+
   // §3/§9: whether campaign identity was found in this file at all —
   // gates the additive "Campaign" review column and the
   // persistence-limitation caption, so a generic (non-campaign) import
@@ -619,19 +632,25 @@ function UploadFlow({
             )}
           </div>
 
-          {/* §11: concise, platform-specific download guidance — never
-              a rigid single preset; partial exports are still supported. */}
+          {/* §19/§20: registry-driven download guidance — one generic
+              lookup against the platform's own profile instead of a
+              hardcoded if-per-platform chain. Platforms without a
+              confirmed real export path yet (TikTok/Pinterest/Mercado
+              Libre) fall back to a generic "upload it as-is" line built
+              from their display label, rather than fabricating steps
+              nobody has verified. The "flexible" note is always shown,
+              making explicit that partial/alternate column sets work. */}
           <div className="mt-3 rounded-xl border border-dashed border-line bg-surface2/40 px-4 py-3 text-xs text-ink-600">
             <p>{t("contribute.import.downloadGuidanceGeneric")}</p>
-            {platformHint === "meta_ads" && (
-              <p className="mt-1.5 whitespace-pre-line">{t("contribute.import.downloadGuidanceMeta")}</p>
-            )}
-            {/* POST-MVP IMPORT FIX 3 (§R): Google's own export path —
-                shown only when the user hinted Google, same treatment
-                as the existing Meta guidance right above. */}
-            {platformHint === "google_ads" && (
-              <p className="mt-1.5 whitespace-pre-line">{t("contribute.import.downloadGuidanceGoogle")}</p>
-            )}
+            {platformHint && platformHint !== "other" && (() => {
+              const hintProfile = findAdPlatformProfile(platformHint);
+              return hintProfile.downloadGuidanceKey ? (
+                <p className="mt-1.5 whitespace-pre-line">{t(hintProfile.downloadGuidanceKey)}</p>
+              ) : (
+                <p className="mt-1.5">{t("contribute.import.downloadGuidanceOtherPlatform", { platform: hintProfile.displayLabel })}</p>
+              );
+            })()}
+            <p className="mt-1.5">{t("contribute.import.downloadGuidanceFlexible")}</p>
             <p className="mt-1.5">{t("contribute.import.downloadGuidanceRecommendedFields")}</p>
           </div>
         </div>
@@ -669,15 +688,33 @@ function UploadFlow({
                 ))}
               </select>
             </div>
+            {/* §5/§7: the export-profile label — a second, separate line
+                under the platform banner ("Meta Ads" / "Reporte de
+                campañas"), never merged into the platform decision
+                itself (§2). Only rendered once a profile could actually
+                be classified. */}
+            {exportProfile && (
+              <p className="mt-2 text-xs font-medium text-ink-700">{t(exportProfile.labelKey)}</p>
+            )}
           </div>
 
+          {/* §5/§7: a compact summary line instead of a wall of per-
+              column dropdowns — currency/campaigns/columns at a glance,
+              then how many columns fall into each bucket. */}
           <p className="mt-4 text-sm text-ink-700">
             {t("contribute.import.mappingIntro", { file: fileName, count: table.rows.length })}
-            {" "}
-            {t("contribute.import.columnsFound", { count: mappings.length })} · {t("contribute.import.recognizedCount", { n: recognizedMappingCount })}
-            {reviewMappingCount > 0 && <> · {t("contribute.import.reviewCount", { n: reviewMappingCount })}</>}
+          </p>
+          <p className="mt-1 text-xs text-ink-600">
+            {t("contribute.import.reportStatsLine", {
+              currency: currencyDetection?.state === "detected" ? currencyDetection.currency ?? "—" : "—",
+              campaigns: table.rows.length,
+              columns: mappings.length,
+            })}
+          </p>
+          <p className="mt-1 text-xs text-ink-600">
+            {t("contribute.import.recognizedCount", { n: recognizedMappingCount })}
             {ignoredMappingCount > 0 && <> · {t("contribute.import.ignoredCount", { n: ignoredMappingCount })}</>}
-            {rowSemanticMappingCount > 0 && <> · {t("contribute.import.rowSemanticCount", { n: rowSemanticMappingCount })}</>}
+            {rowSemanticMappingCount > 0 && <> · {t("contribute.import.statContextualResults", { n: rowSemanticMappingCount })}</>}
           </p>
 
           {/* §4/§8: currency and campaign-count facts, shown only when
@@ -814,51 +851,27 @@ function UploadFlow({
             </p>
           </div>
 
-          {/* §E: the user only ever reviews columns that are genuinely
-              unknown — recognized and auto-ignored columns are shown,
-              never hidden, but grouped apart so they don't have to be
-              individually confirmed one by one. */}
-          {(["mapped", "needs_review", "ignored", "row_semantic"] as const).map((groupState) => {
-            // §8: "Resultados"/"Indicador de resultado" get their own
-            // distinct group (never lumped into the generic "no
-            // necesarias" bucket) — their meaning is resolved per row,
-            // not simply unneeded, so a plain ignored explanation would
-            // misrepresent them.
-            const groupMappings = groupState === "row_semantic"
-              ? mappings.filter((m) => m.state === "ignored" && ignoredReasonForHeader(m.sourceHeader) === "row_semantic")
-              : groupState === "ignored"
+          {/* §7: automatic and no-config-needed columns are collapsed by
+              default behind "Ver columnas" — nothing to confirm, so
+              nothing forces itself onto the screen. */}
+          {(["mapped", "ignored"] as const).map((groupState) => {
+            const groupMappings = groupState === "ignored"
               ? mappings.filter((m) => m.state === "ignored" && ignoredReasonForHeader(m.sourceHeader) !== "row_semantic")
               : mappings.filter((m) => m.state === groupState);
             if (groupMappings.length === 0) return null;
-            const groupLabelKey = groupState === "mapped"
-              ? "contribute.import.groupRecognized"
-              : groupState === "needs_review"
-              ? "contribute.import.groupNeedsReview"
-              : groupState === "row_semantic"
-              ? "contribute.import.groupRowSemantic"
-              : "contribute.import.groupIgnored";
+            const groupLabelKey = groupState === "mapped" ? "contribute.import.groupRecognized" : "contribute.import.groupIgnored";
             return (
-              <div key={groupState} className="mt-4">
-                <p className="text-xs font-semibold uppercase tracking-wide text-ink-500">{t(groupLabelKey)}</p>
-                {groupState === "row_semantic" && (
-                  <p className="mt-1 text-xs text-ink-500">{t("contribute.import.groupRowSemanticNote")}</p>
-                )}
+              <details key={groupState} className="mt-3 rounded-xl border border-line bg-surface px-3 py-2">
+                <summary className="flex cursor-pointer list-none items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500 [&::-webkit-details-marker]:hidden">
+                  <Check size={12} className="text-pistachio" aria-hidden="true" />
+                  {t(groupLabelKey)} · {groupMappings.length}
+                  <span className="font-normal normal-case text-ink-400">— {t("contribute.import.viewColumns")}</span>
+                </summary>
                 <div className="mt-2 space-y-2">
                   {groupMappings.map((m) => {
-                    if (groupState === "row_semantic") {
-                      // §8: a static explanation, never a column picker —
-                      // there is no single field this header could be
-                      // manually mapped to, its meaning varies per row.
-                      return (
-                        <div key={m.sourceColumnIndex} className="flex flex-wrap items-center gap-3 rounded-xl border border-line bg-surface px-3 py-2">
-                          <span className="min-w-[140px] truncate text-sm font-medium text-ink-900">{m.sourceHeader}</span>
-                          <span className="text-[11px] text-ink-500">{t("contribute.import.rowSemanticHint")}</span>
-                        </div>
-                      );
-                    }
                     const conflict = m.state === "mapped" && m.canonicalField ? wouldConflict(mappings, m.sourceColumnIndex, m.canonicalField) : false;
                     return (
-                      <div key={m.sourceColumnIndex} className="flex flex-wrap items-center gap-3 rounded-xl border border-line bg-surface px-3 py-2">
+                      <div key={m.sourceColumnIndex} className="flex flex-wrap items-center gap-3 rounded-xl border border-line bg-surface2/40 px-3 py-2">
                         <span className="min-w-[140px] truncate text-sm font-medium text-ink-900">{m.sourceHeader}</span>
                         <span aria-hidden="true" className="text-ink-400">→</span>
                         <label className="sr-only" htmlFor={`map-${m.sourceColumnIndex}`}>{t("contribute.import.mapToLabel", { column: m.sourceHeader })}</label>
@@ -876,9 +889,6 @@ function UploadFlow({
                         </select>
                         {m.state === "mapped" && !conflict && <Check size={14} className="text-pistachio" aria-hidden="true" />}
                         {conflict && <span className="text-[11px] text-caution">{t("contribute.import.duplicateMapping")}</span>}
-                        {m.state === "needs_review" && (
-                          <span className="text-[11px] text-vanilla">{t("contribute.import.needsReview")}</span>
-                        )}
                         {m.state === "ignored" && (
                           <span className="text-[11px] text-ink-400">
                             {ignoredReasonForHeader(m.sourceHeader) === "derived" ? t("contribute.import.ignoredHintDerived") : t("contribute.import.ignoredHintContext")}
@@ -888,9 +898,63 @@ function UploadFlow({
                     );
                   })}
                 </div>
-              </div>
+              </details>
             );
           })}
+
+          {/* §8/§13: contextual "Results" columns keep their own small,
+              always-visible explanation — never collapsed into the plain
+              "no necesitan configuración" group, since their meaning is
+              resolved per row (see review), not simply unused. */}
+          {rowSemanticMappingCount > 0 && (
+            <div className="mt-3 rounded-xl border border-line bg-surface px-3 py-2">
+              <p className="text-xs font-semibold uppercase tracking-wide text-ink-500">{t("contribute.import.groupRowSemantic")} · {rowSemanticMappingCount}</p>
+              <p className="mt-1 text-xs text-ink-500">{t("contribute.import.groupRowSemanticNote")}</p>
+              <div className="mt-2 space-y-2">
+                {mappings.filter((m) => m.state === "ignored" && ignoredReasonForHeader(m.sourceHeader) === "row_semantic").map((m) => (
+                  <div key={m.sourceColumnIndex} className="flex flex-wrap items-center gap-3 rounded-xl border border-line bg-surface2/40 px-3 py-2">
+                    <span className="min-w-[140px] truncate text-sm font-medium text-ink-900">{m.sourceHeader}</span>
+                    <span className="text-[11px] text-ink-500">{t("contribute.import.rowSemanticHint")}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* §6/§7: the ONLY group ever shown expanded by default — real
+              ambiguous columns Cucurucho genuinely can't place on its
+              own. Zero of these means the user can continue right away,
+              with an explicit "we understood everything" message instead
+              of an empty section. */}
+          {reviewMappingCount > 0 ? (
+            <div className="mt-3 rounded-xl border border-vanilla/40 bg-vanilla-soft/30 px-3 py-2">
+              <p className="text-xs font-semibold uppercase tracking-wide text-ink-700">{t("contribute.import.groupNeedsReview")} · {reviewMappingCount}</p>
+              <div className="mt-2 space-y-2">
+                {mappings.filter((m) => m.state === "needs_review").map((m) => (
+                  <div key={m.sourceColumnIndex} className="flex flex-wrap items-center gap-3 rounded-xl border border-line bg-surface px-3 py-2">
+                    <span className="min-w-[140px] truncate text-sm font-medium text-ink-900">{m.sourceHeader}</span>
+                    <span aria-hidden="true" className="text-ink-400">→</span>
+                    <label className="sr-only" htmlFor={`map-${m.sourceColumnIndex}`}>{t("contribute.import.mapToLabel", { column: m.sourceHeader })}</label>
+                    <select
+                      id={`map-${m.sourceColumnIndex}`}
+                      value={m.canonicalField ?? ""}
+                      onChange={(e) => updateMapping(m.sourceColumnIndex, e.target.value === "ignore" ? "ignore" : e.target.value as CanonicalField)}
+                      className="rounded-lg border border-line bg-canvas px-2 py-1 text-xs text-ink-900"
+                    >
+                      <option value="" disabled>{t("contribute.import.selectField")}</option>
+                      {[...REQUIRED_FIELDS, ...OPTIONAL_FIELDS].map((f) => (
+                        <option key={f} value={f}>{t(FIELD_LABEL_KEYS[f])}</option>
+                      ))}
+                      <option value="ignore">{t("contribute.import.ignoreColumn")}</option>
+                    </select>
+                    <span className="text-[11px] text-vanilla">{t("contribute.import.needsReview")}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <p className="mt-3 text-xs text-ink-600">{t("contribute.import.allColumnsUnderstood")}</p>
+          )}
 
           <button onClick={runValidation} className="mt-5 rounded-full bg-primary px-4 py-2 text-xs font-semibold text-white hover:opacity-90">
             {t("contribute.import.continueToReview")}
@@ -931,11 +995,14 @@ function UploadFlow({
                 <tr>
                   <th scope="col" className="px-3 py-2">{t("contribute.import.colRow")}</th>
                   {hasCampaignNames && <th scope="col" className="px-3 py-2">{t("contribute.field.campaignName")}</th>}
+                  {/* §9: campaign-centric column order — Campaign,
+                      Platform, Campaign type, then the file-level context
+                      fields kept for verification value. */}
+                  <th scope="col" className="px-3 py-2">{t("contribute.field.platform")}</th>
                   {/* POST-MVP IMPORT FIX 3 (§N/§O): campaign subtype
                       context (e.g. Google's "Búsqueda"/"Máximo
                       rendimiento") — review-only, never persisted. */}
                   {showCampaignReviewColumns && <th scope="col" className="px-3 py-2">{t("contribute.field.campaignType")}</th>}
-                  <th scope="col" className="px-3 py-2">{t("contribute.field.platform")}</th>
                   <th scope="col" className="px-3 py-2">{t("contribute.field.objective")}</th>
                   <th scope="col" className="px-3 py-2">{t("contribute.field.country")}</th>
                   {showCampaignReviewColumns && <th scope="col" className="px-3 py-2">{t("contribute.import.colDates")}</th>}
@@ -955,8 +1022,8 @@ function UploadFlow({
                   <tr key={row.rowNumber} className="border-t border-line">
                     <td className="px-3 py-2 text-ink-500">{row.rowNumber}</td>
                     {hasCampaignNames && <td className="px-3 py-2 text-ink-800">{row.campaignName ?? "—"}</td>}
-                    {showCampaignReviewColumns && <td className="px-3 py-2 text-ink-800">{row.campaignType ?? "—"}</td>}
                     <td className="px-3 py-2 text-ink-800">{row.platform ?? "—"}</td>
+                    {showCampaignReviewColumns && <td className="px-3 py-2 text-ink-800">{row.campaignType ?? "—"}</td>}
                     <td className="px-3 py-2 text-ink-800">{row.objective ?? "—"}</td>
                     <td className="px-3 py-2 text-ink-800">{row.country ?? "—"}</td>
                     {showCampaignReviewColumns && (

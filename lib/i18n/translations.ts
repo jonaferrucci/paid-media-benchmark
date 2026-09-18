@@ -463,10 +463,14 @@ const es = {
       // called just "ignorada" without explanation — the group label
       // and per-column hints below (ignoredHintDerived/ignoredHintContext)
       // say WHY.
-      ignoredCount: "{n} no necesarias",
-      groupRecognized: "Reconocidas",
-      groupNeedsReview: "Revisar",
-      groupIgnored: "No necesarias",
+      ignoredCount: "{n} no necesitan configuración",
+      groupRecognized: "Reconocidas automáticamente",
+      groupNeedsReview: "Necesitan tu revisión",
+      groupIgnored: "No necesitan configuración",
+      // ADAPTIVE PLATFORM IMPORT ARCHITECTURE (§7): the <summary> text
+      // for each collapsed disclosure — closed by default, so a 17-
+      // column file doesn't read as 17 dropdown rows.
+      viewColumns: "Ver columnas",
       ignoredHintDerived: "Cucurucho ya la calcula.",
       ignoredHintContext: "Metadato de contexto — no se importa.",
       // Post-MVP row-level fix (§2/§8): "Resultados"/"Indicador de
@@ -496,7 +500,11 @@ const es = {
       platformHintLabel: "¿Desde dónde descargaste el reporte? (opcional)",
       platformHintPlaceholder: "Elegí una plataforma",
       platformHintOther: "Otro",
-      platformHintMismatch: "Detectamos {detected}, pero indicaste {hint}. Elegí la plataforma correcta abajo.",
+      // ADAPTIVE PLATFORM IMPORT ARCHITECTURE (§18): exact phrasing from
+      // the task brief — "Seleccionaste X, pero este archivo parece ser
+      // de Y." (the user's own stated hint first, the file's real
+      // evidence second) — a confirmation prompt, never a forced switch.
+      platformHintMismatch: "Seleccionaste {hint}, pero este archivo parece ser de {detected}.",
       // §11: concise download guidance, never a rigid single preset.
       downloadGuidanceGeneric: "No hace falta modificar los nombres de las columnas — subí el archivo tal como lo descargaste.",
       downloadGuidanceMeta: "Meta Ads Manager → Campañas → elegí el período → Columnas → Exportar → CSV o Excel.",
@@ -504,6 +512,14 @@ const es = {
       // exact wording of the task brief — never a rigid single preset,
       // just concise guidance on where to find the download.
       downloadGuidanceGoogle: "Google Ads → Campañas → elegí el período → Columnas → Descargar → CSV.\nNo hace falta modificar el archivo antes de subirlo.",
+      // ADAPTIVE PLATFORM IMPORT ARCHITECTURE (§19): a platform with no
+      // real confirmed export path in this project (TikTok/Pinterest/
+      // Mercado Libre Ads) still gets guidance — just the honest generic
+      // form, naming the platform, rather than an invented menu path.
+      downloadGuidanceOtherPlatform: "Subí el archivo tal como lo descargaste desde {platform} — Cucurucho reconoce las columnas automáticamente.",
+      // §19: shown under every platform's guidance — you're never locked
+      // into one exact column preset.
+      downloadGuidanceFlexible: "También podés subir el archivo con otra combinación de columnas — Cucurucho usa lo que encuentre.",
       downloadGuidanceRecommendedFields: "Para obtener benchmarks más completos, incluí inversión, impresiones, alcance, clics, resultados/conversiones y valor de conversión cuando estén disponibles.",
       // POST-MVP IMPORT FIX 3 (§A/§P): the file-level "Contexto del
       // reporte" section — Objective/Vertical/Country selected ONCE and
@@ -520,6 +536,26 @@ const es = {
       // §J: aggregate "Total: ..." rows excluded before persistence —
       // shown alongside the real campaign count, never silently dropped.
       totalRowsExcluded: "{n} filas de totales excluidas",
+      // ADAPTIVE PLATFORM IMPORT ARCHITECTURE (§3/§22): the export
+      // PROFILE's own short display label, shown right under "Detectamos
+      // {platform}" (e.g. "Reporte de campañas"). One honest generic
+      // label plus the 3 real, fixture-confirmed Google variants — never
+      // a fabricated label for a shape Cucurucho hasn't actually seen.
+      profile: {
+        campaignReport: "Reporte de campañas",
+        googleSearch: "Reporte de Búsqueda",
+        googlePmax: "Reporte de Performance Max",
+        googleVideo: "Reporte de video",
+      },
+      // §22/§7: the single-line report snapshot — "USD · 3 campañas · 17
+      // columnas" — and the recognized/no-config/contextual count row
+      // with its icons, replacing the old always-expanded mapping list.
+      reportStatsLine: "{currency} · {campaigns} campañas · {columns} columnas",
+      statNoConfigNeeded: "{n} no necesitan configuración",
+      statContextualResults: "{n} resultados contextuales",
+      // §7: shown when zero columns need manual attention — Continue is
+      // never blocked waiting for a review that has nothing to review.
+      allColumnsUnderstood: "Cucurucho entendió todas las columnas — no hay nada que revisar.",
       // Post-MVP: the review step's four guiding questions (§H).
       reviewQDetected: "¿Qué detectamos?",
       reviewQWillImport: "¿Qué vamos a importar?",
@@ -1529,10 +1565,11 @@ const en: typeof es = {
       platformOverridePlaceholder: "Choose a platform",
       columnsFound: "{count} columns found",
       recognizedCount: "{n} recognized automatically",
-      ignoredCount: "{n} not needed",
-      groupRecognized: "Recognized",
-      groupNeedsReview: "Review",
-      groupIgnored: "Not needed",
+      ignoredCount: "{n} don't need setup",
+      groupRecognized: "Recognized automatically",
+      groupNeedsReview: "Needs your review",
+      groupIgnored: "Don't need setup",
+      viewColumns: "View columns",
       ignoredHintDerived: "Cucurucho already calculates this.",
       ignoredHintContext: "Context metadata — not imported.",
       // Post-MVP row-level fix (§2/§8): "Results"/"Result indicator" get
@@ -1561,10 +1598,12 @@ const en: typeof es = {
       platformHintLabel: "Where did you download this report from? (optional)",
       platformHintPlaceholder: "Choose a platform",
       platformHintOther: "Other",
-      platformHintMismatch: "We detected {detected}, but you indicated {hint}. Choose the correct platform below.",
+      platformHintMismatch: "You selected {hint}, but this file looks like it's from {detected}.",
       downloadGuidanceGeneric: "No need to rename any columns — upload the file exactly as you downloaded it.",
       downloadGuidanceMeta: "Meta Ads Manager → Campaigns → pick the date range → Columns → Export → CSV or Excel.",
       downloadGuidanceGoogle: "Google Ads → Campaigns → pick the date range → Columns → Download → CSV.\nNo need to edit the file before uploading it.",
+      downloadGuidanceOtherPlatform: "Upload the file exactly as you downloaded it from {platform} — Cucurucho recognizes the columns automatically.",
+      downloadGuidanceFlexible: "You can also upload a file with a different combination of columns — Cucurucho uses whatever it finds.",
       downloadGuidanceRecommendedFields: "For more complete benchmarks, include spend, impressions, reach, clicks, results/conversions and conversion value when available.",
       contextTitle: "Report context",
       contextIntro: "Fill these in once and they apply to every campaign in the file.",
@@ -1574,6 +1613,16 @@ const en: typeof es = {
       objectiveSuggested: "Suggested",
       useSuggestion: "Use \"{objective}\"",
       totalRowsExcluded: "{n} total rows excluded",
+      profile: {
+        campaignReport: "Campaign report",
+        googleSearch: "Search report",
+        googlePmax: "Performance Max report",
+        googleVideo: "Video report",
+      },
+      reportStatsLine: "{currency} · {campaigns} campaigns · {columns} columns",
+      statNoConfigNeeded: "{n} don't need setup",
+      statContextualResults: "{n} contextual results",
+      allColumnsUnderstood: "Cucurucho understood every column — there's nothing to review.",
       reviewQDetected: "What did we detect?",
       reviewQWillImport: "What will we import?",
       reviewQNeedsReview: "What needs your review?",

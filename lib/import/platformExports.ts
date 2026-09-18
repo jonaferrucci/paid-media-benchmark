@@ -25,11 +25,21 @@ export interface AdPlatformProfile {
   // keeps the existing LATAM-primary ambiguity handling exactly as
   // before, for every platform that doesn't set it.
   numberFormat?: "us";
+  // ADAPTIVE PROFILE ARCHITECTURE (§19/§20): an i18n key for this
+  // platform's own concise export-path guidance (e.g. "Ads Manager →
+  // Campaigns → ... → CSV"). Only set for platforms whose real export
+  // path has been confirmed against an actual fixture in this project
+  // (Meta, Google) — never invented for a platform Cucurucho has no
+  // real sample of. Omitted (undefined) falls back to one generic
+  // "upload it as-is" line naming the platform, so every platform still
+  // gets SOME guidance without fabricating menu paths Cucurucho hasn't
+  // verified (see the generic fallback + "genuine unresolved issues").
+  downloadGuidanceKey?: string;
 }
 
 export const AD_PLATFORM_PROFILES: AdPlatformProfile[] = [
-  { id: "meta_ads", displayLabel: "Meta Ads" },
-  { id: "google_ads", displayLabel: "Google Ads", numberFormat: "us" },
+  { id: "meta_ads", displayLabel: "Meta Ads", downloadGuidanceKey: "contribute.import.downloadGuidanceMeta" },
+  { id: "google_ads", displayLabel: "Google Ads", numberFormat: "us", downloadGuidanceKey: "contribute.import.downloadGuidanceGoogle" },
   { id: "tiktok_ads", displayLabel: "TikTok Ads" },
   { id: "pinterest_ads", displayLabel: "Pinterest Ads" },
   { id: "mercado_libre_ads", displayLabel: "Mercado Libre Ads" },
@@ -144,6 +154,102 @@ export function findAdPlatformProfile(id: AdPlatformId): AdPlatformProfile {
   // AD_PLATFORM_PROFILES is a fixed, exhaustive literal covering every
   // AdPlatformId — this lookup cannot fail for a valid id.
   return AD_PLATFORM_PROFILES.find((p) => p.id === id)!;
+}
+
+// ===========================================================================
+// ADAPTIVE PLATFORM IMPORT ARCHITECTURE
+//
+// §2: platform and EXPORT PROFILE (variant) are two separate decisions.
+// detectExportPlatform above answers "which platform" — this section
+// answers "which recognizable FAMILY of that platform's exports" (a
+// campaign-level report vs. a Search-only subset vs. a Performance Max
+// report vs. a video report, etc., per §1). A profile never changes
+// WHICH columns get recognized (that's still the single ALIASES/
+// IGNORED_HEADERS dictionary in mapping.ts, shared across every
+// platform/profile per §4's "global aliases" design) — it only labels
+// what kind of report this evidently is, purely for the UI banner
+// (§22: "Detectamos Meta Ads / Reporte de campañas") and, where a
+// profile is confirmed against real fixture evidence, a number-format
+// hint. Detection is 100% deterministic evidence-matching — no LLM,
+// no invented signal, never a guess when evidence is absent (falls
+// back to the generic "campaign_report" profile instead).
+// ===========================================================================
+
+// One id per platform, prefixed so ids never collide across platforms.
+// Only ids with REAL fixture evidence in this project are ever returned
+// by classifyExportProfile below (see its own comments) — the others
+// exist as a documented, honest placeholder for a future real sample.
+export type ExportProfileId =
+  | "meta_campaign_report"
+  | "meta_unknown_export"
+  | "google_campaign_report"
+  | "google_search_campaign_report"
+  | "google_performance_max_report"
+  | "google_video_campaign_report"
+  | "generic_campaign_report";
+
+export interface ExportProfileResult {
+  profileId: ExportProfileId;
+  // i18n key for the profile's own short display label (e.g. "Reporte
+  // de campañas") — resolved by the caller's translation function, this
+  // module never renders text itself.
+  labelKey: string;
+}
+
+const GENERIC_PROFILE: ExportProfileResult = { profileId: "generic_campaign_report", labelKey: "contribute.import.profile.campaignReport" };
+
+// Header evidence for Google's video-report variant (§11) — the exact
+// real quartile/TrueView headers from the real Google fixture
+// (POST-MVP IMPORT FIX 3, §I), already normalizeHeader-shaped.
+const GOOGLE_VIDEO_EVIDENCE = ["vistas de trueview", "video reproducido al 25 %", "video reproducido al 50 %", "video reproducido al 75 %", "video reproducido al 100 %"];
+
+// §11: Google's own "Tipo de campaña" VALUES (not headers — this is
+// per-row evidence a header-only signature scan can't see) distinguish
+// a Search-only export from a Performance Max export when every row
+// agrees. Confirmed against the real Google fixture's own real values
+// ("Búsqueda", "Máximo rendimiento") — never invented labels.
+function classifyGoogleProfile(table: RawTable, mappings: DetectedMapping[]): ExportProfileResult {
+  const normalizedHeaders = new Set(table.headers.map((h) => normalizeHeader(h)));
+  if (GOOGLE_VIDEO_EVIDENCE.some((h) => normalizedHeaders.has(h))) {
+    return { profileId: "google_video_campaign_report", labelKey: "contribute.import.profile.googleVideo" };
+  }
+
+  const campaignTypeMapping = mappings.find((m) => m.state === "mapped" && m.canonicalField === "campaign_type");
+  if (campaignTypeMapping) {
+    const values = table.rows
+      .map((r) => normalizeHeader((r[campaignTypeMapping.sourceColumnIndex] ?? "").trim()))
+      .filter((v) => v !== "");
+    if (values.length > 0) {
+      if (values.every((v) => v === "busqueda" || v === "search")) {
+        return { profileId: "google_search_campaign_report", labelKey: "contribute.import.profile.googleSearch" };
+      }
+      if (values.every((v) => v === "maximo rendimiento" || v === "performance max")) {
+        return { profileId: "google_performance_max_report", labelKey: "contribute.import.profile.googlePmax" };
+      }
+    }
+  }
+  // Mixed campaign types, no campaign-type column at all, or a shape
+  // that doesn't uniformly match one known variant: the safe, honest
+  // default — never guessed into a more specific label than the
+  // evidence actually supports.
+  return { profileId: "google_campaign_report", labelKey: "contribute.import.profile.campaignReport" };
+}
+
+// §1: deterministic, evidence-based, never LLM. Only called once a
+// platform is already CONFIDENTLY detected (never for "ambiguous"/
+// "unknown" — there is no profile to classify without a platform).
+// Meta and the platforms with no real export sample in this project
+// (TikTok/Pinterest/Mercado Libre Ads) always resolve to one honest
+// generic profile — see the "genuine unresolved issues" note this
+// pass's final response calls out for why finer Meta/other-platform
+// variants (ad-level, adset-level reports) aren't fingerprinted yet:
+// building a real fingerprint from an invented header list, rather
+// than a real export sample, would be exactly the kind of unsafe guess
+// this architecture is built to avoid.
+export function classifyExportProfile(platformId: AdPlatformId, table: RawTable, mappings: DetectedMapping[]): ExportProfileResult {
+  if (platformId === "google_ads") return classifyGoogleProfile(table, mappings);
+  if (platformId === "meta_ads") return { profileId: "meta_campaign_report", labelKey: "contribute.import.profile.campaignReport" };
+  return GENERIC_PROFILE;
 }
 
 // Post-MVP row-level fix (§2): Meta's own "Resultados" column is
