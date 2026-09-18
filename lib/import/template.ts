@@ -19,6 +19,10 @@ const HEADER_LABELS: Record<string, string> = {
   // optional field — never persisted (see the "campaign_name"
   // CanonicalField comment in lib/import/types.ts).
   campaign_name: "Nombre de la campaña",
+  // POST-MVP IMPORT FIX 3 (§N): same treatment as campaign_name above —
+  // shown/downloadable, never persisted (see the "campaign_type"
+  // CanonicalField comment in lib/import/types.ts).
+  campaign_type: "Tipo de campaña",
 };
 
 const EXAMPLE_ROW: Record<string, string> = {
@@ -26,6 +30,7 @@ const EXAMPLE_ROW: Record<string, string> = {
   start_date: "2026-08-01", end_date: "2026-08-31", currency: "ARS", ad_spend: "1500000",
   impressions: "4800000", reach: "1700000", clicks: "62000", landing_page_views: "49000",
   campaign_name: "Campaña Verano",
+  campaign_type: "Búsqueda",
 };
 
 const ALL_FIELDS = [...REQUIRED_FIELDS, ...OPTIONAL_FIELDS];

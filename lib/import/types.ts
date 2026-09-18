@@ -40,7 +40,21 @@ export type CanonicalField =
   // app/contribute/bulk-actions.ts never writes it anywhere: the
   // performance_datasets schema has no campaign-name/title column,
   // and this task creates no migration to add one.
-  | "campaign_name";
+  | "campaign_name"
+  // POST-MVP IMPORT FIX 3 (§N): campaign subtype context (e.g. Google's
+  // own "Búsqueda"/"Search", "Máximo rendimiento"/"Performance Max").
+  // performance_datasets DOES have a real campaign_type_id FK, but
+  // resolving it correctly requires a platform-scoped taxonomy lookup
+  // (campaign_types is scoped per platform_id, and several platforms
+  // reuse the same internal_key, e.g. "standard") plus an ES/EN label
+  // dictionary for each platform's own export wording — real work
+  // deliberately deferred rather than rushed (see the unresolved-issues
+  // note this task's final response calls out). For now this is
+  // review/context-only, exactly like "campaign_name" above: never
+  // persisted, never taxonomy-resolved, just carried through so the
+  // review UI can show it and the user isn't left wondering where it
+  // went.
+  | "campaign_type";
 
 export const REQUIRED_FIELDS: CanonicalField[] = [
   "platform",
@@ -68,6 +82,7 @@ export const OPTIONAL_FIELDS: CanonicalField[] = [
   "attributed_revenue",
   "total_revenue",
   "campaign_name",
+  "campaign_type",
 ];
 
 // A raw parsed table, before any mapping — the direct output of the
@@ -114,6 +129,11 @@ export interface NormalizedRow {
   // an anonymous row number. NOT persisted (see the CanonicalField
   // "campaign_name" comment in this file for why).
   campaignName: string | null;
+  // POST-MVP IMPORT FIX 3 (§N): same passthrough treatment as
+  // campaignName above — a raw string, never taxonomy-resolved, shown
+  // in review only. See the "campaign_type" CanonicalField comment in
+  // this file for why real campaign_type_id resolution is deferred.
+  campaignType: string | null;
   platform: string | null; // resolved taxonomy internal_key
   objective: string | null;
   vertical: string | null;

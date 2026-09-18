@@ -1,6 +1,6 @@
 import type { CanonicalField, MappedRow, NormalizedRow, RowIssue } from "./types";
 import { REQUIRED_FIELDS } from "./types";
-import { parseLatamAwareNumber, parseFlexibleDate, matchTaxonomyValue } from "./normalize";
+import { parseLatamAwareNumber, parseFlexibleDate, matchTaxonomyValue, type NumberFormatHint } from "./normalize";
 import { isSupportedCurrencyCode } from "@/lib/config/currencies";
 
 export interface ValidationTaxonomies {
@@ -28,11 +28,23 @@ const TAXONOMY_FIELD_MAP: Partial<Record<CanonicalField, keyof ValidationTaxonom
   funnel_stage: "funnelStages",
 };
 
+export interface ValidationOptions {
+  // POST-MVP IMPORT FIX 3 (§L): only ever set when the SOURCE
+  // platform's own export notation is known upfront (e.g. Google Ads'
+  // real export is unambiguously English-style) — never inferred from
+  // the numbers themselves. Omitted/undefined keeps the exact
+  // pre-existing LATAM-primary ambiguity handling, so every existing
+  // caller is completely unaffected.
+  numberFormat?: NumberFormatHint;
+}
+
 export function normalizeAndValidateRow(
   rowNumber: number,
   mapped: MappedRow,
-  taxonomies: ValidationTaxonomies
+  taxonomies: ValidationTaxonomies,
+  options?: ValidationOptions
 ): NormalizedRow {
+  const numberFormat = options?.numberFormat ?? "auto";
   const issues: RowIssue[] = [];
 
   function resolveTaxonomy(field: CanonicalField): string | null {
@@ -101,7 +113,7 @@ export function normalizeAndValidateRow(
       if (field === "ad_spend") issues.push({ field, severity: "error", messageKey: "import.issue.missingRequired" });
       continue;
     }
-    const parsed = parseLatamAwareNumber(raw);
+    const parsed = parseLatamAwareNumber(raw, numberFormat);
     if (parsed.value === null) {
       issues.push({ field, severity: "error", messageKey: "import.issue.invalidNumber", messageVars: { value: raw } });
       continue;
@@ -135,10 +147,14 @@ export function normalizeAndValidateRow(
   // taxonomy-resolved or validated — see the "campaign_name"
   // CanonicalField comment in types.ts for why this is display-only.
   const campaignName = mapped.campaign_name?.trim() || null;
+  // POST-MVP IMPORT FIX 3 (§N): same passthrough treatment — see the
+  // "campaign_type" CanonicalField comment in types.ts.
+  const campaignType = mapped.campaign_type?.trim() || null;
 
   return {
     rowNumber,
     campaignName,
+    campaignType,
     platform,
     objective,
     vertical,

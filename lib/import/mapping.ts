@@ -26,16 +26,34 @@ const ALIASES: Record<CanonicalField, string[]> = {
   // confirmed against a real Meta export (post-MVP fix) — same field.
   start_date: ["start date", "fecha inicio", "fecha de inicio", "inicio", "start", "reporting starts", "inicio del informe"],
   end_date: ["end date", "fecha fin", "fecha de fin", "fin", "end", "reporting ends", "fin del informe"],
-  currency: ["currency", "moneda", "divisa"],
-  // "amount spent"/"importe gastado" (Meta) and bare "cost" (Google/
-  // TikTok/Pinterest all label spend this way) are real platform-export
-  // column names for the SAME ad_spend field Cucurucho already has —
-  // not a new field.
-  ad_spend: ["spend", "inversión", "inversion", "investment", "gasto", "presupuesto", "budget", "ad spend", "amount spent", "importe gastado", "cost"],
+  // "Código de moneda" is the exact column name a real Google Ads
+  // export uses for a per-row currency code (§M) — a stronger, direct
+  // signal than Meta's header-suffix inference, but the SAME canonical
+  // field: it flows through the identical currency/validate pipeline.
+  currency: ["currency", "moneda", "divisa", "código de moneda", "codigo de moneda"],
+  // "amount spent"/"importe gastado" (Meta) and bare "cost"/"costo"
+  // (Google/TikTok/Pinterest all label spend this way) are real
+  // platform-export column names for the SAME ad_spend field Cucurucho
+  // already has — not a new field. "Costo" is Google's own real export
+  // label (confirmed against the real Google Ads fixture, §G).
+  //
+  // POST-MVP IMPORT FIX 3 (§G/§N): "presupuesto"/"budget" DELIBERATELY
+  // REMOVED from this list. A real Google Ads export proves "Presupuesto"
+  // (the campaign's configured budget CAP) and "Costo" (actual spend) are
+  // two distinct real columns — aliasing "presupuesto" to ad_spend would
+  // let it wrongly claim the field before "Costo" ever gets a chance
+  // (detectMapping only auto-maps the FIRST matching column). "Presupuesto"
+  // is real campaign-budget context now, not spend — see IGNORED_HEADERS
+  // below.
+  ad_spend: ["spend", "inversión", "inversion", "investment", "gasto", "ad spend", "amount spent", "importe gastado", "cost", "costo"],
   // "Impr." is Google Ads' own abbreviation (the trailing "." is
   // stripped by normalizeHeader, same as any other punctuation).
   impressions: ["impressions", "impresiones", "imp", "impr"],
-  reach: ["reach", "alcance"],
+  // "Usuarios únicos" (Google Ads, §G) is the same "distinct people
+  // reached" concept as Meta's "reach"/"alcance" — mapped ONLY because
+  // it's semantically compatible (a real per-user reach count), not a
+  // generic "unique X" catch-all.
+  reach: ["reach", "alcance", "usuarios únicos", "usuarios unicos"],
   // "Clicks (all)" (Meta) and "Pin clicks" (Pinterest — a click on the
   // pin itself, the same concept as a generic ad click) both mean the
   // same raw click count Cucurucho already tracks.
@@ -45,7 +63,11 @@ const ALIASES: Record<CanonicalField, string[]> = {
   // clicks" — not a new metric.
   link_clicks: ["link clicks", "clics en el enlace", "clics al enlace", "outbound clicks"],
   landing_page_views: ["landing page views", "vistas de landing", "lpv"],
-  video_views: ["video views", "reproducciones", "vistas de video", "vistas de vídeo"],
+  // "Vistas de TrueView" (Google Ads, §I) is Google's own name for the
+  // same "a user watched the video" concept as Cucurucho's generic
+  // video_views field — mapped directly since a canonical field already
+  // exists, so this never needs a manual-mapping prompt.
+  video_views: ["video views", "reproducciones", "vistas de video", "vistas de vídeo", "vistas de trueview"],
   engagements: ["engagements", "interacciones"],
   // "Purchases"/"Leads" (Meta) and "Compras"/"Clientes potenciales"
   // (ES) and "Ventas" (Mercado Libre Ads) are all completed-conversion
@@ -59,7 +81,12 @@ const ALIASES: Record<CanonicalField, string[]> = {
   // "Purchase conversion value" / "Website purchases conversion value"
   // (Meta) and "Valor de conversión" (ES) are the same attributed
   // revenue figure ROAS/ACOS are already derived from.
-  attributed_revenue: ["attributed revenue", "ingresos atribuidos", "revenue", "purchase conversion value", "website purchases conversion value", "valor de conversión", "valor de conversion"],
+  // "Valor de conv." (Google Ads, §G) is Google's own abbreviation for
+  // a conversion-attributed revenue figure — the same concept as
+  // Meta's "purchase conversion value" — mapped where methodology
+  // supports it (it feeds the same ROAS/ACOS-style derivation as any
+  // other attributed_revenue source).
+  attributed_revenue: ["attributed revenue", "ingresos atribuidos", "revenue", "purchase conversion value", "website purchases conversion value", "valor de conversión", "valor de conversion", "valor de conv."],
   // "Facturación" (Mercado Libre Ads) buckets with the existing generic
   // "ingresos"/"total revenue" field, which already feeds the TACoS
   // (total-revenue-based) derived metric rather than ROAS/ACoS — a
@@ -78,6 +105,14 @@ const ALIASES: Record<CanonicalField, string[]> = {
   // Cucurucho's schema has no field for at all, not the campaign's own
   // identity.
   campaign_name: ["campaign", "campaign name", "nombre de la campaña", "nombre de campaña", "campaña"],
+  // POST-MVP IMPORT FIX 3 (§N): "Tipo de campaña" (Google Ads' own
+  // subtype label, e.g. "Búsqueda"/"Máximo rendimiento") is a real,
+  // existing field a source column maps to now — previously bucketed
+  // into IGNORED_HEADERS as disposable context. Review/context-only,
+  // never taxonomy-resolved or persisted — see the "campaign_type"
+  // CanonicalField comment in types.ts for why real campaign_type_id
+  // resolution is deliberately deferred.
+  campaign_type: ["campaign type", "tipo de campaña", "tipo de campana"],
 };
 
 // Real ad-platform export columns that Cucurucho recognizes but never
@@ -151,7 +186,6 @@ const IGNORED_HEADERS: { header: string; reason: IgnoredReason }[] = [
   { header: "ad set name", reason: "context" },
   { header: "ad name", reason: "context" },
   { header: "ad group name", reason: "context" },
-  { header: "campaign type", reason: "context" },
   { header: "day", reason: "context" },
   { header: "día", reason: "context" },
   // Post-MVP real-Meta-export fix: headers confirmed against an actual
@@ -193,6 +227,44 @@ const IGNORED_HEADERS: { header: string; reason: IgnoredReason }[] = [
   // resolves.
   { header: "resultados (iniciales)", reason: "context" },
   { header: "indicador de resultados (inicial)", reason: "context" },
+  // POST-MVP IMPORT FIX 3 (§H): real Google Ads export columns that are
+  // themselves derived/calculated by Google FROM raw metrics Cucurucho
+  // already imports (cost, clicks, conversions, conversion value) — the
+  // exact same "never trust a platform's own pre-calculated figure over
+  // Cucurucho's own methodology" reasoning as ctr/cpm/cpc/roas above.
+  // Recognized so they're never dumped into "needs review" as a
+  // mysterious unmapped column; the review UI can label these
+  // "Cucurucho la calcula" instead of asking the user to map them.
+  { header: "porcentaje de interacción", reason: "derived" },
+  { header: "costo prom.", reason: "derived" },
+  { header: "prom. cpc", reason: "derived" },
+  { header: "costo/conv.", reason: "derived" },
+  { header: "cpm prom.", reason: "derived" },
+  { header: "valor de conv./costo", reason: "derived" },
+  { header: "porcentaje de conv.", reason: "derived" },
+  // POST-MVP IMPORT FIX 3 (§I): partial-video-completion breakdown
+  // columns — a finer-grained concept than Cucurucho's single generic
+  // "video views" field (which "Vistas de TrueView" maps to instead,
+  // above). Recognized as known contextual metrics, never a mysterious
+  // unmapped field requiring manual mapping.
+  { header: "video reproducido al 25 %", reason: "context" },
+  { header: "video reproducido al 50 %", reason: "context" },
+  { header: "video reproducido al 75 %", reason: "context" },
+  { header: "video reproducido al 100 %", reason: "context" },
+  // POST-MVP IMPORT FIX 3 (§G/§N): real Google Ads row-identity/status/
+  // budget/targeting metadata with no canonical field Cucurucho tracks
+  // per row — the same "context, not a raw performance metric" bucket
+  // as Meta's "entrega de la campaña"/"seguidores de instagram" above.
+  { header: "estado de la campaña", reason: "context" },
+  { header: "presupuesto", reason: "context" },
+  { header: "nombre del presupuesto", reason: "context" },
+  { header: "tipo de presupuesto", reason: "context" },
+  { header: "estado", reason: "context" },
+  { header: "motivos del estado", reason: "context" },
+  { header: "% impr. (absoluto parte sup.)", reason: "context" },
+  { header: "% impr. (parte sup.)", reason: "context" },
+  { header: "nivel de optimización", reason: "context" },
+  { header: "tipo de estrategia de oferta", reason: "context" },
 ];
 // normalizeHeader is a hoisted function declaration (defined just
 // below), so it's safely callable here even though this const is
@@ -259,6 +331,45 @@ export function detectMapping(table: RawTable): DetectedMapping[] {
 // columns — used by the UI to block/flag conflicting manual choices.
 export function wouldConflict(mappings: DetectedMapping[], columnIndex: number, field: CanonicalField): boolean {
   return mappings.some((m) => m.sourceColumnIndex !== columnIndex && m.state === "mapped" && m.canonicalField === field);
+}
+
+// POST-MVP IMPORT FIX 3 (§J): real Google Ads exports include aggregate
+// summary rows ("Total: Campañas", "Total: Cuenta", "Total: Búsqueda",
+// "Total: Máximo rendimiento", ...) mixed in with real per-campaign
+// rows. These must NEVER be imported as individual campaigns — that
+// would both double-count spend/impressions/etc. against the real rows
+// they summarize AND import a non-campaign as if it were one.
+//
+// Deliberately GENERIC/platform-agnostic (§S: "do not overfit") — never
+// hardcodes Google's specific total-row labels. Instead: (1) finds
+// whichever source column is mapped to campaign_name via the same
+// ALIAS_LOOKUP every other header goes through, then (2) excludes any
+// row whose value in that column starts with "Total:" (a report
+// aggregate row is universally labeled this way across export tools,
+// not just Google's). A file with no campaign-identity column at all
+// (e.g. a generic manual-entry template) safely no-ops: 0 excluded,
+// table unchanged.
+const AGGREGATE_TOTAL_ROW_RE = /^total\s*:/i;
+
+export function excludeAggregateTotalRows(table: RawTable): { table: RawTable; excludedCount: number } {
+  const campaignNameColumnIndex = table.headers.findIndex(
+    (header) => ALIAS_LOOKUP.get(normalizeHeader(header)) === "campaign_name"
+  );
+  if (campaignNameColumnIndex === -1) {
+    return { table, excludedCount: 0 };
+  }
+  const keptRows: string[][] = [];
+  let excludedCount = 0;
+  for (const row of table.rows) {
+    const value = row[campaignNameColumnIndex] ?? "";
+    if (AGGREGATE_TOTAL_ROW_RE.test(value.trim())) {
+      excludedCount++;
+    } else {
+      keptRows.push(row);
+    }
+  }
+  if (excludedCount === 0) return { table, excludedCount: 0 };
+  return { table: { headers: table.headers, rows: keptRows }, excludedCount };
 }
 
 // Applies a finalized mapping to every raw row, producing the

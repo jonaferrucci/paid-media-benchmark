@@ -12,11 +12,12 @@ import type { ContributionTaxonomies } from "@/lib/contribute/taxonomies";
 import { ContributeWizard } from "./ContributeWizard";
 import { bulkSubmitContributionsAction } from "./bulk-actions";
 import { parseCsv, parseXlsxBuffer, IMPORT_LIMITS } from "@/lib/import/parse";
-import { detectMapping, applyMapping, wouldConflict, normalizeHeader, ignoredReasonForHeader } from "@/lib/import/mapping";
+import { detectMapping, applyMapping, wouldConflict, normalizeHeader, ignoredReasonForHeader, excludeAggregateTotalRows } from "@/lib/import/mapping";
 import { normalizeAndValidateRow, detectDuplicates } from "@/lib/import/validate";
 import { generateCsvTemplate, generateXlsxTemplate } from "@/lib/import/template";
 import { REQUIRED_FIELDS, OPTIONAL_FIELDS, type CanonicalField, type DetectedMapping, type NormalizedRow, type RawTable, type RowIssue } from "@/lib/import/types";
 import { detectExportPlatform, findAdPlatformProfile, AD_PLATFORM_PROFILES, resolveMetaResultForRow, detectReportCurrency, type PlatformDetectionResult, type AdPlatformId, type RowResultResolution, type CurrencyDetectionResult } from "@/lib/import/platformExports";
+import { suggestObjectiveFromCampaignNames } from "@/lib/import/suggestions";
 
 type Mode = "landing" | "quick" | "upload";
 type UploadStep = "file" | "columns" | "review" | "confirm" | "done";
@@ -31,6 +32,7 @@ const FIELD_LABEL_KEYS: Record<CanonicalField, string> = {
   engagements: "contribute.field.engagements", conversions: "contribute.field.conversions",
   attributed_revenue: "contribute.field.attributedRevenue", total_revenue: "contribute.field.totalRevenue",
   campaign_name: "contribute.field.campaignName",
+  campaign_type: "contribute.field.campaignType",
 };
 
 // §I: identify the row AND the specific field, in plain language —
@@ -226,6 +228,26 @@ function UploadFlow({
   // the manual override when auto-detection itself couldn't confirm a
   // platform, and is otherwise just informational.
   const [platformHint, setPlatformHint] = useState<AdPlatformId | "other" | "">("");
+  // POST-MVP IMPORT FIX 3 (§J): aggregate "Total: ..." rows excluded
+  // from this file before any mapping/validation ever sees them —
+  // tracked purely so the review UI can say how many were dropped,
+  // never used to change validation behavior.
+  const [totalRowsExcludedCount, setTotalRowsExcludedCount] = useState(0);
+  // §D/§G: a report-level date range recovered from skipped preamble
+  // lines (e.g. Google's own "18 de septiembre de 2026 - ..." line) —
+  // null for any file with no such preamble (every existing shape).
+  const [reportDateRange, setReportDateRange] = useState<{ start: string; end: string } | null>(null);
+  // §A/§P: the file-level "Contexto del reporte" — selected ONCE and
+  // applied to every row that doesn't already have its own value (see
+  // runValidation's injection below). Plain internal_key/iso_code
+  // strings, resolved through the exact same matchTaxonomyValue() every
+  // other field already goes through — no new resolution mechanism.
+  const [contextObjective, setContextObjective] = useState("");
+  const [contextVertical, setContextVertical] = useState("");
+  const [contextCountry, setContextCountry] = useState("");
+  const [contextBusinessModel, setContextBusinessModel] = useState("");
+  const [contextAudienceStrategy, setContextAudienceStrategy] = useState("");
+  const [contextFunnelStage, setContextFunnelStage] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
   const handleFile = useCallback(async (file: File) => {
@@ -252,9 +274,19 @@ function UploadFlow({
 
     setFileName(file.name);
     setSourceType(isCsv ? "csv" : "xlsx");
-    setTable(result.table);
+    setReportDateRange(result.reportDateRange);
 
-    const baseMappings = detectMapping(result.table);
+    // POST-MVP IMPORT FIX 3 (§J): drop aggregate "Total: ..." rows
+    // BEFORE anything else (detection/mapping/validation) ever sees
+    // them — they must never be counted as campaigns or double-count
+    // against the real rows they summarize. Generic/platform-agnostic
+    // (see excludeAggregateTotalRows) — a file with no campaign-identity
+    // column safely no-ops.
+    const { table: cleanedTable, excludedCount } = excludeAggregateTotalRows(result.table);
+    setTable(cleanedTable);
+    setTotalRowsExcludedCount(excludedCount);
+
+    const baseMappings = detectMapping(cleanedTable);
     setMappings(baseMappings);
     // §2 is resolved PER ROW (runValidation, once the columns step is
     // confirmed) — "Resultados"/"Indicador de resultado" are already
@@ -262,18 +294,27 @@ function UploadFlow({
     // mapping.ts's IGNORED_HEADERS), so there's no file-wide mapping to
     // adjust here any more.
 
-    // §4: detect the report's currency from header currency-code
-    // suffixes alone (e.g. "Importe gastado (USD)") — a single
-    // consistent code across the file, or ambiguous/none.
-    setCurrencyDetection(detectReportCurrency(result.table.headers));
+    // §M: the common dual-strategy currency detector — tries a real
+    // currency COLUMN first (e.g. Google's own "Código de moneda",
+    // stronger direct evidence), falling back to Meta's header-suffix
+    // inference only when no currency column was mapped at all.
+    setCurrencyDetection(detectReportCurrency(cleanedTable, baseMappings));
 
-    const detection = detectExportPlatform(result.table.headers);
+    const detection = detectExportPlatform(cleanedTable.headers);
     setPlatformDetection(detection);
     // §10: the hint pre-fills the manual override ONLY when detection
     // itself couldn't confirm a platform — it never overrides a
     // confident (possibly different) automatic detection.
     const hintProfile = platformHint && platformHint !== "other" ? findAdPlatformProfile(platformHint) : null;
     setManualPlatformOverride(detection.state !== "detected" && hintProfile ? hintProfile.displayLabel : "");
+    // §A: a fresh file starts with no file-level context chosen — never
+    // carried over from a previous upload in the same session.
+    setContextObjective("");
+    setContextVertical("");
+    setContextCountry("");
+    setContextBusinessModel("");
+    setContextAudienceStrategy("");
+    setContextFunnelStage("");
     setStep("columns");
   }, [t, platformHint]);
 
@@ -315,6 +356,16 @@ function UploadFlow({
     const inferredPlatform = platformColumnMapped ? null : resolvedPlatformLabel();
     const rowsWithPlatform = inferredPlatform ? mapped.map((row) => ({ ...row, platform: row.platform ?? inferredPlatform })) : mapped;
 
+    // POST-MVP IMPORT FIX 3 (§L): a real Google Ads export's own number
+    // notation is unambiguously English-style — known upfront by the
+    // resolved PLATFORM, never inferred from the numbers themselves.
+    // Every other platform keeps the exact pre-existing "auto" (LATAM-
+    // primary ambiguity) behavior.
+    const resolvedPlatformId: AdPlatformId | null = manualPlatformOverride
+      ? AD_PLATFORM_PROFILES.find((p) => p.displayLabel === manualPlatformOverride)?.id ?? null
+      : platformDetection?.state === "detected" ? platformDetection.platformId : null;
+    const numberFormat = resolvedPlatformId ? findAdPlatformProfile(resolvedPlatformId).numberFormat ?? "auto" : "auto";
+
     // §4: inject the file-detected report currency into every row, same
     // injection pattern as platform above — only when no column is
     // already statically mapped to "currency", and only when detection
@@ -349,7 +400,50 @@ function UploadFlow({
         });
     setRowResultResolutions(resolutions);
 
-    const normalizedBase = rowsWithResults.map((row, i) => normalizeAndValidateRow(i + 2, row, taxonomies)); // +2: row 1 is the header
+    // POST-MVP IMPORT FIX 3 (§D/§G): a real Google Ads export has NO
+    // per-row date columns at all — the report's only date evidence is
+    // the preamble range line parsed in lib/import/parse.ts. Injected
+    // ONLY for whichever of start/end date has no mapped column at all
+    // (never overriding a real per-row date column, even a blank cell
+    // in it), using the same `row.field ?? value` pattern as platform/
+    // currency above.
+    const startDateColumnMapped = mappings.some((m) => m.state === "mapped" && m.canonicalField === "start_date");
+    const endDateColumnMapped = mappings.some((m) => m.state === "mapped" && m.canonicalField === "end_date");
+    const rowsWithDates = reportDateRange && (!startDateColumnMapped || !endDateColumnMapped)
+      ? rowsWithResults.map((row) => ({
+          ...row,
+          start_date: !startDateColumnMapped ? row.start_date ?? reportDateRange.start : row.start_date,
+          end_date: !endDateColumnMapped ? row.end_date ?? reportDateRange.end : row.end_date,
+        }))
+      : rowsWithResults;
+
+    // POST-MVP IMPORT FIX 3 (§A/§P): the file-level "Contexto del
+    // reporte" — Objective/Vertical/Country (plus the optional business
+    // model/audience strategy/funnel stage) selected ONCE and applied to
+    // every row that doesn't already carry its own value from a mapped
+    // column. Exactly the same optional-injection pattern already used
+    // for platform/currency above — no new mechanism, and a row with a
+    // real per-row value is never overwritten (§P: "if some rows already
+    // have a safe value, don't overwrite it unnecessarily").
+    const contextValues: Partial<Record<CanonicalField, string>> = {};
+    if (contextObjective) contextValues.objective = contextObjective;
+    if (contextVertical) contextValues.vertical = contextVertical;
+    if (contextCountry) contextValues.country = contextCountry;
+    if (contextBusinessModel) contextValues.business_model = contextBusinessModel;
+    if (contextAudienceStrategy) contextValues.audience_strategy = contextAudienceStrategy;
+    if (contextFunnelStage) contextValues.funnel_stage = contextFunnelStage;
+    const contextEntries = Object.entries(contextValues) as [CanonicalField, string][];
+    const rowsWithContext = contextEntries.length > 0
+      ? rowsWithDates.map((row) => {
+          const merged = { ...row };
+          for (const [field, value] of contextEntries) {
+            if (!merged[field]) merged[field] = value;
+          }
+          return merged;
+        })
+      : rowsWithDates;
+
+    const normalizedBase = rowsWithContext.map((row, i) => normalizeAndValidateRow(i + 2, row, taxonomies, { numberFormat })); // +2: row 1 is the header
 
     // §4: an ambiguous report currency can't be safely defaulted to any
     // single code — every row is flagged for review rather than
@@ -407,6 +501,22 @@ function UploadFlow({
   // generic CSV, so its review table stays visually unchanged.
   const isMetaImport = detectedPlatformLabel === "Meta Ads" || manualPlatformOverride === "Meta Ads";
   const showCampaignReviewColumns = hasCampaignNames || isMetaImport;
+
+  // POST-MVP IMPORT FIX 3 (§B): objective auto-suggestion for the
+  // file-level context section — a strong keyword in a campaign's own
+  // name (never the file name, never Google's own campaign TYPE) may
+  // suggest an objective. Always labeled "Sugerido" in the UI below and
+  // never applied without an explicit click — see suggestions.ts.
+  const campaignNameMapping = mappings.find((m) => m.state === "mapped" && m.canonicalField === "campaign_name");
+  const objectiveSuggestion = table && campaignNameMapping
+    ? suggestObjectiveFromCampaignNames(
+        table.rows.map((r) => r[campaignNameMapping.sourceColumnIndex] ?? ""),
+        taxonomies.objectives
+      )
+    : null;
+  const suggestedObjectiveLabel = objectiveSuggestion
+    ? taxonomies.objectives.find((o) => o.internal_key === objectiveSuggestion.internalKey)?.display_label ?? objectiveSuggestion.internalKey
+    : null;
 
   // §9: a plain-language explanation for a per-row "Resultado
   // contextual" result — never a raw technical reason code.
@@ -516,6 +626,12 @@ function UploadFlow({
             {platformHint === "meta_ads" && (
               <p className="mt-1.5 whitespace-pre-line">{t("contribute.import.downloadGuidanceMeta")}</p>
             )}
+            {/* POST-MVP IMPORT FIX 3 (§R): Google's own export path —
+                shown only when the user hinted Google, same treatment
+                as the existing Meta guidance right above. */}
+            {platformHint === "google_ads" && (
+              <p className="mt-1.5 whitespace-pre-line">{t("contribute.import.downloadGuidanceGoogle")}</p>
+            )}
             <p className="mt-1.5">{t("contribute.import.downloadGuidanceRecommendedFields")}</p>
           </div>
         </div>
@@ -577,6 +693,126 @@ function UploadFlow({
           {hasCampaignNames && (
             <p className="mt-1 text-xs text-ink-600">{t("contribute.import.campaignCount", { n: table.rows.length })}</p>
           )}
+          {/* §J: aggregate "Total: ..." rows were already excluded in
+              handleFile, before this table's row count was ever computed
+              — shown here so the exclusion is visible, never silent. */}
+          {totalRowsExcludedCount > 0 && (
+            <p className="mt-1 text-xs text-ink-600">{t("contribute.import.totalRowsExcluded", { n: totalRowsExcludedCount })}</p>
+          )}
+
+          {/* POST-MVP IMPORT FIX 3 (§A/§B/§P): the file-level "Contexto
+              del reporte" — Objective/Vertical/Country selected ONCE and
+              applied to every campaign row (runValidation's context
+              injection), instead of forcing the user to repeat them per
+              row. Optional business model/audience strategy/funnel stage
+              alongside. */}
+          <div className="mt-4 rounded-xl border border-line bg-surface p-4">
+            <p className="text-sm font-semibold text-ink-900">{t("contribute.import.contextTitle")}</p>
+            <p className="mt-1 text-xs text-ink-600">{t("contribute.import.contextIntro")}</p>
+            <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <label className="text-xs text-ink-700">
+                {t("contribute.field.objective")} *
+                <select
+                  value={contextObjective}
+                  onChange={(e) => setContextObjective(e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-line bg-canvas px-2 py-1.5 text-xs text-ink-900"
+                >
+                  <option value="">{t("contribute.import.selectField")}</option>
+                  {taxonomies.objectives.map((o) => (
+                    <option key={o.internal_key} value={o.internal_key}>{o.display_label}</option>
+                  ))}
+                </select>
+                {/* §B: a suggested objective is always labeled "Sugerido"
+                    and requires an explicit click to apply — never
+                    silently canonicalized. */}
+                {objectiveSuggestion && contextObjective !== objectiveSuggestion.internalKey && (
+                  <span className="mt-1 flex items-center gap-1.5 text-[11px]">
+                    <span className="rounded-full bg-vanilla-soft px-2 py-0.5 font-medium text-vanilla">{t("contribute.import.objectiveSuggested")}</span>
+                    <button
+                      type="button"
+                      onClick={() => setContextObjective(objectiveSuggestion.internalKey)}
+                      className="font-medium text-primary hover:underline"
+                    >
+                      {t("contribute.import.useSuggestion", { objective: suggestedObjectiveLabel ?? "" })}
+                    </button>
+                  </span>
+                )}
+              </label>
+              <label className="text-xs text-ink-700">
+                {t("contribute.field.vertical")} *
+                <select
+                  value={contextVertical}
+                  onChange={(e) => setContextVertical(e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-line bg-canvas px-2 py-1.5 text-xs text-ink-900"
+                >
+                  <option value="">{t("contribute.import.selectField")}</option>
+                  {taxonomies.verticals.map((v) => (
+                    <option key={v.internal_key} value={v.internal_key}>{v.display_label}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="text-xs text-ink-700">
+                {t("contribute.field.country")} *
+                <select
+                  value={contextCountry}
+                  onChange={(e) => setContextCountry(e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-line bg-canvas px-2 py-1.5 text-xs text-ink-900"
+                >
+                  <option value="">{t("contribute.import.selectField")}</option>
+                  {taxonomies.countries.map((c) => (
+                    <option key={c.iso_code} value={c.iso_code}>{c.display_label}</option>
+                  ))}
+                </select>
+              </label>
+            </div>
+
+            <p className="mt-3 text-[11px] font-medium uppercase tracking-wide text-ink-500">{t("contribute.import.contextOptionalTitle")}</p>
+            <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <label className="text-xs text-ink-700">
+                {t("contribute.field.businessModel")}
+                <select
+                  value={contextBusinessModel}
+                  onChange={(e) => setContextBusinessModel(e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-line bg-canvas px-2 py-1.5 text-xs text-ink-900"
+                >
+                  <option value="">{t("contribute.import.selectField")}</option>
+                  {taxonomies.businessModels.map((b) => (
+                    <option key={b.internal_key} value={b.internal_key}>{b.display_label}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="text-xs text-ink-700">
+                {t("contribute.field.audienceStrategy")}
+                <select
+                  value={contextAudienceStrategy}
+                  onChange={(e) => setContextAudienceStrategy(e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-line bg-canvas px-2 py-1.5 text-xs text-ink-900"
+                >
+                  <option value="">{t("contribute.import.selectField")}</option>
+                  {taxonomies.audienceStrategies.map((a) => (
+                    <option key={a.internal_key} value={a.internal_key}>{a.display_label}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="text-xs text-ink-700">
+                {t("contribute.field.funnelStage")}
+                <select
+                  value={contextFunnelStage}
+                  onChange={(e) => setContextFunnelStage(e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-line bg-canvas px-2 py-1.5 text-xs text-ink-900"
+                >
+                  <option value="">{t("contribute.import.selectField")}</option>
+                  {taxonomies.funnelStages.map((f) => (
+                    <option key={f.internal_key} value={f.internal_key}>{f.display_label}</option>
+                  ))}
+                </select>
+              </label>
+            </div>
+
+            <p className="mt-3 text-[11px] text-ink-500">
+              {t("contribute.import.contextApplyHint", { n: table.rows.length })} {t("contribute.import.contextRequiredNote")}
+            </p>
+          </div>
 
           {/* §E: the user only ever reviews columns that are genuinely
               unknown — recognized and auto-ignored columns are shown,
@@ -695,12 +931,20 @@ function UploadFlow({
                 <tr>
                   <th scope="col" className="px-3 py-2">{t("contribute.import.colRow")}</th>
                   {hasCampaignNames && <th scope="col" className="px-3 py-2">{t("contribute.field.campaignName")}</th>}
+                  {/* POST-MVP IMPORT FIX 3 (§N/§O): campaign subtype
+                      context (e.g. Google's "Búsqueda"/"Máximo
+                      rendimiento") — review-only, never persisted. */}
+                  {showCampaignReviewColumns && <th scope="col" className="px-3 py-2">{t("contribute.field.campaignType")}</th>}
                   <th scope="col" className="px-3 py-2">{t("contribute.field.platform")}</th>
                   <th scope="col" className="px-3 py-2">{t("contribute.field.objective")}</th>
                   <th scope="col" className="px-3 py-2">{t("contribute.field.country")}</th>
                   {showCampaignReviewColumns && <th scope="col" className="px-3 py-2">{t("contribute.import.colDates")}</th>}
                   <th scope="col" className="px-3 py-2">{t("contribute.field.adSpend")}</th>
+                  {showCampaignReviewColumns && <th scope="col" className="px-3 py-2">{t("contribute.field.impressions")}</th>}
                   {showCampaignReviewColumns && <th scope="col" className="px-3 py-2">{t("contribute.field.reach")}</th>}
+                  {showCampaignReviewColumns && <th scope="col" className="px-3 py-2">{t("contribute.field.clicks")}</th>}
+                  {showCampaignReviewColumns && <th scope="col" className="px-3 py-2">{t("contribute.field.conversions")}</th>}
+                  {showCampaignReviewColumns && <th scope="col" className="px-3 py-2">{t("contribute.field.attributedRevenue")}</th>}
                   {showCampaignReviewColumns && <th scope="col" className="px-3 py-2">{t("contribute.field.currency")}</th>}
                   {showCampaignReviewColumns && <th scope="col" className="px-3 py-2">{t("contribute.import.colResult")}</th>}
                   <th scope="col" className="px-3 py-2">{t("contribute.import.colStatus")}</th>
@@ -711,6 +955,7 @@ function UploadFlow({
                   <tr key={row.rowNumber} className="border-t border-line">
                     <td className="px-3 py-2 text-ink-500">{row.rowNumber}</td>
                     {hasCampaignNames && <td className="px-3 py-2 text-ink-800">{row.campaignName ?? "—"}</td>}
+                    {showCampaignReviewColumns && <td className="px-3 py-2 text-ink-800">{row.campaignType ?? "—"}</td>}
                     <td className="px-3 py-2 text-ink-800">{row.platform ?? "—"}</td>
                     <td className="px-3 py-2 text-ink-800">{row.objective ?? "—"}</td>
                     <td className="px-3 py-2 text-ink-800">{row.country ?? "—"}</td>
@@ -718,7 +963,11 @@ function UploadFlow({
                       <td className="px-3 py-2 text-ink-800">{row.startDate ?? "—"}{row.endDate ? ` → ${row.endDate}` : ""}</td>
                     )}
                     <td className="px-3 py-2 text-ink-800">{row.adSpend ?? "—"}</td>
+                    {showCampaignReviewColumns && <td className="px-3 py-2 text-ink-800">{row.rawMetrics.impressions ?? "—"}</td>}
                     {showCampaignReviewColumns && <td className="px-3 py-2 text-ink-800">{row.rawMetrics.reach ?? "—"}</td>}
+                    {showCampaignReviewColumns && <td className="px-3 py-2 text-ink-800">{row.rawMetrics.clicks ?? "—"}</td>}
+                    {showCampaignReviewColumns && <td className="px-3 py-2 text-ink-800">{row.rawMetrics.conversions ?? "—"}</td>}
+                    {showCampaignReviewColumns && <td className="px-3 py-2 text-ink-800">{row.rawMetrics.attributed_revenue ?? row.rawMetrics.total_revenue ?? "—"}</td>}
                     {showCampaignReviewColumns && <td className="px-3 py-2 text-ink-800">{row.currency}</td>}
                     {showCampaignReviewColumns && <td className="px-3 py-2">{renderResultCell(rowResultResolutions[idx])}</td>}
                     <td className="px-3 py-2">

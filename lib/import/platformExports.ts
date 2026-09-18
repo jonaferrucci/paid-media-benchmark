@@ -1,5 +1,5 @@
 import { normalizeHeader, extractCurrencySuffix } from "./mapping";
-import type { CanonicalField } from "./types";
+import type { CanonicalField, DetectedMapping, RawTable } from "./types";
 
 // Post-MVP usability improvement: real ad-platform export detection.
 // Pure, deterministic, no external/AI dependency — exactly the same
@@ -18,11 +18,18 @@ export interface AdPlatformProfile {
   // supabase/seed.sql) — matched via the existing matchTaxonomyValue(),
   // never a new/invented taxonomy value.
   displayLabel: string;
+  // POST-MVP IMPORT FIX 3 (§L): only ever set when a platform's own
+  // export notation is UNAMBIGUOUSLY known upfront (a real Google Ads
+  // export is always English-style comma-thousands/dot-decimal) —
+  // never inferred from the numbers themselves. Omitted (undefined)
+  // keeps the existing LATAM-primary ambiguity handling exactly as
+  // before, for every platform that doesn't set it.
+  numberFormat?: "us";
 }
 
 export const AD_PLATFORM_PROFILES: AdPlatformProfile[] = [
   { id: "meta_ads", displayLabel: "Meta Ads" },
-  { id: "google_ads", displayLabel: "Google Ads" },
+  { id: "google_ads", displayLabel: "Google Ads", numberFormat: "us" },
   { id: "tiktok_ads", displayLabel: "TikTok Ads" },
   { id: "pinterest_ads", displayLabel: "Pinterest Ads" },
   { id: "mercado_libre_ads", displayLabel: "Mercado Libre Ads" },
@@ -65,8 +72,18 @@ const SIGNATURES: Record<AdPlatformId, { strong: string[]; supporting: string[] 
     ],
   },
   google_ads: {
-    strong: ["campaign type", "avg cpc", "cost / conv", "search impr share"],
-    supporting: ["impr", "conv value"],
+    // Confirmed against a real Google Ads export (POST-MVP IMPORT FIX
+    // 3, §F): each of these is essentially unique Google Ads Editor/UI
+    // terminology, so a single one is already strong evidence — a
+    // report exported with only English-locale headers would have hit
+    // "campaign type"/"avg cpc"/etc. instead, still recognized below.
+    strong: [
+      "campaign type", "avg cpc", "cost / conv", "search impr share",
+      "codigo de moneda", "tipo de campana", "nivel de optimizacion",
+      "tipo de estrategia de oferta", "valor de conv /costo",
+      "vistas de trueview", "prom cpc", "costo/conv",
+    ],
+    supporting: ["impr", "conv value", "cpm prom", "usuarios unicos"],
   },
   tiktok_ads: {
     // "6-Second Video Views" is distinctive enough on its own (a fixed
@@ -222,24 +239,70 @@ export type CurrencyDetectionState = "detected" | "ambiguous" | "none";
 export interface CurrencyDetectionResult {
   state: CurrencyDetectionState;
   currency: string | null;
+  // POST-MVP IMPORT FIX 3 (§M): which strategy produced this result —
+  // exposed for tests and so the review UI can explain itself (e.g.
+  // "ARS detectado" from a real currency column vs. a header-suffix
+  // inference) — never used to change validation behavior.
+  source: "column" | "header_suffix" | "none";
 }
 
-// Post-MVP row-level fix (§4/§11): real ad-platform exports often
-// express the report's currency only as a suffix on monetary column
-// headers (e.g. "Importe gastado (USD)") rather than a dedicated
-// currency column or value. Deterministic and evidence-based — collects
-// the distinct currency codes found across every header. A single
-// consistent code across the file is auto-detected; more than one is
-// flagged "ambiguous" (never silently picked); none found falls back to
-// "none", which callers treat exactly like the existing safe default
-// (no FX conversion is ever performed here or anywhere else).
-export function detectReportCurrency(headers: string[]): CurrencyDetectionResult {
+// Post-MVP row-level fix (§4/§11), renamed in POST-MVP IMPORT FIX 3
+// (§M) now that a second, stronger strategy exists below: real
+// ad-platform exports often express the report's currency only as a
+// suffix on monetary column headers (e.g. "Importe gastado (USD)")
+// rather than a dedicated currency column or value. Deterministic and
+// evidence-based — collects the distinct currency codes found across
+// every header. A single consistent code across the file is
+// auto-detected; more than one is flagged "ambiguous" (never silently
+// picked); none found falls back to "none", which callers treat
+// exactly like the existing safe default (no FX conversion is ever
+// performed here or anywhere else). Behavior is completely unchanged
+// from before this task — Meta continues using this strategy exactly
+// as it always has.
+export function detectCurrencyFromHeaderSuffixes(headers: string[]): CurrencyDetectionResult {
   const codes = new Set<string>();
   for (const header of headers) {
     const code = extractCurrencySuffix(header);
     if (code) codes.add(code);
   }
-  if (codes.size === 0) return { state: "none", currency: null };
-  if (codes.size > 1) return { state: "ambiguous", currency: null };
-  return { state: "detected", currency: [...codes][0] };
+  if (codes.size === 0) return { state: "none", currency: null, source: "none" };
+  if (codes.size > 1) return { state: "ambiguous", currency: null, source: "header_suffix" };
+  return { state: "detected", currency: [...codes][0], source: "header_suffix" };
+}
+
+// POST-MVP IMPORT FIX 3 (§M): a real Google Ads export states its
+// currency directly, per row, in its own "Código de moneda" column —
+// stronger, more direct evidence than inferring one from a header
+// suffix. Reads whichever column the standard mapping pipeline already
+// resolved to the "currency" canonical field (ALIASES.currency), so
+// this needs no Google-specific knowledge at all: any platform with a
+// real currency COLUMN benefits identically. A single consistent code
+// across every row auto-applies; conflicting values are flagged
+// "ambiguous", never silently picked.
+export function detectCurrencyFromColumn(table: RawTable, mappings: DetectedMapping[]): CurrencyDetectionResult {
+  const currencyMapping = mappings.find((m) => m.state === "mapped" && m.canonicalField === "currency");
+  if (!currencyMapping) return { state: "none", currency: null, source: "none" };
+
+  const codes = new Set<string>();
+  for (const row of table.rows) {
+    const raw = (row[currencyMapping.sourceColumnIndex] ?? "").trim().toUpperCase();
+    if (raw) codes.add(raw);
+  }
+  if (codes.size === 0) return { state: "none", currency: null, source: "none" };
+  if (codes.size > 1) return { state: "ambiguous", currency: null, source: "column" };
+  return { state: "detected", currency: [...codes][0], source: "column" };
+}
+
+// POST-MVP IMPORT FIX 3 (§M): the common currency-detection interface
+// supporting both strategies. Tries the stronger column-based strategy
+// first (a real currency column, when mapped, is more direct evidence
+// than a header-suffix inference); falls back to the header-suffix
+// strategy only when no currency column was found/mapped at all. A
+// Meta-style export (no currency column) is completely unaffected — it
+// falls straight through to the exact same header-suffix detection
+// used before this task.
+export function detectReportCurrency(table: RawTable, mappings: DetectedMapping[]): CurrencyDetectionResult {
+  const columnResult = detectCurrencyFromColumn(table, mappings);
+  if (columnResult.state !== "none") return columnResult;
+  return detectCurrencyFromHeaderSuffixes(table.headers);
 }

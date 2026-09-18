@@ -84,19 +84,28 @@ assertEqual(byHeader("Nombre de la campaña")?.canonicalField, "campaign_name", 
 
 // ---------------------------------------------------------------------
 // §4/§11: currency auto-detection from header currency-code suffixes.
+//
+// POST-MVP IMPORT FIX 3 (§M): detectReportCurrency is now the dual-
+// strategy orchestrator (table, mappings) rather than a bare headers
+// array — none of these fixtures have a real currency COLUMN mapped, so
+// every one of these still exercises the exact same header-suffix
+// fallback strategy as before, just through the new signature. `source`
+// is asserted too, so a regression in which strategy actually fired
+// would be caught here.
 // ---------------------------------------------------------------------
+const currencyFromHeaders = (headers: string[]) => detectReportCurrency({ headers, rows: [] }, []);
 assertEqual(extractCurrencySuffix("Importe gastado (USD)"), "USD", "extractCurrencySuffix reads the exact currency code from a header suffix");
-assertEqual(detectReportCurrency(table.headers), { state: "detected", currency: "USD" }, "a consistent single currency suffix (USD) across headers is auto-detected");
-assertEqual(detectReportCurrency(table.headers.map((h) => h.replace(/\(USD\)/, "(ARS)"))), { state: "detected", currency: "ARS" }, "the same logic detects ARS just as reliably");
-assertEqual(detectReportCurrency(table.headers.map((h) => h.replace(/\(USD\)/, "(MXN)"))), { state: "detected", currency: "MXN" }, "the same logic detects MXN just as reliably");
+assertEqual(currencyFromHeaders(table.headers), { state: "detected", currency: "USD", source: "header_suffix" }, "a consistent single currency suffix (USD) across headers is auto-detected");
+assertEqual(currencyFromHeaders(table.headers.map((h) => h.replace(/\(USD\)/, "(ARS)"))), { state: "detected", currency: "ARS", source: "header_suffix" }, "the same logic detects ARS just as reliably");
+assertEqual(currencyFromHeaders(table.headers.map((h) => h.replace(/\(USD\)/, "(MXN)"))), { state: "detected", currency: "MXN", source: "header_suffix" }, "the same logic detects MXN just as reliably");
 assertEqual(
-  detectReportCurrency(["Importe gastado (USD)", "CPC (todos) (ARS)"]),
-  { state: "ambiguous", currency: null },
+  currencyFromHeaders(["Importe gastado (USD)", "CPC (todos) (ARS)"]),
+  { state: "ambiguous", currency: null, source: "header_suffix" },
   "conflicting currency codes across headers are flagged ambiguous, never guessed"
 );
 assertEqual(
-  detectReportCurrency(["Importe gastado", "Impresiones"]),
-  { state: "none", currency: null },
+  currencyFromHeaders(["Importe gastado", "Impresiones"]),
+  { state: "none", currency: null, source: "none" },
   "no currency-code suffix anywhere falls back to 'none' (the existing safe default applies downstream)"
 );
 
@@ -155,7 +164,7 @@ function applyRowResultInjections(t: RawTable, mappedRows: MappedRow[]): MappedR
 }
 
 const mappedBase = applyMapping(table, mappings);
-const currency = detectReportCurrency(table.headers);
+const currency = detectReportCurrency(table, mappings);
 const withCurrency = currency.state === "detected"
   ? mappedBase.map((row) => ({ ...row, currency: row.currency ?? currency.currency! }))
   : mappedBase;

@@ -411,6 +411,9 @@ const es = {
       // like any other field — never persisted (see the "campaign_name"
       // CanonicalField comment in lib/import/types.ts).
       campaignName: "Nombre de la campaña",
+      // POST-MVP IMPORT FIX 3 (§N): same treatment — never persisted
+      // (see the "campaign_type" CanonicalField comment in types.ts).
+      campaignType: "Tipo de campaña",
     },
     import: {
       stepperLabel: "Progreso de importación",
@@ -497,7 +500,26 @@ const es = {
       // §11: concise download guidance, never a rigid single preset.
       downloadGuidanceGeneric: "No hace falta modificar los nombres de las columnas — subí el archivo tal como lo descargaste.",
       downloadGuidanceMeta: "Meta Ads Manager → Campañas → elegí el período → Columnas → Exportar → CSV o Excel.",
+      // POST-MVP IMPORT FIX 3 (§R): Google's own export path, in the
+      // exact wording of the task brief — never a rigid single preset,
+      // just concise guidance on where to find the download.
+      downloadGuidanceGoogle: "Google Ads → Campañas → elegí el período → Columnas → Descargar → CSV.\nNo hace falta modificar el archivo antes de subirlo.",
       downloadGuidanceRecommendedFields: "Para obtener benchmarks más completos, incluí inversión, impresiones, alcance, clics, resultados/conversiones y valor de conversión cuando estén disponibles.",
+      // POST-MVP IMPORT FIX 3 (§A/§P): the file-level "Contexto del
+      // reporte" section — Objective/Vertical/Country selected ONCE and
+      // applied to every campaign row, instead of repeating them per row.
+      contextTitle: "Contexto del reporte",
+      contextIntro: "Completá estos datos una vez y se aplican a todas las campañas del archivo.",
+      contextApplyHint: "Se va a aplicar a las {n} campañas de este archivo (una campaña que ya tenga su propio valor no se sobrescribe).",
+      contextRequiredNote: "* Necesario para que las campañas queden listas.",
+      contextOptionalTitle: "Opcional",
+      // §B: objective auto-suggestion — always labeled "Sugerido",
+      // always requires an explicit click to apply, never silent.
+      objectiveSuggested: "Sugerido",
+      useSuggestion: "Usar \"{objective}\"",
+      // §J: aggregate "Total: ..." rows excluded before persistence —
+      // shown alongside the real campaign count, never silently dropped.
+      totalRowsExcluded: "{n} filas de totales excluidas",
       // Post-MVP: the review step's four guiding questions (§H).
       reviewQDetected: "¿Qué detectamos?",
       reviewQWillImport: "¿Qué vamos a importar?",
@@ -1463,6 +1485,7 @@ const en: typeof es = {
       engagements: "Engagements", conversions: "Conversions", attributedRevenue: "Attributed revenue",
       totalRevenue: "Total revenue",
       campaignName: "Campaign name",
+      campaignType: "Campaign type",
     },
     import: {
       stepperLabel: "Import progress",
@@ -1541,7 +1564,16 @@ const en: typeof es = {
       platformHintMismatch: "We detected {detected}, but you indicated {hint}. Choose the correct platform below.",
       downloadGuidanceGeneric: "No need to rename any columns — upload the file exactly as you downloaded it.",
       downloadGuidanceMeta: "Meta Ads Manager → Campaigns → pick the date range → Columns → Export → CSV or Excel.",
+      downloadGuidanceGoogle: "Google Ads → Campaigns → pick the date range → Columns → Download → CSV.\nNo need to edit the file before uploading it.",
       downloadGuidanceRecommendedFields: "For more complete benchmarks, include spend, impressions, reach, clicks, results/conversions and conversion value when available.",
+      contextTitle: "Report context",
+      contextIntro: "Fill these in once and they apply to every campaign in the file.",
+      contextApplyHint: "This applies to the {n} campaigns in this file (a campaign that already has its own value won't be overwritten).",
+      contextRequiredNote: "* Needed for campaigns to be ready.",
+      contextOptionalTitle: "Optional",
+      objectiveSuggested: "Suggested",
+      useSuggestion: "Use \"{objective}\"",
+      totalRowsExcluded: "{n} total rows excluded",
       reviewQDetected: "What did we detect?",
       reviewQWillImport: "What will we import?",
       reviewQNeedsReview: "What needs your review?",
