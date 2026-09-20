@@ -146,6 +146,24 @@ const es = {
     benchmarkReadinessCohortInsufficient: "El mercado todavía no tiene suficientes campañas comparables para {metric}.",
     benchmarkReadinessAvailable: "{metric}: comparable contra el mercado ahora mismo.",
     benchmarkReadinessNone: "Todavía no hay métricas de esta campaña listas para comparar contra el mercado.",
+    // PHASE 25 (§7): compact import history, backed by the real
+    // import_batches table — never a giant table, one line per upload.
+    importHistoryTitle: "Historial de importaciones",
+    importHistoryCampaignsImported: "{n} campañas importadas",
+    unknownPlatform: "Plataforma sin identificar",
+    unknownSource: "Archivo sin nombre",
+    batchStatus: {
+      completed: "Completado",
+      partial: "Parcial",
+      needsAttention: "Necesita atención",
+    },
+    // PHASE 25 (§16): owner-scoped delete for one's own imported campaign.
+    deleteAction: "Eliminar",
+    deleteConfirmTitle: "¿Eliminar esta campaña?",
+    deleteConfirmBody: "Esto quita la campaña de tus aportes y de cualquier comparación futura. No se puede deshacer.",
+    deleteConfirmButton: "Sí, eliminar",
+    deleteCancelButton: "Cancelar",
+    deleteFailed: "No pudimos eliminar la campaña. Probá de nuevo.",
   },
   // PHASE 26: the signed-in home workspace — "Continuar", "Aportar",
   // "Comparar", "Explorar", "Planificar" only (§16); never "administrar"/
@@ -499,6 +517,7 @@ const es = {
       continueToConfirm: "Continuar a confirmar",
       confirmIntro: "Vamos a importar {n} filas de {file}.",
       confirmSkipped: "{n} filas no se importarán hasta que se corrijan.",
+      confirmSkippedDuplicates: "{n} filas se omitirán por posible duplicado.",
       submitting: "Importando…",
       // Post-MVP: platform auto-detection (§D) and the recognized/
       // review/ignored column breakdown (§E).
@@ -538,7 +557,19 @@ const es = {
       currencyAmbiguous: "El archivo mezcla más de una moneda — revisá los encabezados antes de continuar.",
       // §3/§8: campaign identity found in the file.
       campaignCount: "{n} campañas",
-      campaignNameNotPersisted: "El nombre de campaña se muestra solo para tu revisión — todavía no se guarda en la base de datos.",
+      campaignNameNotPersisted: "El nombre de campaña se guarda junto con tu importación — es privado, solo vos podés verlo.",
+      // PHASE 25 (§9/§10): cross-import duplicate review — a suspected
+      // repeat of a PREVIOUSLY imported campaign (not a repeat within
+      // this same file, which is handled separately above).
+      duplicateSectionTitle: "Posibles duplicados",
+      duplicateWarning: "Esta campaña puede ya haber sido importada.",
+      duplicateLikely: "Coincide en plataforma, período, inversión y nombre o métricas con una campaña que ya importaste.",
+      duplicatePossible: "Coincide en plataforma y período con una campaña que ya importaste, pero no en todo lo demás.",
+      duplicateSkipToggle: "Omitir esta campaña",
+      duplicateSkipped: "Se omitirá esta campaña",
+      // PHASE 25 (§13): benchmark-readiness summary on the import
+      // success screen.
+      benchmarkReadySummaryLabel: "Listas para benchmark",
       // §9: additive review-table columns/result badges.
       colDates: "Período",
       colResult: "Resultado",
@@ -1330,6 +1361,24 @@ const en: typeof es = {
     benchmarkReadinessCohortInsufficient: "The market doesn't have enough comparable campaigns for {metric} yet.",
     benchmarkReadinessAvailable: "{metric}: comparable against the market right now.",
     benchmarkReadinessNone: "No metrics from this campaign are ready to compare against the market yet.",
+    // PHASE 25 (§7): compact import history, backed by the real
+    // import_batches table — never a giant table, one line per upload.
+    importHistoryTitle: "Import history",
+    importHistoryCampaignsImported: "{n} campaigns imported",
+    unknownPlatform: "Unidentified platform",
+    unknownSource: "Unnamed file",
+    batchStatus: {
+      completed: "Completed",
+      partial: "Partial",
+      needsAttention: "Needs attention",
+    },
+    // PHASE 25 (§16): owner-scoped delete for one's own imported campaign.
+    deleteAction: "Delete",
+    deleteConfirmTitle: "Delete this campaign?",
+    deleteConfirmBody: "This removes the campaign from your contributions and any future comparisons. This can't be undone.",
+    deleteConfirmButton: "Yes, delete",
+    deleteCancelButton: "Cancel",
+    deleteFailed: "We couldn't delete the campaign. Please try again.",
   },
   workspace: {
     emptyTitle: "Start with your data",
@@ -1670,6 +1719,7 @@ const en: typeof es = {
       continueToConfirm: "Continue to confirm",
       confirmIntro: "We'll import {n} rows from {file}.",
       confirmSkipped: "{n} rows won't be imported until corrected.",
+      confirmSkippedDuplicates: "{n} rows will be skipped as possible duplicates.",
       submitting: "Importing…",
       detectedPlatform: "We detected {platform}",
       detectionUnknownTitle: "We couldn't automatically identify the platform.",
@@ -1700,7 +1750,19 @@ const en: typeof es = {
       currencyAmbiguous: "The file mixes more than one currency — review the headers before continuing.",
       // §3/§8: campaign identity found in the file.
       campaignCount: "{n} campaigns",
-      campaignNameNotPersisted: "Campaign name is shown for review only — it isn't saved to the database yet.",
+      campaignNameNotPersisted: "Campaign name is saved with your import — it's private, only you can see it.",
+      // PHASE 25 (§9/§10): cross-import duplicate review — a suspected
+      // repeat of a PREVIOUSLY imported campaign (not a repeat within
+      // this same file, which is handled separately above).
+      duplicateSectionTitle: "Possible duplicates",
+      duplicateWarning: "This campaign may already have been imported.",
+      duplicateLikely: "Matches an already-imported campaign's platform, period, spend, and name or metrics.",
+      duplicatePossible: "Matches an already-imported campaign's platform and period, but not everything else.",
+      duplicateSkipToggle: "Skip this campaign",
+      duplicateSkipped: "This campaign will be skipped",
+      // PHASE 25 (§13): benchmark-readiness summary on the import
+      // success screen.
+      benchmarkReadySummaryLabel: "Benchmark-ready",
       // §9: additive review-table columns/result badges.
       colDates: "Date range",
       colResult: "Result",

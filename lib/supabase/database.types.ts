@@ -723,6 +723,10 @@ export interface Database {
           year: number;
           month: number;
           quarter: number;
+          // PHASE 25 (§4/§6, migration 0018) — identity/provenance only,
+          // both nullable/backfill-safe.
+          campaign_name: string | null;
+          import_batch_id: string | null;
         };
         Insert: {
           id?: string;
@@ -750,6 +754,8 @@ export interface Database {
           review_notes?: string | null;
           created_at?: string;
           updated_at?: string;
+          campaign_name?: string | null;
+          import_batch_id?: string | null;
         };
         Update: {
           id?: string;
@@ -777,6 +783,8 @@ export interface Database {
           review_notes?: string | null;
           created_at?: string;
           updated_at?: string;
+          campaign_name?: string | null;
+          import_batch_id?: string | null;
         };
         Relationships: [
           {
@@ -847,6 +855,77 @@ export interface Database {
             columns: ["business_model_id"];
             isOneToOne: false;
             referencedRelation: "business_models";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "performance_datasets_import_batch_id_fkey";
+            columns: ["import_batch_id"];
+            isOneToOne: false;
+            referencedRelation: "import_batches";
+            referencedColumns: ["id"];
+          }
+        ];
+      };
+      // PHASE 25 (§6, migration 0018) — metadata-only record of one
+      // completed bulk import. See the migration's own comment: never
+      // the uploaded file itself, and no UPDATE/DELETE policy (a batch
+      // is an immutable historical record), so no Update type is
+      // needed beyond the one in-app write this codebase makes
+      // (updating success_count once the import finishes — still a
+      // plain partial Update).
+      import_batches: {
+        Row: {
+          id: string;
+          owner_user_id: string;
+          platform_id: string | null;
+          data_source: DataSourceType;
+          source_filename: string | null;
+          export_profile: string | null;
+          row_count: number;
+          success_count: number;
+          skipped_count: number;
+          review_count: number;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          owner_user_id: string;
+          platform_id?: string | null;
+          data_source: DataSourceType;
+          source_filename?: string | null;
+          export_profile?: string | null;
+          row_count?: number;
+          success_count?: number;
+          skipped_count?: number;
+          review_count?: number;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          owner_user_id?: string;
+          platform_id?: string | null;
+          data_source?: DataSourceType;
+          source_filename?: string | null;
+          export_profile?: string | null;
+          row_count?: number;
+          success_count?: number;
+          skipped_count?: number;
+          review_count?: number;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "import_batches_owner_user_id_fkey";
+            columns: ["owner_user_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "import_batches_platform_id_fkey";
+            columns: ["platform_id"];
+            isOneToOne: false;
+            referencedRelation: "platforms";
             referencedColumns: ["id"];
           }
         ];

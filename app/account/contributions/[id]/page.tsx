@@ -3,6 +3,7 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { calculateDerivedMetrics, type RawMetricInputs } from "@/lib/metrics/derive";
 import { getMetricBenchmark } from "@/lib/benchmark/engine";
 import type { DerivedMetricKey } from "@/lib/contribute/coverage";
+import { EXPORT_PROFILE_LABEL_KEYS, type ExportProfileId } from "@/lib/import/platformExports";
 import { ContributionDetail, type BenchmarkReadinessEntry } from "./ContributionDetail";
 
 // PHASE 26 (§11): a compact, owner-only contribution detail view.
@@ -25,10 +26,15 @@ interface DetailRow {
   created_at: string;
   data_source: string;
   original_currency: string;
+  // PHASE 25 (§4/§5/§15): identity/provenance additions — all
+  // nullable, all backward-compatible with any pre-migration-0018 row.
+  campaign_name: string | null;
   platforms: { internal_key: string; display_label: string } | null;
   objectives: { internal_key: string; display_label: string } | null;
   verticals: { internal_key: string; display_label: string } | null;
   countries: { iso_code: string; display_label: string } | null;
+  campaign_types: { display_label: string } | null;
+  import_batches: { source_filename: string | null; export_profile: string | null } | null;
   dataset_metric_values: { raw_numeric_value: number; metrics: { internal_key: string } | null }[] | null;
 }
 
@@ -38,11 +44,13 @@ export default async function ContributionDetailPage({ params }: { params: { id:
   const { data, error } = await supabase
     .from("performance_datasets")
     .select(
-      `id, start_date, end_date, validation_status, created_at, data_source, original_currency,
+      `id, start_date, end_date, validation_status, created_at, data_source, original_currency, campaign_name,
        platforms(internal_key, display_label),
        objectives(internal_key, display_label),
        verticals(internal_key, display_label),
        countries(iso_code, display_label),
+       campaign_types(display_label),
+       import_batches(source_filename, export_profile),
        dataset_metric_values(raw_numeric_value, metrics(internal_key))`
     )
     .eq("id", params.id)
@@ -84,6 +92,10 @@ export default async function ContributionDetailPage({ params }: { params: { id:
     );
   }
 
+  const exportProfileLabelKey = dataset.import_batches?.export_profile
+    ? EXPORT_PROFILE_LABEL_KEYS[dataset.import_batches.export_profile as ExportProfileId] ?? null
+    : null;
+
   return (
     <ContributionDetail
       dataset={{
@@ -94,6 +106,10 @@ export default async function ContributionDetailPage({ params }: { params: { id:
         createdAt: dataset.created_at,
         dataSource: dataset.data_source,
         currency: dataset.original_currency,
+        campaignName: dataset.campaign_name,
+        campaignTypeLabel: dataset.campaign_types?.display_label ?? null,
+        sourceFilename: dataset.import_batches?.source_filename ?? null,
+        exportProfileLabelKey,
         platformLabel: dataset.platforms?.display_label ?? "—",
         objectiveLabel: dataset.objectives?.display_label ?? "—",
         verticalLabel: dataset.verticals?.display_label ?? "—",

@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { ArrowLeft, Trash2 } from "lucide-react";
 import { AppHeader } from "@/components/dashboard/AppHeader";
 import { DashboardSidebar } from "@/components/dashboard/DashboardSidebar";
 import { SearchOverlay } from "@/components/dashboard/SearchOverlay";
@@ -9,6 +10,7 @@ import { useState } from "react";
 import { useTranslation } from "@/lib/i18n/LanguageContext";
 import type { RawMetricInputs } from "@/lib/metrics/derive";
 import { DERIVED_METRIC_LABELS, type DerivedMetricKey } from "@/lib/contribute/coverage";
+import { deleteContributionAction } from "../actions";
 
 const STATUS_STYLE: Record<string, string> = {
   pending: "bg-vanilla-soft text-vanilla",
@@ -46,6 +48,13 @@ export interface ContributionDetailDataset {
   createdAt: string;
   dataSource: string;
   currency: string;
+  // PHASE 25 (§4/§5/§15): identity/provenance additions — all nullable,
+  // so this page renders exactly as before for any pre-Phase-25 or
+  // manually-entered campaign that has none of them.
+  campaignName: string | null;
+  campaignTypeLabel: string | null;
+  sourceFilename: string | null;
+  exportProfileLabelKey: string | null;
   platformLabel: string;
   objectiveLabel: string;
   verticalLabel: string;
@@ -61,9 +70,29 @@ export function ContributionDetail({
   readiness: BenchmarkReadinessEntry[];
 }) {
   const { t } = useTranslation();
+  const router = useRouter();
   const [searchOpen, setSearchOpen] = useState(false);
+  // PHASE 25 (§16): a plain two-step confirm — never a browser
+  // confirm() dialog, and never an irreversible action a single
+  // misclick can trigger.
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState(false);
 
   const importedEntries = (Object.keys(raw) as (keyof RawMetricInputs)[]).filter((k) => k !== "ad_spend" && raw[k] !== undefined);
+
+  async function handleDelete() {
+    setDeleting(true);
+    setDeleteError(false);
+    const res = await deleteContributionAction(dataset.id);
+    setDeleting(false);
+    if (res.ok) {
+      router.push("/account/contributions");
+    } else {
+      setDeleteError(true);
+      setConfirmingDelete(false);
+    }
+  }
 
   return (
     <div className="min-h-screen bg-canvas">
@@ -77,8 +106,12 @@ export function ContributionDetail({
           </Link>
 
           <div className="flex items-start justify-between gap-3">
+            {/* PHASE 25 (§4/§15): the real campaign name leads the
+                title when the source export provided one — falling
+                back to the exact same platform/objective heading used
+                before this phase for any campaign without one. */}
             <h1 className="font-display text-xl font-semibold text-ink-900">
-              {dataset.platformLabel} · {dataset.objectiveLabel}
+              {dataset.campaignName ?? `${dataset.platformLabel} · ${dataset.objectiveLabel}`}
             </h1>
             <span className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-medium ${STATUS_STYLE[dataset.validationStatus] ?? ""}`}>
               {t(`contributions.status.${dataset.validationStatus}`)}
@@ -89,6 +122,7 @@ export function ContributionDetail({
             <p className="text-xs font-semibold uppercase tracking-wide text-ink-500">{t("contributions.detailContextTitle")}</p>
             <p className="mt-1.5 text-sm text-ink-800">
               {dataset.platformLabel} · {dataset.objectiveLabel} · {dataset.verticalLabel} · {dataset.countryLabel}
+              {dataset.campaignTypeLabel ? ` · ${dataset.campaignTypeLabel}` : ""}
             </p>
 
             <p className="mt-3 text-xs font-semibold uppercase tracking-wide text-ink-500">{t("contributions.detailPeriodTitle")}</p>
@@ -97,6 +131,12 @@ export function ContributionDetail({
             <p className="mt-3 text-xs font-semibold uppercase tracking-wide text-ink-500">{t("contributions.sourceLabel")}</p>
             <p className="mt-1.5 text-sm text-ink-800">
               {t(`contributions.source.${dataset.dataSource}`)} · {t("contributions.importedOn", { date: new Date(dataset.createdAt).toLocaleDateString() })}
+              {/* PHASE 25 (§8/§15): human-usable provenance — the file
+                  name as the user named it, and/or the recognized
+                  export family — never a raw internal profile id. Only
+                  ever present for a bulk import (see migration 0018's
+                  own comment: a manual entry has no batch). */}
+              {dataset.sourceFilename ? ` · ${dataset.sourceFilename}` : dataset.exportProfileLabelKey ? ` · ${t(dataset.exportProfileLabelKey)}` : ""}
             </p>
           </div>
 
@@ -166,6 +206,44 @@ export function ContributionDetail({
               )}
             </div>
           )}
+
+          {/* PHASE 25 (§16): owner-safe delete, reusing the existing
+              DB-level "owners delete own datasets" RLS policy — a
+              plain two-step confirm, never a single-click irreversible
+              action. */}
+          <div className="mt-4 rounded-2xl border border-dashed border-line bg-surface2/30 p-4">
+            {!confirmingDelete ? (
+              <button
+                onClick={() => setConfirmingDelete(true)}
+                className="inline-flex items-center gap-1.5 text-xs font-medium text-caution hover:opacity-80"
+              >
+                <Trash2 size={13} aria-hidden="true" /> {t("contributions.deleteAction")}
+              </button>
+            ) : (
+              <div>
+                <p className="text-sm font-medium text-ink-900">{t("contributions.deleteConfirmTitle")}</p>
+                <p className="mt-1 text-xs text-ink-600">{t("contributions.deleteConfirmBody")}</p>
+                <div className="mt-2 flex gap-2">
+                  <button
+                    onClick={handleDelete}
+                    disabled={deleting}
+                    aria-busy={deleting}
+                    className="rounded-full bg-caution px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-60"
+                  >
+                    {t("contributions.deleteConfirmButton")}
+                  </button>
+                  <button
+                    onClick={() => setConfirmingDelete(false)}
+                    disabled={deleting}
+                    className="rounded-full border border-line px-3 py-1.5 text-xs font-medium text-ink-700 hover:bg-surface2"
+                  >
+                    {t("contributions.deleteCancelButton")}
+                  </button>
+                </div>
+              </div>
+            )}
+            {deleteError && <p className="mt-2 text-xs text-caution">{t("contributions.deleteFailed")}</p>}
+          </div>
         </main>
       </div>
     </div>

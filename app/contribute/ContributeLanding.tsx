@@ -18,6 +18,14 @@ import { generateCsvTemplate, generateXlsxTemplate } from "@/lib/import/template
 import { REQUIRED_FIELDS, OPTIONAL_FIELDS, type CanonicalField, type DetectedMapping, type NormalizedRow, type RawTable, type RowIssue } from "@/lib/import/types";
 import { detectExportPlatform, findAdPlatformProfile, AD_PLATFORM_PROFILES, resolveMetaResultForRow, detectReportCurrency, classifyExportProfile, isVerifiedWithRealExport, type PlatformDetectionResult, type AdPlatformId, type RowResultResolution, type CurrencyDetectionResult } from "@/lib/import/platformExports";
 import { suggestObjectiveFromCampaignNames } from "@/lib/import/suggestions";
+// PHASE 25 (§9/§10): cross-import duplicate detection — a SEPARATE
+// check from detectDuplicates above (which only catches repeats WITHIN
+// this same file). buildRawSignature is a pure helper, safe to import
+// client-side; checkImportDuplicatesAction is the "use server" action
+// that queries the owner's own previously-imported campaigns.
+import { buildRawSignature, type DuplicateMatch } from "@/lib/import/duplicates";
+import { checkImportDuplicatesAction, type DuplicateCheckCandidate } from "@/lib/import/duplicateActions";
+import { computeDataCoverage, DERIVED_METRIC_LABELS } from "@/lib/contribute/coverage";
 
 type Mode = "landing" | "quick" | "upload";
 type UploadStep = "file" | "columns" | "review" | "confirm" | "done";
@@ -222,6 +230,14 @@ function UploadFlow({
   const [mappings, setMappings] = useState<DetectedMapping[]>([]);
   const [normalizedRows, setNormalizedRows] = useState<NormalizedRow[]>([]);
   const [sourceType, setSourceType] = useState<"csv" | "xlsx">("csv");
+  // PHASE 25 (§9/§10): cross-import duplicate verdicts, keyed by
+  // rowNumber, populated by an async check kicked off once review rows
+  // are ready — never blocks reaching the review step, since a slow or
+  // failed check should never hold up a real import. skipRows is the
+  // user's own explicit choice per §10 ("Skip" / "Import anyway") —
+  // never auto-populated, never auto-rejected.
+  const [dupVerdicts, setDupVerdicts] = useState<Map<number, DuplicateMatch>>(new Map());
+  const [skipRows, setSkipRows] = useState<Set<number>>(new Set());
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<{ imported: number; failed: number } | null>(null);
   const [dragActive, setDragActive] = useState(false);
@@ -474,19 +490,58 @@ function UploadFlow({
         })
       : normalizedBase;
 
-    setNormalizedRows(detectDuplicates(normalized));
+    const finalRows = detectDuplicates(normalized);
+    setNormalizedRows(finalRows);
+    setDupVerdicts(new Map());
+    setSkipRows(new Set());
     setStep("review");
+
+    // PHASE 25 (§9): a single batched check against the owner's own
+    // previously-imported campaigns — fired after the review rows are
+    // already shown, never gating the review step itself. Best-effort:
+    // a failed check just means no duplicate banner shows, it never
+    // blocks anything the user can do next.
+    const candidates: DuplicateCheckCandidate[] = finalRows
+      .filter((r) => r.status === "valid" && r.platform && r.startDate && r.endDate && r.adSpend !== null)
+      .map((r) => ({
+        rowNumber: r.rowNumber,
+        platformKey: r.platform!,
+        campaignName: r.campaignName,
+        startDate: r.startDate!,
+        endDate: r.endDate!,
+        adSpend: r.adSpend!,
+        rawSignature: buildRawSignature(r.rawMetrics),
+      }));
+    if (candidates.length > 0) {
+      checkImportDuplicatesAction(candidates)
+        .then((results) => {
+          const map = new Map<number, DuplicateMatch>();
+          for (const entry of results) {
+            if (entry.match.verdict !== "new") map.set(entry.rowNumber, entry.match);
+          }
+          setDupVerdicts(map);
+        })
+        .catch(() => {});
+    }
   }
 
   async function confirmImport() {
     setSubmitting(true);
-    const res = await bulkSubmitContributionsAction(normalizedRows, sourceType);
+    const res = await bulkSubmitContributionsAction(normalizedRows, sourceType, {
+      sourceFilename: fileName || null,
+      exportProfileId: exportProfile?.profileId ?? null,
+      skipRowNumbers: Array.from(skipRows),
+    });
     setSubmitting(false);
     setResult({ imported: res.imported, failed: res.failed });
     setStep("done");
   }
 
   const validCount = normalizedRows.filter((r) => r.status === "valid").length;
+  // §10: what will actually be imported once explicit duplicate skips
+  // are taken into account — distinct from validCount (which only
+  // reflects lib/import/validate.ts's own row-level validity).
+  const effectiveValidCount = normalizedRows.filter((r) => r.status === "valid" && !skipRows.has(r.rowNumber)).length;
   const reviewCount = normalizedRows.filter((r) => r.status !== "valid").length;
   const recognizedMappingCount = mappings.filter((m) => m.state === "mapped").length;
   const reviewMappingCount = mappings.filter((m) => m.state === "needs_review").length;
@@ -996,10 +1051,12 @@ function UploadFlow({
             <SummaryPill tone="vanilla" label={t("contribute.import.reviewCount", { n: reviewCount })} />
           </div>
 
-          {/* §3/§13: campaign identity is shown for review, but never
-              persisted — the schema has no name/title column and this
-              fix creates no migration to add one. Told plainly here
-              rather than silently dropped from the review experience. */}
+          {/* PHASE 25 (§4): campaign identity is now actually persisted
+              (performance_datasets.campaign_name, migration 0018) —
+              this note used to warn it was review-only and has been
+              updated to say the opposite, honestly: it's saved, and
+              it's private to the importing user, never shown to anyone
+              else or exposed by the public benchmark engine. */}
           {hasCampaignNames && (
             <p className="mt-2 rounded-lg border border-dashed border-line bg-surface2/40 px-3 py-2 text-[11px] text-ink-500">
               {t("contribute.import.campaignNameNotPersisted")}
@@ -1148,9 +1205,53 @@ function UploadFlow({
             </>
           )}
 
+          {/* PHASE 25 (§9/§10): "you may have already imported this" —
+              a separate, explicit banner per suspected row, never an
+              auto-reject and never silently merged/overwritten. Each
+              row keeps its own Skip toggle so a real coincidence (two
+              genuinely different campaigns that happen to share a
+              period and spend) can still be imported anyway. */}
+          {dupVerdicts.size > 0 && (
+            <>
+              <p className="mt-4 text-xs font-semibold uppercase tracking-wide text-ink-500">{t("contribute.import.duplicateSectionTitle")}</p>
+              <div className="mt-2 space-y-2">
+                {Array.from(dupVerdicts.entries()).map(([rowNumber, match]) => {
+                  const row = normalizedRows.find((r) => r.rowNumber === rowNumber);
+                  if (!row) return null;
+                  const skipped = skipRows.has(rowNumber);
+                  return (
+                    <div key={rowNumber} className="rounded-xl border border-caution/40 bg-caution-soft/30 px-3 py-2.5 text-xs">
+                      <p className="font-medium text-ink-800">{t("contribute.import.duplicateWarning")}</p>
+                      <p className="mt-0.5 text-ink-600">
+                        {row.campaignName ?? t("contribute.import.rowLabel", { n: rowNumber })} · {row.platform ?? "—"} · {row.startDate ?? "—"}{row.endDate ? ` → ${row.endDate}` : ""}
+                      </p>
+                      <p className="mt-0.5 text-[11px] text-ink-500">
+                        {match.verdict === "likely_duplicate" ? t("contribute.import.duplicateLikely") : t("contribute.import.duplicatePossible")}
+                      </p>
+                      <label className="mt-1.5 inline-flex items-center gap-1.5 text-ink-700">
+                        <input
+                          type="checkbox"
+                          checked={skipped}
+                          onChange={(e) => {
+                            setSkipRows((prev) => {
+                              const next = new Set(prev);
+                              if (e.target.checked) next.add(rowNumber); else next.delete(rowNumber);
+                              return next;
+                            });
+                          }}
+                        />
+                        {skipped ? t("contribute.import.duplicateSkipped") : t("contribute.import.duplicateSkipToggle")}
+                      </label>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          )}
+
           <button
             onClick={() => setStep("confirm")}
-            disabled={validCount === 0}
+            disabled={effectiveValidCount === 0}
             className="mt-5 rounded-full bg-primary px-4 py-2 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-40"
           >
             {t("contribute.import.continueToConfirm")}
@@ -1160,8 +1261,9 @@ function UploadFlow({
 
       {step === "confirm" && (
         <div className="rounded-2xl border border-line bg-surface p-5">
-          <p className="text-sm text-ink-800">{t("contribute.import.confirmIntro", { n: validCount, file: fileName })}</p>
+          <p className="text-sm text-ink-800">{t("contribute.import.confirmIntro", { n: effectiveValidCount, file: fileName })}</p>
           {reviewCount > 0 && <p className="mt-2 text-xs text-ink-500">{t("contribute.import.confirmSkipped", { n: reviewCount })}</p>}
+          {skipRows.size > 0 && <p className="mt-1 text-xs text-ink-500">{t("contribute.import.confirmSkippedDuplicates", { n: skipRows.size })}</p>}
           <button
             onClick={confirmImport}
             disabled={submitting}
@@ -1187,11 +1289,29 @@ function UploadFlow({
         const compareHref = compareRow
           ? `/benchmark?prefillPlatform=${encodeURIComponent(compareRow.platform!)}&prefillObjective=${encodeURIComponent(compareRow.objective!)}&prefillVertical=${encodeURIComponent(compareRow.vertical!)}&prefillCountry=${encodeURIComponent(compareRow.country!)}`
           : null;
+        // PHASE 25 (§13): "Benchmark-ready: CPM — 3, CTR — 2, ..." —
+        // reuses the exact same calculateDerivedMetrics-backed coverage
+        // helper Phase 26's homepage workspace already uses (lib/
+        // contribute/coverage.ts), applied only to the rows that were
+        // actually imported this time (valid, and not explicitly
+        // skipped as a duplicate) — never a fabricated or re-derived
+        // formula just for this screen.
+        const importedRows = result.imported > 0
+          ? normalizedRows.filter((r) => r.status === "valid" && !skipRows.has(r.rowNumber))
+          : [];
+        const readyCoverage = computeDataCoverage(
+          importedRows.map((r) => ({ id: String(r.rowNumber), raw: { ad_spend: r.adSpend ?? undefined, ...r.rawMetrics } }))
+        ).filter((c) => c.campaignCount > 0);
         return (
           <div className="rounded-2xl border border-line bg-surface p-6 text-center">
             <Check size={24} className="mx-auto text-pistachio" aria-hidden="true" />
             <p className="mt-3 font-display text-base font-semibold text-ink-900">{t("contribute.import.doneTitle")}</p>
             <p className="mt-1 text-sm text-ink-600">{t("contribute.import.doneSummary", { imported: result.imported, failed: result.failed })}</p>
+            {readyCoverage.length > 0 && (
+              <p className="mt-1 text-xs text-ink-500">
+                {t("contribute.import.benchmarkReadySummaryLabel")}: {readyCoverage.map((c) => `${DERIVED_METRIC_LABELS[c.metric]} — ${c.campaignCount}`).join(", ")}
+              </p>
+            )}
             <div className="mt-4 flex flex-wrap justify-center gap-2">
               {compareHref && (
                 <a href={compareHref} className="rounded-full bg-primary px-4 py-2 text-xs font-semibold text-white hover:opacity-90">{t("contribute.import.ctaCompareThisCampaign")}</a>

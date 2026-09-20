@@ -200,6 +200,24 @@ export type ExportProfileId =
   | "google_video_campaign_report"
   | "generic_campaign_report";
 
+// PHASE 25 (§7/§8): the same labelKey each ExportProfileId is assigned
+// inline below by classifyExportProfile, but addressable BY id — so a
+// persisted import_batches.export_profile string (see migration 0018;
+// only the id is stored, never a whole ExportProfileResult) can be
+// turned back into a display label later, without re-running
+// detection against a file that no longer exists. Never a second,
+// differently-worded label set — kept in exact sync with the inline
+// assignments below.
+export const EXPORT_PROFILE_LABEL_KEYS: Record<ExportProfileId, string> = {
+  meta_campaign_report: "contribute.import.profile.campaignReport",
+  meta_unknown_export: "contribute.import.profile.campaignReport",
+  google_campaign_report: "contribute.import.profile.campaignReport",
+  google_search_campaign_report: "contribute.import.profile.googleSearch",
+  google_performance_max_report: "contribute.import.profile.googlePmax",
+  google_video_campaign_report: "contribute.import.profile.googleVideo",
+  generic_campaign_report: "contribute.import.profile.campaignReport",
+};
+
 export interface ExportProfileResult {
   profileId: ExportProfileId;
   // i18n key for the profile's own short display label (e.g. "Reporte
