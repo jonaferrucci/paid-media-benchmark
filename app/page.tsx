@@ -10,7 +10,7 @@ import { QuickActions } from "@/components/dashboard/QuickActions";
 import { GlobalInsights } from "@/components/dashboard/GlobalInsights";
 import { MiniTrend } from "@/components/dashboard/MiniTrend";
 import { FeaturedModules } from "@/components/dashboard/FeaturedModules";
-import { RecentWork } from "@/components/dashboard/RecentWork";
+import { Workspace } from "@/components/dashboard/Workspace";
 import { ExploreMarket } from "@/components/dashboard/ExploreMarket";
 import { DiscoveryWizard, WizardDraft } from "@/components/dashboard/wizard/DiscoveryWizard";
 import { PLATFORM_CARDS } from "@/lib/mock/taxonomies";
@@ -91,6 +91,11 @@ export default function OverviewPage() {
         <div>
           <Hero />
 
+          {/* PHASE 26 (§1/§2): the signed-in workspace hub — renders
+              nothing for a signed-out visitor or while loading, so the
+              marketing/discovery experience below is unaffected. */}
+          <Workspace />
+
           <QuickActions />
 
           <div className="mx-auto mb-3 flex max-w-xs items-center gap-1 rounded-full border border-line bg-surface p-1">
@@ -128,7 +133,6 @@ export default function OverviewPage() {
                 funnelStage: null, minAge: null, maxAge: null, campaignType: null, spendBand: null, durationBand: null,
               })} />
               <GlobalInsights onExplore={handleExploreFromInsight} />
-              <RecentWork />
               <FeaturedModules onQuickBenchmark={handleQuickBenchmark} />
             </div>
           ) : (

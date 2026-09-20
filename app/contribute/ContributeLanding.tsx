@@ -1173,18 +1173,36 @@ function UploadFlow({
         </div>
       )}
 
-      {step === "done" && result && (
-        <div className="rounded-2xl border border-line bg-surface p-6 text-center">
-          <Check size={24} className="mx-auto text-pistachio" aria-hidden="true" />
-          <p className="mt-3 font-display text-base font-semibold text-ink-900">{t("contribute.import.doneTitle")}</p>
-          <p className="mt-1 text-sm text-ink-600">{t("contribute.import.doneSummary", { imported: result.imported, failed: result.failed })}</p>
-          <div className="mt-4 flex flex-wrap justify-center gap-2">
-            <a href="/benchmark" className="rounded-full bg-primary px-4 py-2 text-xs font-semibold text-white hover:opacity-90">{t("contribute.import.ctaViewBenchmarks")}</a>
-            <button onClick={onBack} className="rounded-full border border-line px-4 py-2 text-xs font-medium text-ink-700 hover:bg-surface2">{t("contribute.import.ctaContributeMore")}</button>
-            <a href="/" className="rounded-full border border-line px-4 py-2 text-xs font-medium text-ink-700 hover:bg-surface2">{t("contribute.import.ctaHome")}</a>
+      {step === "done" && result && (() => {
+        // PHASE 26 (§8): "Compare this campaign" — pre-fills ONLY the
+        // dimensions this exact import actually persisted (platform/
+        // objective/vertical/country, already resolved to real taxonomy
+        // keys by normalizeAndValidateRow), taken from the first
+        // successfully-imported row. Never infers audience/funnel/time
+        // window, and never appears when no row actually has all four
+        // (e.g. every row failed).
+        const compareRow = result.imported > 0
+          ? normalizedRows.find((r) => r.status === "valid" && r.platform && r.objective && r.vertical && r.country)
+          : undefined;
+        const compareHref = compareRow
+          ? `/benchmark?prefillPlatform=${encodeURIComponent(compareRow.platform!)}&prefillObjective=${encodeURIComponent(compareRow.objective!)}&prefillVertical=${encodeURIComponent(compareRow.vertical!)}&prefillCountry=${encodeURIComponent(compareRow.country!)}`
+          : null;
+        return (
+          <div className="rounded-2xl border border-line bg-surface p-6 text-center">
+            <Check size={24} className="mx-auto text-pistachio" aria-hidden="true" />
+            <p className="mt-3 font-display text-base font-semibold text-ink-900">{t("contribute.import.doneTitle")}</p>
+            <p className="mt-1 text-sm text-ink-600">{t("contribute.import.doneSummary", { imported: result.imported, failed: result.failed })}</p>
+            <div className="mt-4 flex flex-wrap justify-center gap-2">
+              {compareHref && (
+                <a href={compareHref} className="rounded-full bg-primary px-4 py-2 text-xs font-semibold text-white hover:opacity-90">{t("contribute.import.ctaCompareThisCampaign")}</a>
+              )}
+              <a href="/benchmark" className="rounded-full border border-line px-4 py-2 text-xs font-medium text-ink-700 hover:bg-surface2">{t("contribute.import.ctaViewBenchmarks")}</a>
+              <button onClick={onBack} className="rounded-full border border-line px-4 py-2 text-xs font-medium text-ink-700 hover:bg-surface2">{t("contribute.import.ctaContributeMore")}</button>
+              <a href="/" className="rounded-full border border-line px-4 py-2 text-xs font-medium text-ink-700 hover:bg-surface2">{t("contribute.import.ctaHome")}</a>
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
     </div>
   );
 }

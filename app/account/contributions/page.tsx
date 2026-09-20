@@ -9,14 +9,20 @@ import { ContributionsList } from "./ContributionsList";
 export default async function ContributionsPage() {
   const supabase = createServerSupabaseClient();
 
+  // PHASE 26 (§10): source and import date were already stored
+  // (data_source/created_at) but never selected here; dataset_metric_values
+  // is now joined in the SAME query (never a follow-up query per row —
+  // §18) so ContributionsList can show real benchmark-ready metrics
+  // instead of just the taxonomy context.
   const { data } = await supabase
     .from("performance_datasets")
     .select(
-      `id, start_date, end_date, validation_status, created_at,
-       platforms(display_label),
-       objectives(display_label),
-       verticals(display_label),
-       countries(display_label)`
+      `id, start_date, end_date, validation_status, created_at, data_source,
+       platforms(internal_key, display_label),
+       objectives(display_label, internal_key),
+       verticals(display_label, internal_key),
+       countries(display_label, iso_code),
+       dataset_metric_values(raw_numeric_value, metrics(internal_key))`
     )
     .order("created_at", { ascending: false });
 

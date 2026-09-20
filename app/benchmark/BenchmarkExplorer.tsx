@@ -69,7 +69,28 @@ export function BenchmarkExplorer({ taxonomies }: { taxonomies: ContributionTaxo
   // session's point of view, no distinction needed or leaked).
   useEffect(() => {
     const savedId = searchParams.get("saved");
-    if (!savedId) return;
+    if (!savedId) {
+      // PHASE 26 (§8): cross-link from a just-completed import —
+      // /benchmark?prefillPlatform=...&prefillObjective=...&
+      // prefillVertical=...&prefillCountry=.... Only ever pre-fills the
+      // dimensions the caller actually persisted; never infers audience/
+      // funnel/time window and never auto-submits, so the user still
+      // reviews and completes the search themselves.
+      const prefillPlatform = searchParams.get("prefillPlatform");
+      const prefillObjective = searchParams.get("prefillObjective");
+      const prefillVertical = searchParams.get("prefillVertical");
+      const prefillCountry = searchParams.get("prefillCountry");
+      if (prefillPlatform || prefillObjective || prefillVertical || prefillCountry) {
+        setDraft((d) => ({
+          ...d,
+          platform: prefillPlatform ?? d.platform,
+          objective: prefillObjective ?? d.objective,
+          vertical: prefillVertical ?? d.vertical,
+          country: prefillCountry ?? d.country,
+        }));
+      }
+      return;
+    }
 
     let cancelled = false;
     setReopenLoading(true);
