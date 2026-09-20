@@ -11,6 +11,7 @@ import { calculateDerivedMetrics, type RawMetricInputs } from "@/lib/metrics/der
 import { DERIVED_METRIC_LABELS, type DerivedMetricKey } from "@/lib/contribute/coverage";
 import { flagSuspectedDuplicates } from "@/lib/contribute/dataQuality";
 import { EXPORT_PROFILE_LABEL_KEYS, type ExportProfileId } from "@/lib/import/platformExports";
+import { computeImportBatchStatus, IMPORT_BATCH_STATUS_STYLE } from "@/lib/contribute/importBatchStatus";
 
 interface ContributionRow {
   id: string;
@@ -30,10 +31,12 @@ interface ContributionRow {
   dataset_metric_values: { raw_numeric_value: number; metrics: { internal_key: string } | null }[] | null;
 }
 
-// PHASE 25 (§7): the real import_batches row — a compact "what did I
-// import" history, replacing the guesswork Phase 26's groupRecentImports
-// had to do before this table existed (that helper is untouched and
-// still backs the homepage workspace's own recent-imports section).
+// PHASE 25 (§7/§16): the real import_batches row — a compact "what did
+// I import" history, replacing the guesswork Phase 26's
+// groupRecentImports had to do before this table existed. That helper
+// (lib/contribute/coverage.ts) is untouched, but is no longer used by
+// the homepage workspace either — lib/contribute/workspaceActions.ts's
+// "Recent imports" now also reads these same real batches.
 interface ImportBatchRow {
   id: string;
   data_source: string;
@@ -46,24 +49,6 @@ interface ImportBatchRow {
   created_at: string;
   platforms: { display_label: string } | null;
 }
-
-type BatchStatus = "completed" | "partial" | "needsAttention";
-
-// §7: three plain, factual statuses — never a score. "Needs attention"
-// is deliberately the ONLY branch that fires when nothing at all
-// succeeded, so a batch that partially worked always reads as
-// "Partial", never as a full failure it wasn't.
-function batchStatus(b: ImportBatchRow): BatchStatus {
-  if (b.success_count === 0) return "needsAttention";
-  if (b.review_count > 0 || b.success_count < b.row_count - b.skipped_count) return "partial";
-  return "completed";
-}
-
-const BATCH_STATUS_STYLE: Record<BatchStatus, string> = {
-  completed: "bg-pistachio-soft text-pistachio",
-  partial: "bg-vanilla-soft text-vanilla",
-  needsAttention: "bg-caution-soft text-caution",
-};
 
 const STATUS_STYLE: Record<string, string> = {
   pending: "bg-vanilla-soft text-vanilla",
@@ -139,12 +124,16 @@ export function ContributionsList({ datasets, batches = [] }: { datasets: Contri
               <h2 className="text-xs font-semibold uppercase tracking-wide text-ink-500">{t("contributions.importHistoryTitle")}</h2>
               <div className="mt-2 space-y-1.5">
                 {batches.map((b) => {
-                  const status = batchStatus(b);
+                  const status = computeImportBatchStatus(b);
                   const profileLabel = b.export_profile && EXPORT_PROFILE_LABEL_KEYS[b.export_profile as ExportProfileId]
                     ? t(EXPORT_PROFILE_LABEL_KEYS[b.export_profile as ExportProfileId])
                     : null;
                   return (
-                    <div key={b.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-line bg-surface px-3 py-2 text-xs">
+                    <Link
+                      key={b.id}
+                      href={`/account/contributions/imports/${b.id}`}
+                      className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-line bg-surface px-3 py-2 text-xs transition-colors hover:border-primary/40"
+                    >
                       <p className="text-ink-700">
                         {b.platforms?.display_label ?? t("contributions.unknownPlatform")}
                         {" · "}
@@ -154,10 +143,10 @@ export function ContributionsList({ datasets, batches = [] }: { datasets: Contri
                         {" · "}
                         {t("contributions.importHistoryCampaignsImported", { n: b.success_count })}
                       </p>
-                      <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium ${BATCH_STATUS_STYLE[status]}`}>
+                      <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium ${IMPORT_BATCH_STATUS_STYLE[status]}`}>
                         {t(`contributions.batchStatus.${status}`)}
                       </span>
-                    </div>
+                    </Link>
                   );
                 })}
               </div>
@@ -180,18 +169,17 @@ export function ContributionsList({ datasets, batches = [] }: { datasets: Contri
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        {/* PHASE 25 (§4/§14): the real campaign name now
+                        {/* PHASE 25 (§4/§14/§15): the real campaign name
                             leads the card when the source export
-                            provided one — falling back to the exact
-                            same platform/objective line used before
-                            this phase for any campaign without one
-                            (manual entries, generic imports). */}
+                            provided one; otherwise a plain, honest
+                            "Unnamed campaign" label — never fabricated
+                            from platform/objective, which are still
+                            shown on the line right below regardless. */}
                         <p className="truncate text-sm font-medium text-ink-900">
-                          {d.campaign_name ?? `${d.platforms?.display_label ?? ""} · ${d.objectives?.display_label ?? ""}`}
+                          {d.campaign_name ?? t("contributions.unnamedCampaign")}
                         </p>
                         <p className="mt-0.5 text-xs text-ink-600">
-                          {d.campaign_name && `${d.platforms?.display_label ?? ""} · `}
-                          {d.objectives?.display_label}
+                          {d.platforms?.display_label} · {d.objectives?.display_label}
                           {d.campaign_types?.display_label ? ` · ${d.campaign_types.display_label}` : ""}
                         </p>
                         <p className="mt-0.5 text-xs text-ink-600">

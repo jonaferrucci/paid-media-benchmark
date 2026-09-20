@@ -152,11 +152,13 @@ assertTrue(
 // ---------------------------------------------------------------------
 const contributionsListSource = readFileSync(new URL("../app/account/contributions/ContributionsList.tsx", import.meta.url), "utf8");
 assertTrue(contributionsListSource.includes("batches.map((b)"), "the contributions page renders one line per real import batch");
+assertTrue(contributionsListSource.includes("d.campaign_name ?? t(\"contributions.unnamedCampaign\")"), "a campaign's real name is shown when present, falling back to a plain neutral placeholder otherwise — never fabricated from other fields");
+
+const importBatchStatusSource = readFileSync(new URL("../lib/contribute/importBatchStatus.ts", import.meta.url), "utf8");
 assertTrue(
-  contributionsListSource.includes("completed") && contributionsListSource.includes("partial") && contributionsListSource.includes("needsAttention"),
+  importBatchStatusSource.includes('"completed"') && importBatchStatusSource.includes('"partial"') && importBatchStatusSource.includes('"needsAttention"'),
   "§7 the three factual batch statuses (Completed/Partial/Needs attention) are all implemented — never a numeric score"
 );
-assertTrue(contributionsListSource.includes("d.campaign_name ??"), "a campaign's real name is shown when present, falling back to the existing platform/objective line otherwise");
 
 const contributionsPageSource = readFileSync(new URL("../app/account/contributions/page.tsx", import.meta.url), "utf8");
 assertTrue(
@@ -205,6 +207,35 @@ assertTrue(
   !/alter\s+table\s+(?!import_batches|performance_datasets)/i.test(migrationSource.replace(/--.*$/gm, "")),
   "no table other than import_batches/performance_datasets is ever altered by this migration"
 );
+
+// ---------------------------------------------------------------------
+// §16/§24: Phase 26's homepage Workspace "Recent imports" now reads
+// the REAL import_batches table — the same-day/same-platform
+// approximation (groupRecentImports) is no longer used here (it's
+// still exported from coverage.ts, unchanged, and still exercised
+// directly by scripts/test-phase26-workspace.mts).
+// ---------------------------------------------------------------------
+const workspaceActionsSource = readFileSync(new URL("../lib/contribute/workspaceActions.ts", import.meta.url), "utf8");
+assertTrue(workspaceActionsSource.includes('.from("import_batches")'), "getWorkspaceSummaryAction reads the real import_batches table for its recent-imports section");
+assertTrue(!workspaceActionsSource.includes("groupRecentImports("), "the same-day/same-platform approximation is no longer CALLED now that a real batch identity exists (the helper itself is only mentioned in an explanatory comment)");
+assertTrue(
+  (workspaceActionsSource.match(/await Promise\.all\(\[/g) ?? []).length === 1,
+  "recent-imports, coverage/gaps, comparisons and plans are still fetched in one batched Promise.all — never sequentially"
+);
+
+const coverageSource = readFileSync(new URL("../lib/contribute/coverage.ts", import.meta.url), "utf8");
+assertTrue(coverageSource.includes("export function groupRecentImports"), "groupRecentImports itself is left in place, unmodified — Phase 26 is not rewritten, only reconciled where a real alternative now exists");
+
+// ---------------------------------------------------------------------
+// §17: a small, honest import-batch detail view — owner-scoped, no
+// admin client, never a complex administration screen.
+// ---------------------------------------------------------------------
+const importBatchPageSource = readFileSync(new URL("../app/account/contributions/imports/[id]/page.tsx", import.meta.url), "utf8");
+assertTrue(
+  importBatchPageSource.includes("createServerSupabaseClient()") && !importBatchPageSource.includes("createAdminClient") && !importBatchPageSource.includes("service_role"),
+  "the import-batch detail page reads through the session-scoped client only — RLS is the real ownership boundary"
+);
+assertTrue(importBatchPageSource.includes('.eq("import_batch_id", params.id)'), "the campaigns shown are exactly the ones this batch produced, via the real FK — never a heuristic guess");
 
 console.log(`test-phase25-import-history: ${passed} passed, ${failed} failed.`);
 if (failed > 0) process.exit(1);

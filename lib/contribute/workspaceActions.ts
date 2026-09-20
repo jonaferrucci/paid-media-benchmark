@@ -19,7 +19,7 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { listSavedComparisonsAction, type SavedComparison } from "@/app/comparisons/actions";
 import { listScenariosAction, type SavedPlanningScenario } from "@/app/planner/actions";
-import { computeDataCoverage, computeDataGaps, groupRecentImports, type MetricCoverageEntry, type DataGapEntry, type RecentImportGroup, type DatasetRawSummary } from "./coverage";
+import { computeDataCoverage, computeDataGaps, type MetricCoverageEntry, type DataGapEntry, type RecentImportGroup, type DatasetRawSummary } from "./coverage";
 import { flagSuspectedDuplicates } from "./dataQuality";
 import type { RawMetricInputs } from "@/lib/metrics/derive";
 
@@ -79,8 +79,16 @@ export async function getWorkspaceSummaryAction(): Promise<WorkspaceSummary> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return EMPTY_SUMMARY;
 
-  // Three independent reads, batched — never sequential (§18).
-  const [datasetsRes, comparisons, plans] = await Promise.all([
+  // PHASE 25 (§16/§24): "Recent imports" now reads the REAL
+  // import_batches table (migration 0018) instead of Phase 26's
+  // documented same-day/same-platform approximation over individual
+  // performance_datasets rows (lib/contribute/coverage.ts's
+  // groupRecentImports — left in place, unused here now, since
+  // scripts/test-phase26-workspace.mts still exercises it directly and
+  // it remains an honest fallback shape for anything that DOES need to
+  // group raw rows). Four independent reads, still batched — never
+  // sequential (§18).
+  const [datasetsRes, batchesRes, comparisons, plans] = await Promise.all([
     supabase
       .from("performance_datasets")
       .select(
@@ -99,6 +107,11 @@ export async function getWorkspaceSummaryAction(): Promise<WorkspaceSummary> {
       .neq("validation_status", "deleted")
       .order("created_at", { ascending: false })
       .limit(RECENT_DATASET_LIMIT),
+    supabase
+      .from("import_batches")
+      .select("id, success_count, created_at, data_source, platforms(display_label)")
+      .order("created_at", { ascending: false })
+      .limit(RECENT_IMPORT_GROUPS),
     listSavedComparisonsAction(RECENT_LIST_LIMIT),
     listScenariosAction(),
   ]);
@@ -136,15 +149,20 @@ export async function getWorkspaceSummaryAction(): Promise<WorkspaceSummary> {
   // against its own already-fetched rows rather than through this
   // summary.
 
-  const recentImports = groupRecentImports(
-    rows.map((row) => ({
-      id: row.id,
-      platformLabel: row.platforms?.display_label ?? "—",
-      dataSource: row.data_source,
-      submittedOnIso: row.created_at.slice(0, 10),
-    })),
-    RECENT_IMPORT_GROUPS
-  );
+  // PHASE 25 (§16): one real batch = one recent-imports card — no more
+  // guessing that same-platform/same-day rows came from the same
+  // upload. A manual single-entry contribution never creates a batch
+  // (migration 0018's own comment), so an account with only manual
+  // entries simply shows no "Recent imports" cards — an honest empty
+  // state, never a fabricated one built from unrelated rows.
+  type BatchJoinRow = { id: string; success_count: number; created_at: string; data_source: string; platforms: { display_label: string } | null };
+  const batchRows = ((batchesRes.data as unknown as BatchJoinRow[] | null) ?? []);
+  const recentImports: RecentImportGroup[] = batchRows.map((b) => ({
+    platformLabel: b.platforms?.display_label ?? "—",
+    dataSource: b.data_source,
+    submittedOnIso: b.created_at.slice(0, 10),
+    campaignCount: b.success_count,
+  }));
 
   return {
     signedIn: true,

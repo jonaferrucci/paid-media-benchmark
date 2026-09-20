@@ -107,11 +107,12 @@ export function ContributionDetail({
 
           <div className="flex items-start justify-between gap-3">
             {/* PHASE 25 (§4/§15): the real campaign name leads the
-                title when the source export provided one — falling
-                back to the exact same platform/objective heading used
-                before this phase for any campaign without one. */}
+                title when the source export provided one; otherwise a
+                plain, honest "Unnamed campaign" label — never
+                fabricated from platform/objective, which the Context
+                block right below already always shows. */}
             <h1 className="font-display text-xl font-semibold text-ink-900">
-              {dataset.campaignName ?? `${dataset.platformLabel} · ${dataset.objectiveLabel}`}
+              {dataset.campaignName ?? t("contributions.unnamedCampaign")}
             </h1>
             <span className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-medium ${STATUS_STYLE[dataset.validationStatus] ?? ""}`}>
               {t(`contributions.status.${dataset.validationStatus}`)}

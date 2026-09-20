@@ -115,6 +115,10 @@ const es = {
   },
   contributions: {
     empty: "Todavía no aportaste ningún dataset.",
+    // PHASE 25 (§15): a plain, neutral placeholder for a campaign with
+    // no persisted name (manual entries, generic imports, or historical
+    // rows from before this phase) — never fabricated from other fields.
+    unnamedCampaign: "Campaña sin nombre",
     status: {
       pending: "Pendiente",
       valid: "Válido",
@@ -150,6 +154,7 @@ const es = {
     // import_batches table — never a giant table, one line per upload.
     importHistoryTitle: "Historial de importaciones",
     importHistoryCampaignsImported: "{n} campañas importadas",
+    importDateLabel: "Fecha de importación",
     unknownPlatform: "Plataforma sin identificar",
     unknownSource: "Archivo sin nombre",
     batchStatus: {
@@ -1332,6 +1337,10 @@ const en: typeof es = {
   },
   contributions: {
     empty: "You haven't contributed any datasets yet.",
+    // PHASE 25 (§15): a plain, neutral placeholder for a campaign with
+    // no persisted name (manual entries, generic imports, or historical
+    // rows from before this phase) — never fabricated from other fields.
+    unnamedCampaign: "Unnamed campaign",
     status: {
       pending: "Pending",
       valid: "Valid",
@@ -1365,6 +1374,7 @@ const en: typeof es = {
     // import_batches table — never a giant table, one line per upload.
     importHistoryTitle: "Import history",
     importHistoryCampaignsImported: "{n} campaigns imported",
+    importDateLabel: "Import date",
     unknownPlatform: "Unidentified platform",
     unknownSource: "Unnamed file",
     batchStatus: {
