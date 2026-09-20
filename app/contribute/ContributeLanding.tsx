@@ -16,7 +16,7 @@ import { detectMapping, applyMapping, wouldConflict, normalizeHeader, ignoredRea
 import { normalizeAndValidateRow, detectDuplicates } from "@/lib/import/validate";
 import { generateCsvTemplate, generateXlsxTemplate } from "@/lib/import/template";
 import { REQUIRED_FIELDS, OPTIONAL_FIELDS, type CanonicalField, type DetectedMapping, type NormalizedRow, type RawTable, type RowIssue } from "@/lib/import/types";
-import { detectExportPlatform, findAdPlatformProfile, AD_PLATFORM_PROFILES, resolveMetaResultForRow, detectReportCurrency, classifyExportProfile, type PlatformDetectionResult, type AdPlatformId, type RowResultResolution, type CurrencyDetectionResult } from "@/lib/import/platformExports";
+import { detectExportPlatform, findAdPlatformProfile, AD_PLATFORM_PROFILES, resolveMetaResultForRow, detectReportCurrency, classifyExportProfile, isVerifiedWithRealExport, type PlatformDetectionResult, type AdPlatformId, type RowResultResolution, type CurrencyDetectionResult } from "@/lib/import/platformExports";
 import { suggestObjectiveFromCampaignNames } from "@/lib/import/suggestions";
 
 type Mode = "landing" | "quick" | "upload";
@@ -130,12 +130,29 @@ function LandingChooser({
         <p className="mt-4 font-display text-lg font-semibold text-ink-900">{t("contribute.primaryTitle")}</p>
         <p className="mt-1.5 max-w-xl text-sm text-ink-600">{t("contribute.primaryBody")}</p>
         <div className="mt-4 flex flex-wrap gap-1.5">
-          {AD_PLATFORM_PROFILES.map((p) => (
-            <span key={p.id} className="rounded-full border border-line bg-surface2 px-2.5 py-1 text-[11px] font-medium text-ink-600">
-              {p.displayLabel}
-            </span>
-          ))}
+          {/* PHASE 24 (§17): honestly distinguish platforms verified
+              against a real export (Meta, Google) from those that are
+              only generically compatible — never a blanket "supported"
+              claim. isVerifiedWithRealExport reuses the SAME signal as
+              the download-guidance registry, never a second, separately
+              maintained truth source. */}
+          {AD_PLATFORM_PROFILES.map((p) => {
+            const verified = isVerifiedWithRealExport(p);
+            return (
+              <span
+                key={p.id}
+                title={verified ? t("contribute.platformVerifiedLabel") : t("contribute.platformPendingLabel")}
+                className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-medium ${
+                  verified ? "border-brandMint/40 bg-brandMint/10 text-ink-700" : "border-line bg-surface2 text-ink-500"
+                }`}
+              >
+                {verified && <Check size={11} className="text-brandMint" aria-hidden="true" />}
+                {p.displayLabel}
+              </span>
+            );
+          })}
         </div>
+        <p className="mt-1.5 text-[11px] text-ink-500">{t("contribute.platformSupportLegend")}</p>
         <span className="mt-5 inline-block rounded-full bg-primary px-4 py-2 text-xs font-semibold text-white group-hover:opacity-90">
           {t("contribute.primaryCta")}
         </span>

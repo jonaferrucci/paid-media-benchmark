@@ -156,6 +156,18 @@ export function findAdPlatformProfile(id: AdPlatformId): AdPlatformProfile {
   return AD_PLATFORM_PROFILES.find((p) => p.id === id)!;
 }
 
+// PHASE 24 (§17): the single source of truth for "verified with a real
+// export" — reuses downloadGuidanceKey's own existing meaning (see its
+// comment above: only ever set once a platform's real export path has
+// been confirmed against an actual fixture in this project) rather than
+// inventing a second, separately-maintained "verified" flag that could
+// silently drift out of sync with it. Today this is Meta and Google
+// only; TikTok/Pinterest/Mercado Libre Ads stay honestly unverified
+// until a real fixture for each is added and checked in.
+export function isVerifiedWithRealExport(profile: AdPlatformProfile): boolean {
+  return !!profile.downloadGuidanceKey;
+}
+
 // ===========================================================================
 // ADAPTIVE PLATFORM IMPORT ARCHITECTURE
 //

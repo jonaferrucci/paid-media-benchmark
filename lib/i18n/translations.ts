@@ -500,6 +500,12 @@ const es = {
       platformHintLabel: "¿Desde dónde descargaste el reporte? (opcional)",
       platformHintPlaceholder: "Elegí una plataforma",
       platformHintOther: "Otro",
+      // PHASE 24 (§17): honest platform-support indicator on /contribute
+      // — never claims full support for a platform Cucurucho hasn't
+      // verified against a real export.
+      platformVerifiedLabel: "Verificado con exports reales",
+      platformPendingLabel: "Compatible — pendiente de validación con export real",
+      platformSupportLegend: "✓ Verificado con exports reales. Los demás son compatibles — pendientes de validación con un export real.",
       // ADAPTIVE PLATFORM IMPORT ARCHITECTURE (§18): exact phrasing from
       // the task brief — "Seleccionaste X, pero este archivo parece ser
       // de Y." (the user's own stated hint first, the file's real
@@ -1606,6 +1612,9 @@ const en: typeof es = {
       platformHintLabel: "Where did you download this report from? (optional)",
       platformHintPlaceholder: "Choose a platform",
       platformHintOther: "Other",
+      platformVerifiedLabel: "Verified with real exports",
+      platformPendingLabel: "Compatible — pending validation with a real export",
+      platformSupportLegend: "✓ Verified with real exports. The others are compatible — pending validation with a real export.",
       platformHintMismatch: "You selected {hint}, but this file looks like it's from {detected}.",
       downloadGuidanceGeneric: "No need to rename any columns — upload the file exactly as you downloaded it.",
       downloadGuidanceMeta: "Meta Ads Manager → Campaigns → pick the date range → Columns → Export → CSV or Excel.",
