@@ -40,15 +40,21 @@ export function AccountMenu({ user }: AccountMenuProps) {
 
   return (
     <div ref={ref} className="relative">
+      {/* POST-MVP MOBILE PASS §2: avatar-only below sm — the name +
+          chevron are real horizontal cost the mobile header's priority
+          row (search icon / account / menu) can't spare. The full
+          name+chevron pill returns at sm+, unchanged. Kept at a 44px
+          touch target throughout (§14). */}
       <button
         onClick={() => setOpen((o) => !o)}
-        className="flex items-center gap-1.5 rounded-full border border-line bg-canvas py-1 pl-1 pr-2.5 text-sm font-medium text-ink-900 hover:border-primary/40"
+        aria-label={label ? `${t("auth.myAccount")}: ${label}` : t("auth.myAccount")}
+        className="flex h-11 w-11 items-center justify-center rounded-full border border-line bg-canvas text-ink-900 hover:border-primary/40 sm:h-auto sm:w-auto sm:gap-1.5 sm:py-1 sm:pl-1 sm:pr-2.5 sm:text-sm sm:font-medium"
       >
         <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary-soft text-primary">
           <UserIcon size={13} />
         </span>
-        <span className="max-w-[100px] truncate">{label}</span>
-        <ChevronDown size={13} className="text-ink-400" />
+        <span className="hidden max-w-[100px] truncate sm:inline">{label}</span>
+        <ChevronDown size={13} className="hidden text-ink-400 sm:inline" />
       </button>
 
       {open && (

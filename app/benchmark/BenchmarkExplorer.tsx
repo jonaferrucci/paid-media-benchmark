@@ -222,7 +222,10 @@ export function BenchmarkExplorer({ taxonomies }: { taxonomies: ContributionTaxo
             {/* Section 1 — "¿Qué querés comparar?" (Metric + Platform) */}
             <div>
               <p className="text-xs font-semibold uppercase tracking-wide text-ink-500">{t("benchmarkLive.section1Title")}</p>
-              <div className="mt-3 grid grid-cols-2 gap-3">
+              {/* POST-MVP MOBILE PASS §7: filters flow as one vertical
+                  column below sm instead of squeezing two Select
+                  dropdowns (each with its own label) side by side. */}
+              <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <Select
                   label={t("benchmarkLive.metric")}
                   value={draft.metric}
@@ -243,7 +246,7 @@ export function BenchmarkExplorer({ taxonomies }: { taxonomies: ContributionTaxo
             {/* Section 2 — "Mercado" (Objective + Vertical + Country) */}
             <div className="mt-6 border-t border-line pt-5">
               <p className="text-xs font-semibold uppercase tracking-wide text-ink-500">{t("benchmarkLive.section2Title")}</p>
-              <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
+              <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
                 <Select
                   label={t("contribute.objective")}
                   value={draft.objective}
@@ -280,7 +283,7 @@ export function BenchmarkExplorer({ taxonomies }: { taxonomies: ContributionTaxo
               <summary className="cursor-pointer text-xs font-semibold uppercase tracking-wide text-ink-500 hover:text-primary">
                 {t("benchmarkLive.section3Title")}
               </summary>
-              <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
+              <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
                 <Select
                   label={t("contribute.audienceStrategy")}
                   value={draft.audienceStrategy}
@@ -305,7 +308,7 @@ export function BenchmarkExplorer({ taxonomies }: { taxonomies: ContributionTaxo
               </div>
 
               {/* Spend Range / Duration Band — visually emphasized/required for Reach, optional for everything else (Phase 5 item 5) */}
-              <div className={`mt-3 grid grid-cols-2 gap-3 rounded-xl p-3 ${isReach ? "border-2 border-coral/50 bg-coral-soft/40" : ""}`}>
+              <div className={`mt-3 grid grid-cols-1 gap-3 rounded-xl p-3 sm:grid-cols-2 ${isReach ? "border-2 border-coral/50 bg-coral-soft/40" : ""}`}>
                 {isReach && (
                   <p className="col-span-2 text-xs font-medium text-coral">{t("benchmarkLive.reachScaleRequired")}</p>
                 )}

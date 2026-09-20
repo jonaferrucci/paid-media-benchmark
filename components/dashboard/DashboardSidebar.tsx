@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -11,13 +11,20 @@ import {
   Bookmark,
   Compass,
   ShieldCheck,
-  Menu,
   X,
   Pin,
   PinOff,
+  Sun,
+  Moon,
+  LogOut,
 } from "lucide-react";
 import clsx from "clsx";
 import { useTranslation } from "@/lib/i18n/LanguageContext";
+import { useTheme } from "@/lib/theme/ThemeContext";
+import { useSupabaseUser } from "@/lib/supabase/useUser";
+import { createClient } from "@/lib/supabase/client";
+import { signOutAction } from "@/app/auth/actions";
+import { useMobileNav } from "@/lib/navigation/MobileNavContext";
 
 const PIN_STORAGE_KEY = "cucurucho.sidebarPinned";
 
@@ -64,9 +71,21 @@ export const NAV_GROUP_STRUCTURE: { groupKey: string; items: { href: string; lab
   },
 ];
 
-function useNavGroups(): NavGroup[] {
+// POST-MVP MOBILE PASS §3: "Curación only when authorized" — this is a
+// presentational filter only (the /curation route itself already gates
+// server-side via getCurrentProfileIsCurator, unchanged by this task);
+// hiding the link for non-curators just stops the nav from listing a
+// destination most visitors would immediately bounce off of. Never used
+// as a security boundary on its own. Exported as a plain, translation-
+// free function so this filtering decision is unit-testable without a
+// DOM or a LanguageContext provider.
+export function navGroupStructureFor(isCurator: boolean): typeof NAV_GROUP_STRUCTURE {
+  return NAV_GROUP_STRUCTURE.filter((group) => group.groupKey !== "nav.groupAdmin" || isCurator);
+}
+
+function useNavGroups(isCurator: boolean): NavGroup[] {
   const { t } = useTranslation();
-  return NAV_GROUP_STRUCTURE.map((group) => ({
+  return navGroupStructureFor(isCurator).map((group) => ({
     label: t(group.groupKey),
     items: group.items.map((item) => ({ href: item.href, label: t(item.labelKey), icon: item.icon })),
   }));
@@ -134,10 +153,19 @@ function NavLink({
 
 export function DashboardSidebar() {
   const pathname = usePathname();
-  const { t } = useTranslation();
-  const groups = useNavGroups();
+  const { t, locale, setLocale } = useTranslation();
+  const { theme, toggleTheme } = useTheme();
+  const { user } = useSupabaseUser();
+  const [isCurator, setIsCurator] = useState(false);
+  const groups = useNavGroups(isCurator);
   const [pinned, setPinned] = useState(false);
-  const [mobileOpen, setMobileOpen] = useState(false);
+  // POST-MVP MOBILE PASS §2/§3: the sheet's open state now lives in the
+  // shared MobileNavContext (mounted once in Providers.tsx) so the
+  // header's own menu button — not a floating button owned by this
+  // component — can drive it. Every existing sheet behavior (contents,
+  // close-on-item-click, backdrop) is unchanged, just retriggered.
+  const { open: mobileOpen, setOpen: setMobileOpen } = useMobileNav();
+  const panelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     try {
@@ -152,6 +180,37 @@ export function DashboardSidebar() {
   useEffect(() => {
     document.documentElement.classList.toggle("sidebar-pinned", pinned);
   }, [pinned]);
+
+  // POST-MVP MOBILE PASS §3: presentational-only curator check (see
+  // useNavGroups above) — mirrors the same client-side pattern
+  // AccountMenu already uses for display_name, just for is_curator.
+  useEffect(() => {
+    if (!user) {
+      setIsCurator(false);
+      return;
+    }
+    const supabase = createClient();
+    supabase
+      .from("profiles")
+      .select("is_curator")
+      .eq("id", user.id)
+      .single()
+      .then(({ data }) => setIsCurator(data?.is_curator === true));
+  }, [user]);
+
+  // §18: Escape closes the sheet, and opening it moves focus into the
+  // panel (onto its own close button) so keyboard/screen-reader users
+  // land somewhere sensible instead of the sheet appearing silently
+  // behind their current focus.
+  useEffect(() => {
+    if (!mobileOpen) return;
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") setMobileOpen(false);
+    }
+    document.addEventListener("keydown", handleKeyDown);
+    panelRef.current?.focus();
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [mobileOpen, setMobileOpen]);
 
   function togglePinned() {
     setPinned((prev) => {
@@ -211,36 +270,79 @@ export function DashboardSidebar() {
         </div>
       </aside>
 
-      {/* Mobile: a floating tap trigger (never hover-only) opening a
-          full navigation sheet. */}
-      <button
-        type="button"
-        onClick={() => setMobileOpen(true)}
-        aria-haspopup="dialog"
-        aria-expanded={mobileOpen}
-        aria-label={t("nav.openMenu")}
-        className="fixed bottom-4 right-4 z-30 flex h-12 w-12 items-center justify-center rounded-full bg-sidebar text-white shadow-lg md:hidden"
-      >
-        <Menu size={20} aria-hidden="true" />
-      </button>
-
+      {/* POST-MVP MOBILE PASS §3: the old visually isolated floating
+          bottom-right trigger is gone — the same sheet is now opened
+          from AppHeader's own menu button, in the header's priority
+          row. Nothing else about the sheet's structure changed. */}
       {mobileOpen && (
         <div className="fixed inset-0 z-40 md:hidden" role="dialog" aria-modal="true" aria-label={t("nav.railLabel")}>
           <div className="absolute inset-0 bg-black/40" onClick={() => setMobileOpen(false)} aria-hidden="true" />
-          <div className="absolute inset-y-0 right-0 flex w-64 max-w-[80vw] flex-col bg-sidebar text-ink-400 shadow-xl motion-safe:animate-[fadeIn_0.15s_ease]">
+          <div
+            ref={panelRef}
+            tabIndex={-1}
+            className="absolute inset-y-0 right-0 flex w-72 max-w-[85vw] flex-col bg-sidebar text-ink-400 shadow-xl outline-none motion-safe:animate-[fadeIn_0.15s_ease]"
+          >
             <div className="flex items-center justify-between border-b border-white/5 p-3">
               <span className="px-2 text-xs font-semibold uppercase tracking-wider text-white/40">{t("nav.railLabel")}</span>
               <button
                 type="button"
                 onClick={() => setMobileOpen(false)}
                 aria-label={t("nav.closeMenu")}
-                className="flex h-8 w-8 items-center justify-center rounded-full text-ink-400 hover:bg-white/5 hover:text-white"
+                className="flex h-11 w-11 items-center justify-center rounded-full text-ink-400 hover:bg-white/5 hover:text-white"
               >
-                <X size={16} aria-hidden="true" />
+                <X size={18} aria-hidden="true" />
               </button>
             </div>
-            <div className="flex-1 overflow-y-auto" onClick={() => setMobileOpen(false)}>
-              <SidebarNav groups={groups} pathname={pathname} showLabels />
+            <div className="flex-1 overflow-y-auto">
+              <div onClick={() => setMobileOpen(false)}>
+                <SidebarNav groups={groups} pathname={pathname} showLabels />
+              </div>
+
+              {/* §2/§3: language + theme, moved here from the header
+                  where narrow widths have no room for them; account/
+                  sign-out surfaced too so the sheet covers every control
+                  a mobile visitor needs without opening the header's
+                  separate account menu. Touch targets kept at ~44px. */}
+              <div className="border-t border-white/5 px-3 py-4">
+                <p className="px-3 pb-2 text-[10px] font-semibold uppercase tracking-wider text-white/30">{t("nav.preferences")}</p>
+                <div className="flex items-center gap-2 px-3">
+                  <div className="flex items-center gap-1 rounded-full border border-white/10 bg-white/5 p-0.5 text-xs font-medium">
+                    <button
+                      onClick={() => setLocale("es")}
+                      className={clsx("rounded-full px-3 py-2 transition-colors duration-150", locale === "es" ? "bg-white/[0.15] text-white" : "text-ink-400")}
+                    >
+                      ES
+                    </button>
+                    <button
+                      onClick={() => setLocale("en")}
+                      className={clsx("rounded-full px-3 py-2 transition-colors duration-150", locale === "en" ? "bg-white/[0.15] text-white" : "text-ink-400")}
+                    >
+                      EN
+                    </button>
+                  </div>
+                  <button
+                    onClick={toggleTheme}
+                    aria-label={theme === "light" ? t("theme.dark") : t("theme.light")}
+                    className="flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-white/5 text-ink-400 hover:bg-white/10 hover:text-white"
+                  >
+                    {theme === "light" ? <Moon size={16} aria-hidden="true" /> : <Sun size={16} aria-hidden="true" />}
+                  </button>
+                </div>
+
+                {user && (
+                  <form action={signOutAction} className="mt-3">
+                    <button
+                      type="submit"
+                      className="flex w-full items-center gap-3 px-3 py-2.5 rounded-full text-caution text-left text-sm hover:bg-caution-soft/10"
+                    >
+                      <span className={RAIL_ICON_SLOT}>
+                        <LogOut size={16} strokeWidth={1.75} aria-hidden="true" />
+                      </span>
+                      {t("auth.signOut")}
+                    </button>
+                  </form>
+                )}
+              </div>
             </div>
           </div>
         </div>

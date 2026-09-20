@@ -71,7 +71,7 @@ export function ContextStep({ draft, onChange, onSubmit }: ContextStepProps) {
         </button>
 
         {showAdvanced && (
-          <div className="mt-3 grid grid-cols-2 gap-3 border-t border-line pt-3">
+          <div className="mt-3 grid grid-cols-1 gap-3 border-t border-line pt-3 sm:grid-cols-2">
             <Field
               label={t("finder.funnelStage")}
               value={draft.funnelStage ?? ""}

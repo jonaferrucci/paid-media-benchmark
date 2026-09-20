@@ -184,7 +184,7 @@ export function CampaignExplorer({ taxonomies, initialSaved }: { taxonomies: Con
   return (
     <div className="space-y-6">
       <section className="rounded-2xl border border-line bg-surface p-6 shadow-sm">
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <Select label={t("contribute.platform")} value={cohort.platform} onChange={(v) => updateCohort("platform", v)} allowEmpty required
             options={taxonomies.platforms.map((p) => ({ value: p.internal_key, label: p.display_label }))} />
           <Select label={t("contribute.objective")} value={cohort.objective} onChange={(v) => updateCohort("objective", v)} allowEmpty required
@@ -216,8 +216,8 @@ export function CampaignExplorer({ taxonomies, initialSaved }: { taxonomies: Con
         <div className="mt-5 space-y-2">
           <p className="text-xs font-medium text-ink-600">{t("benchmarkLive.campaignMetrics")}</p>
           {rows.map((row, i) => (
-            <div key={i} className="flex items-center gap-2">
-              <div className="w-32">
+            <div key={i} className="flex flex-wrap items-center gap-2">
+              <div className="w-28 shrink-0 sm:w-32">
                 <Select label="" value={row.metric} onChange={(v) => updateRow(i, { metric: v })}
                   options={CAMPAIGN_METRICS.map((m) => ({ value: m, label: m.toUpperCase() }))} />
               </div>
@@ -227,7 +227,7 @@ export function CampaignExplorer({ taxonomies, initialSaved }: { taxonomies: Con
                 value={row.value}
                 onChange={(e) => updateRow(i, { value: e.target.value })}
                 placeholder={t("benchmarkLive.yourResultPlaceholder")}
-                className="flex-1 rounded-xl border border-line bg-canvas px-3 py-2.5 text-sm text-ink-900 outline-none focus-visible:border-primary"
+                className="min-w-[120px] flex-1 rounded-xl border border-line bg-canvas px-3 py-2.5 text-sm text-ink-900 outline-none focus-visible:border-primary"
               />
               {rows.length > 1 && (
                 <button onClick={() => removeRow(i)} className="rounded-full p-2 text-ink-400 hover:text-caution" aria-label={t("benchmarkLive.removeMetric")}>

@@ -149,7 +149,22 @@ export function SavedComparisonsList({
                     c.comparisonType === "campaign" ? "border-l-brandMint" : "border-l-brandLavender"
                   }`}
                 >
-                  <div className="flex items-start justify-between gap-3">
+                  {/* POST-MVP MOBILE PASS §5: a dedicated responsive card
+                      hierarchy — ONE set of interactive elements (never a
+                      duplicated mobile/desktop tree, which would leave
+                      two rename inputs with the same id, two "more
+                      actions" menus, etc.), reflowed with responsive
+                      classes. Below md: context caption on its own line,
+                      the title gets its own full-width area and may wrap
+                      to 2 lines (never truncated to "Meta A..."), the
+                      type badge sits below the title instead of forcing
+                      itself onto the same row, and the primary action
+                      gets a full-width ~44px touch target. At >=768px
+                      this collapses back to the original dense single
+                      row (title+badge inline, truncated, actions beside
+                      it) — the >=768 screenshot showed this already
+                      working well (§17), so it's preserved verbatim. */}
+                  <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between md:gap-3">
                     <div className="min-w-0 flex-1">
                       {renamingId === c.id ? (
                         <div>
@@ -179,26 +194,29 @@ export function SavedComparisonsList({
                         </div>
                       ) : (
                         <>
-                          <div className="flex items-center gap-2">
-                            <p className="truncate font-display text-[15px] font-semibold text-ink-900">{c.name}</p>
-                            <span className="shrink-0 rounded-full bg-surface2 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-ink-500">
+                          <p className="text-xs text-ink-500 md:hidden">{contextLabel(c)}</p>
+                          <div className="mt-1 md:mt-0 md:flex md:items-center md:gap-2">
+                            <p className="line-clamp-2 font-display text-[15px] font-semibold text-ink-900 md:min-w-0 md:flex-1 md:truncate md:leading-normal">
+                              {c.name}
+                            </p>
+                            <span className="mt-1.5 inline-block w-fit shrink-0 rounded-full bg-surface2 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-ink-500 md:mt-0">
                               {c.comparisonType === "campaign" ? t("comparisons.typeCampaign") : t("comparisons.typeSingle")}
                             </span>
                           </div>
-                          <p className="mt-1.5 truncate text-xs text-ink-600">{contextLabel(c)}</p>
-                          <div className="mt-1.5 flex items-center gap-2 text-[11px] text-ink-400">
+                          <p className="mt-1.5 hidden text-xs text-ink-600 md:block md:truncate">{contextLabel(c)}</p>
+                          <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-ink-400">
                             <span>{metricSummary(c)}</span>
-                            <span aria-hidden="true">·</span>
+                            <span aria-hidden="true" className="hidden md:inline">·</span>
                             <span>{t("comparisons.updated")} {formatUpdatedAt(c.updatedAt, locale)}</span>
                           </div>
                         </>
                       )}
                     </div>
 
-                    <div className="flex shrink-0 items-center gap-1">
+                    <div className="flex shrink-0 items-center gap-2 md:gap-1">
                       <button
                         onClick={() => openComparison(c)}
-                        className="flex items-center gap-1 rounded-full bg-primary-soft px-3 py-1.5 text-xs font-medium text-primary transition-opacity hover:opacity-90"
+                        className="flex h-11 flex-1 items-center justify-center gap-1 rounded-full bg-primary-soft px-3 text-xs font-medium text-primary transition-opacity hover:opacity-90 md:h-auto md:flex-none md:py-1.5"
                       >
                         {t("comparisons.open")} <ExternalLink size={12} aria-hidden="true" />
                       </button>
@@ -207,7 +225,7 @@ export function SavedComparisonsList({
                           onClick={() => setOpenMenuId(openMenuId === c.id ? null : c.id)}
                           aria-label={t("comparisons.moreActions")}
                           aria-expanded={openMenuId === c.id}
-                          className="flex h-8 w-8 items-center justify-center rounded-full text-ink-500 transition-colors hover:bg-surface2 hover:text-ink-900"
+                          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-ink-500 transition-colors hover:bg-surface2 hover:text-ink-900 md:h-8 md:w-8"
                         >
                           <MoreVertical size={16} aria-hidden="true" />
                         </button>

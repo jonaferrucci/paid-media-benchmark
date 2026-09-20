@@ -76,7 +76,11 @@ export function RecentWork() {
                 c.comparisonType === "campaign" ? "border-l-brandMint" : "border-l-brandLavender"
               }`}
             >
-              <p className="truncate text-xs font-semibold text-ink-900">{c.name}</p>
+              {/* POST-MVP MOBILE PASS §15: the comparison's own name is
+                  primary identity, not metadata — it wraps (2 lines)
+                  instead of truncating; the context line beneath stays
+                  single-line since it's genuinely secondary. */}
+              <p className="line-clamp-2 text-xs font-semibold text-ink-900">{c.name}</p>
               <p className="mt-0.5 truncate text-[11px] text-ink-500">
                 {humanize(c.platform)} · {humanize(c.objective)} · {c.country}
               </p>
@@ -104,7 +108,7 @@ export function RecentWork() {
                 href="/planner"
                 className="group rounded-xl border border-l-[3px] border-l-brandPeach border-line bg-surface p-3 transition-colors hover:bg-surface2/40"
               >
-                <p className="truncate text-xs font-semibold text-ink-900">{p.name}</p>
+                <p className="line-clamp-2 text-xs font-semibold text-ink-900">{p.name}</p>
                 <p className="mt-0.5 truncate text-[11px] text-ink-500">
                   {t("mediaPlanner.savedPlanItemCount", { n: p.opportunities.length })}
                 </p>

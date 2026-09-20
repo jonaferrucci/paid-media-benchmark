@@ -573,12 +573,12 @@ function UploadFlow({
       </button>
 
       {step !== "done" && (
-        <ol className="mb-6 flex items-center gap-2 text-xs text-ink-500" aria-label={t("contribute.import.stepperLabel")}>
+        <ol className="mb-6 flex flex-wrap items-center gap-x-2 gap-y-1.5 text-xs text-ink-500" aria-label={t("contribute.import.stepperLabel")}>
           {STEP_LABELS.map((s, i) => (
             <li key={s.key} className={`flex items-center gap-2 ${step === s.key ? "font-semibold text-primary" : ""}`} aria-current={step === s.key ? "step" : undefined}>
-              <span className={`flex h-5 w-5 items-center justify-center rounded-full text-[10px] ${step === s.key ? "bg-primary text-white" : "bg-surface2 text-ink-500"}`}>{i + 1}</span>
+              <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] ${step === s.key ? "bg-primary text-white" : "bg-surface2 text-ink-500"}`}>{i + 1}</span>
               {t(s.labelKey)}
-              {i < STEP_LABELS.length - 1 && <span aria-hidden="true" className="mx-1 text-ink-300">›</span>}
+              {i < STEP_LABELS.length - 1 && <span aria-hidden="true" className="mx-1 hidden text-ink-300 sm:inline">›</span>}
             </li>
           ))}
         </ol>
@@ -989,7 +989,66 @@ function UploadFlow({
             </p>
           )}
 
-          <div className="mt-4 max-h-96 overflow-y-auto overflow-x-auto rounded-xl border border-line">
+          {/* POST-MVP MOBILE PASS §9/§13C: below md, the desktop review
+              TABLE is replaced by one campaign-review CARD per row —
+              never squeezed desktop columns at 320px. Same data, same
+              row order, same gating (hasCampaignNames/
+              showCampaignReviewColumns) as the table beside it; only
+              the presentation differs. */}
+          <div className="mt-4 max-h-[32rem] space-y-2 overflow-y-auto md:hidden">
+            {normalizedRows.map((row, idx) => (
+              <div key={row.rowNumber} className="rounded-xl border border-line bg-surface p-3">
+                <div className="flex items-start justify-between gap-2">
+                  <p className="min-w-0 flex-1 text-sm font-semibold text-ink-900 line-clamp-2">
+                    {hasCampaignNames ? row.campaignName ?? "—" : `${t("contribute.import.colRow")} ${row.rowNumber}`}
+                  </p>
+                  {row.status === "valid" ? (
+                    <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-pistachio-soft px-2 py-0.5 text-[10px] font-medium text-pistachio"><Check size={10} aria-hidden="true" />{t("contribute.import.statusReady")}</span>
+                  ) : (
+                    <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-vanilla-soft px-2 py-0.5 text-[10px] font-medium text-vanilla" title={row.issues.map((i) => formatIssue(i, t)).join(" · ")}>
+                      <AlertTriangle size={10} aria-hidden="true" />{t("contribute.import.statusReview")}
+                    </span>
+                  )}
+                </div>
+                <p className="mt-0.5 text-xs text-ink-500">
+                  {row.platform ?? "—"}
+                  {showCampaignReviewColumns && row.campaignType ? ` · ${row.campaignType}` : ""}
+                </p>
+                <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1.5 text-xs">
+                  {showCampaignReviewColumns && (
+                    <div className="col-span-2">
+                      <dt className="text-ink-400">{t("contribute.import.colDates")}</dt>
+                      <dd className="text-ink-800">{row.startDate ?? "—"}{row.endDate ? ` → ${row.endDate}` : ""}</dd>
+                    </div>
+                  )}
+                  <div>
+                    <dt className="text-ink-400">{t("contribute.field.adSpend")}</dt>
+                    <dd className="tabular text-ink-800">{row.adSpend ?? "—"}</dd>
+                  </div>
+                  {showCampaignReviewColumns && (
+                    <div>
+                      <dt className="text-ink-400">{t("contribute.field.reach")} / {t("contribute.field.impressions")}</dt>
+                      <dd className="tabular text-ink-800">{row.rawMetrics.reach ?? "—"} / {row.rawMetrics.impressions ?? "—"}</dd>
+                    </div>
+                  )}
+                  {showCampaignReviewColumns && (
+                    <div>
+                      <dt className="text-ink-400">{t("contribute.field.currency")}</dt>
+                      <dd className="text-ink-800">{row.currency}</dd>
+                    </div>
+                  )}
+                  {showCampaignReviewColumns && (
+                    <div className="col-span-2">
+                      <dt className="text-ink-400">{t("contribute.import.colResult")}</dt>
+                      <dd>{renderResultCell(rowResultResolutions[idx])}</dd>
+                    </div>
+                  )}
+                </dl>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-4 hidden max-h-96 overflow-y-auto overflow-x-auto rounded-xl border border-line md:block">
             <table className="w-full min-w-[640px] text-left text-xs">
               <thead className="sticky top-0 bg-surface2 text-ink-500">
                 <tr>

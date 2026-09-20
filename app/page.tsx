@@ -312,7 +312,10 @@ function ResultView({
                   <h3 className="mb-2 text-xs font-medium uppercase tracking-wide text-ink-400">
                     {t("kpi.supportingMetrics")}
                   </h3>
-                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+                  {/* POST-MVP MOBILE PASS §7: supporting KPI tiles no
+                      longer force 2-up below sm — one column keeps each
+                      metric's label/value pair readable at 320-425px. */}
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 lg:grid-cols-5">
                     {secondaryResults.map((kpi) => (
                       <KPICard key={kpi.metric} kpi={kpi} variant="supporting" />
                     ))}

@@ -1,12 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { Search, Sun, Moon } from "lucide-react";
+import { Search, Sun, Moon, Menu } from "lucide-react";
 import { LogoMark } from "./LogoMark";
 import { AccountMenu } from "./AccountMenu";
 import { useTranslation } from "@/lib/i18n/LanguageContext";
 import { useTheme } from "@/lib/theme/ThemeContext";
 import { useSupabaseUser } from "@/lib/supabase/useUser";
+import { useMobileNav } from "@/lib/navigation/MobileNavContext";
 
 interface AppHeaderProps {
   onSearchClick: () => void;
@@ -16,10 +17,17 @@ export function AppHeader({ onSearchClick }: AppHeaderProps) {
   const { t, locale, setLocale } = useTranslation();
   const { theme, toggleTheme } = useTheme();
   const { user, loading } = useSupabaseUser();
+  const { setOpen: setMobileNavOpen } = useMobileNav();
 
   return (
     <header className="sticky top-0 z-20 border-b border-line bg-surface px-4 py-3 md:px-6">
-      <div className="flex max-w-[1400px] items-center gap-3">
+      {/* POST-MVP MOBILE PASS §2: below sm, the header is a fixed
+          priority row — [Logo] [Search icon] [Account] [Menu] — never
+          the full desktop search input squeezed into the same space.
+          Search still opens the exact same SearchOverlay (onSearchClick,
+          passed down unchanged from every page) — no second search
+          implementation, just a narrower trigger control. */}
+      <div className="flex max-w-[1400px] items-center gap-2 sm:gap-3">
         {/* Phase 22 §A4: the logo's visual center must land on the same
             horizontal axis as the sidebar rail's icons below it
             (--sidebar-rail-width / 2 = 32px from the viewport's left
@@ -38,15 +46,18 @@ export function AppHeader({ onSearchClick }: AppHeaderProps) {
           <LogoMark size={34} variant="gradient" />
         </Link>
 
+        {/* Below sm: a square icon-only trigger (44px touch target).
+            At sm+: the existing full-width search pill, unchanged. */}
         <button
           onClick={onSearchClick}
-          className="ml-3 flex flex-1 items-center gap-2 rounded-full border border-line bg-canvas px-4 py-2 text-left text-sm text-ink-400 transition-colors hover:border-primary/40 sm:max-w-md"
+          aria-label={t("search.open")}
+          className="ml-1 flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-line bg-canvas text-ink-400 transition-colors hover:border-primary/40 sm:ml-3 sm:h-auto sm:w-auto sm:flex-1 sm:justify-start sm:gap-2 sm:px-4 sm:py-2 sm:max-w-md"
         >
           <Search size={15} aria-hidden="true" />
-          <span className="truncate">{t("search.placeholder")}</span>
+          <span className="hidden truncate text-left text-sm sm:inline">{t("search.placeholder")}</span>
         </button>
 
-        <div className="ml-auto flex items-center gap-2.5">
+        <div className="ml-auto flex items-center gap-1.5 sm:gap-2.5">
           <span className="hidden rounded-full border border-reference/30 bg-reference-soft px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-reference lg:inline-block">
             {t("app.mockData")}
           </span>
@@ -70,10 +81,14 @@ export function AppHeader({ onSearchClick }: AppHeaderProps) {
             </button>
           </div>
 
+          {/* Theme toggle stays in the header at every width — a single
+              compact icon, cheap enough to keep even at 320px — but is
+              ALSO reachable from the mobile nav sheet's "Preferencias"
+              section for discoverability (§3). */}
           <button
             onClick={toggleTheme}
             aria-label={theme === "light" ? t("theme.dark") : t("theme.light")}
-            className="flex h-8 w-8 items-center justify-center rounded-full border border-line bg-canvas text-ink-600 transition-colors hover:border-primary/40 hover:text-primary"
+            className="flex h-9 w-9 items-center justify-center rounded-full border border-line bg-canvas text-ink-600 transition-colors hover:border-primary/40 hover:text-primary sm:h-8 sm:w-8"
           >
             {theme === "light" ? <Moon size={15} aria-hidden="true" /> : <Sun size={15} aria-hidden="true" />}
           </button>
@@ -93,13 +108,29 @@ export function AppHeader({ onSearchClick }: AppHeaderProps) {
                 </Link>
                 <Link
                   href="/auth/sign-up"
-                  className="rounded-full bg-brandGradient px-3.5 py-1.5 text-sm font-medium text-[#23232B] transition-opacity hover:opacity-90"
+                  className="rounded-full bg-brandGradient px-3 py-2 text-sm font-medium text-[#23232B] transition-opacity hover:opacity-90 sm:px-3.5 sm:py-1.5"
                 >
                   {t("auth.createAccount")}
                 </Link>
               </>
             )
           )}
+
+          {/* POST-MVP MOBILE PASS §3: the mobile nav trigger now lives in
+              the header, in the priority row's last position — replacing
+              the old visually isolated floating bottom-right button.
+              Opens the exact same navigation sheet (DashboardSidebar),
+              now driven by the shared MobileNavContext instead of local
+              state private to the sidebar component. */}
+          <button
+            type="button"
+            onClick={() => setMobileNavOpen(true)}
+            aria-haspopup="dialog"
+            aria-label={t("nav.openMenu")}
+            className="flex h-11 w-11 items-center justify-center rounded-full border border-line bg-canvas text-ink-700 transition-colors hover:border-primary/40 hover:text-primary md:hidden"
+          >
+            <Menu size={18} aria-hidden="true" />
+          </button>
         </div>
       </div>
     </header>

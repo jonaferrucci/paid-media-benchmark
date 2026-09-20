@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Search, X } from "lucide-react";
 import { useTranslation } from "@/lib/i18n/LanguageContext";
 import { CohortFilters } from "@/lib/types";
@@ -13,6 +13,17 @@ interface SearchOverlayProps {
 export function SearchOverlay({ onClose, onApply }: SearchOverlayProps) {
   const { t } = useTranslation();
   const [query, setQuery] = useState("");
+
+  // §18: Escape closes the overlay — the input already receives focus
+  // via autoFocus below, so this is the only extra keyboard affordance
+  // this dialog-like overlay needs.
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") onClose();
+    }
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
 
   const suggestions: { label: string; apply: Partial<CohortFilters> }[] = [
     { label: "Meta Ads", apply: { platform: "meta_ads" } },
@@ -29,7 +40,12 @@ export function SearchOverlay({ onClose, onApply }: SearchOverlayProps) {
     : suggestions;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 p-4 pt-24">
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={t("search.open")}
+      className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 p-4 pt-24"
+    >
       <div className="w-full max-w-lg rounded-2xl border border-line bg-surfaceElevated p-4 shadow-lg">
         <div className="flex items-center gap-2 rounded-full border border-line bg-canvas px-4 py-2.5">
           <Search size={15} className="text-ink-400" />

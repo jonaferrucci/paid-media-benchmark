@@ -58,10 +58,17 @@ export function EntityCard({
   const cardBody = (
     <>
       <div className="flex items-start justify-between gap-2">
-        <div className="flex min-w-0 items-center gap-2.5">
+        {/* POST-MVP MOBILE PASS §15: this card is shared across the
+            homepage, media catalog, planner, and benchmark platform
+            selection — a media/campaign name is primary identity, never
+            secondary metadata, so it wraps (up to 2 lines) instead of
+            truncating to "Meta A…" everywhere this card is used. The
+            avatar row switches to items-start so a 2-line title doesn't
+            look vertically mis-centered against the fixed-size avatar. */}
+        <div className="flex min-w-0 items-start gap-2.5">
           {avatar}
           <div className="min-w-0">
-            <p className="truncate font-display text-sm font-semibold text-ink-900">{title}</p>
+            <p className="line-clamp-2 font-display text-sm font-semibold text-ink-900">{title}</p>
             {meta && <p className="truncate text-xs text-ink-500">{meta}</p>}
           </div>
         </div>

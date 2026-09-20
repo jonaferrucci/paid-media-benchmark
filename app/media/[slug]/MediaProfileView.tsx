@@ -200,10 +200,13 @@ export function MediaProfileView({ profile }: { profile: MediaProfile }) {
               <h2 className="font-display text-sm font-semibold text-ink-900">{t("media.publicMetricsTitle")}</h2>
             </div>
             <p className="mt-1 text-[11px] text-ink-400">{t("media.publicMetricsDisclaimer")}</p>
+            {/* POST-MVP MOBILE PASS §7/§11: one column below sm — two
+                tabular metric tiles side by side got tight at
+                320-425px, especially with a % change line beneath. */}
             {latestMetrics.length === 0 ? (
               <p className="mt-2 text-xs text-ink-500">{t("media.noPublicMetricsYet")}</p>
             ) : (
-              <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
+              <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
                 {latestMetrics.map((m) => (
                   <div key={m.definition!.id} className="rounded-xl border border-line bg-canvas p-3">
                     <p className="text-[11px] uppercase tracking-wide text-ink-500">{m.definition!.display_label}</p>

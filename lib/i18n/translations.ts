@@ -705,6 +705,9 @@ const es = {
     openMenu: "Abrir menú de navegación",
     closeMenu: "Cerrar menú de navegación",
     railLabel: "Navegación principal",
+    // POST-MVP MOBILE PASS §3: heading for the language/theme controls
+    // moved into the mobile navigation sheet.
+    preferences: "Preferencias",
   },
   mediaPlanner: {
     title: "Planificador de medios",
@@ -730,6 +733,10 @@ const es = {
     selectCta: "Seleccionar",
     selectedCta: "Seleccionada",
     selectionLimitReached: "Podés comparar hasta 4 oportunidades a la vez.",
+    // POST-MVP MOBILE PASS §8: a compact, always-visible "Seleccionados
+    // (N/4)" counter next to the opportunities heading — previously the
+    // only feedback was the limit-reached message once you hit 4.
+    selectionCount: "Seleccionados: {n}/4",
     noRateCard: "Sin tarifario vigente",
     contributeRateCardCta: "Aportar tarifario",
     contextBannerLabel: "Planificando para: {name}",
@@ -791,6 +798,7 @@ const es = {
   },
   search: {
     placeholder: "Buscá una plataforma, vertical o audiencia…",
+    open: "Buscar",
   },
   finder: {
     title: "Encontrá tu benchmark",
@@ -1765,6 +1773,7 @@ const en: typeof es = {
     openMenu: "Open navigation menu",
     closeMenu: "Close navigation menu",
     railLabel: "Main navigation",
+    preferences: "Preferences",
   },
   mediaPlanner: {
     title: "Media Planner",
@@ -1790,6 +1799,7 @@ const en: typeof es = {
     selectCta: "Select",
     selectedCta: "Selected",
     selectionLimitReached: "You can compare up to 4 opportunities at a time.",
+    selectionCount: "Selected: {n}/4",
     noRateCard: "No current rate card",
     contributeRateCardCta: "Contribute a rate card",
     contextBannerLabel: "Planning for: {name}",
@@ -1851,6 +1861,7 @@ const en: typeof es = {
   },
   search: {
     placeholder: "Search a platform, vertical or audience…",
+    open: "Search",
   },
   finder: {
     title: "Find your benchmark",

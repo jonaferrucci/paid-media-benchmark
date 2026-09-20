@@ -366,7 +366,17 @@ export function PlannerView({ catalog, initialScenarios }: PlannerViewProps) {
           {/* Opportunity discovery grid */}
           {hasSearched && (
             <section className="mt-4">
-              <h2 className="font-display text-sm font-semibold text-ink-900">{t("mediaPlanner.opportunitiesTitle")}</h2>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h2 className="font-display text-sm font-semibold text-ink-900">{t("mediaPlanner.opportunitiesTitle")}</h2>
+                {/* §8: compact, always-visible selection count once the
+                    user has made at least one pick — never obstructive,
+                    just a small pill beside the section heading. */}
+                {selectedKeys.length > 0 && (
+                  <span className="rounded-full bg-surface2 px-2.5 py-1 text-[11px] font-medium text-ink-600">
+                    {t("mediaPlanner.selectionCount", { n: selectedKeys.length })}
+                  </span>
+                )}
+              </div>
               {selectedKeys.length >= 4 && (
                 <p className="mt-1 text-xs text-vanilla">{t("mediaPlanner.selectionLimitReached")}</p>
               )}
@@ -676,7 +686,12 @@ export function PlannerView({ catalog, initialScenarios }: PlannerViewProps) {
                   <p className="mt-3 text-xs text-ink-500">{t("mediaPlanner.budgetNotSet")}</p>
                 ) : totals ? (
                   <div className="mt-4 rounded-xl border border-line bg-canvas p-3">
-                    <div className="grid grid-cols-2 gap-3 text-xs sm:grid-cols-4">
+                    {/* POST-MVP MOBILE PASS §8: a single readable column
+                        below sm — a 2-up grid of currency-formatted
+                        stats got tight/wrappy at 320-425px; full width
+                        stays "compact but visible" per §8's own note on
+                        "Seleccionados (N/4)". */}
+                    <div className="grid grid-cols-1 gap-3 text-xs sm:grid-cols-4">
                       <div>
                         <p className="text-ink-400">{t("mediaPlanner.summaryBudget")}</p>
                         <p className="tabular font-semibold text-ink-900">{formatPrice(budgetAmountNum, budgetCurrency)}</p>
