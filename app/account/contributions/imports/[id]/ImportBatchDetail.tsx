@@ -37,9 +37,14 @@ export interface ImportBatchCampaignRow {
 export function ImportBatchDetail({ batch, campaigns }: { batch: ImportBatchDetailData; campaigns: ImportBatchCampaignRow[] }) {
   const { t } = useTranslation();
   const [searchOpen, setSearchOpen] = useState(false);
+  // PHASE 27 (§4): `campaigns` below is already a real query against
+  // performance_datasets.import_batch_id — its length is ground truth,
+  // preferred over batch.successCount (see ContributionsList.tsx's own
+  // comment on why that stored counter can understate a real import).
+  const displayCount = campaigns.length > 0 ? campaigns.length : batch.successCount;
   const status = computeImportBatchStatus({
     row_count: batch.rowCount,
-    success_count: batch.successCount,
+    success_count: displayCount,
     skipped_count: batch.skippedCount,
     review_count: batch.reviewCount,
   });
@@ -77,7 +82,7 @@ export function ImportBatchDetail({ batch, campaigns }: { batch: ImportBatchDeta
           <div className="mt-4 rounded-2xl border border-line bg-surface p-4">
             <p className="text-xs font-semibold uppercase tracking-wide text-ink-500">{t("contributions.importHistoryTitle")}</p>
             <div className="mt-1.5 flex flex-wrap gap-3 text-sm text-ink-800">
-              <span>{t("contributions.importHistoryCampaignsImported", { n: batch.successCount })}</span>
+              <span>{t("contributions.importHistoryCampaignsImported", { n: displayCount })}</span>
               {batch.skippedCount > 0 && <span className="text-ink-500">{t("contribute.import.confirmSkippedDuplicates", { n: batch.skippedCount })}</span>}
               {batch.reviewCount > 0 && <span className="text-ink-500">{t("contribute.import.confirmSkipped", { n: batch.reviewCount })}</span>}
             </div>

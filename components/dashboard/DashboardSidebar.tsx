@@ -247,8 +247,13 @@ export function DashboardSidebar() {
             p-3 (12px) stacked with the button's own px-3 (another 12px),
             pushing the pin icon 12px further right than every nav icon
             above it. The button itself no longer sets its own horizontal
-            padding; only this wrapper does. */}
-        <div className="border-t border-white/5 px-3 py-3">
+            padding; only this wrapper does.
+            Phase 27 §1: pt-0 instead of py-3's symmetric top padding —
+            the border-t already separates this control from the nav
+            above, so a full top gap on top of that border read as a
+            visible misalignment. Bottom padding (pb-3) is unchanged so
+            the control stays clear of the rail's bottom edge. */}
+        <div className="border-t border-white/5 px-3 pb-3 pt-0">
           <button
             type="button"
             onClick={togglePinned}

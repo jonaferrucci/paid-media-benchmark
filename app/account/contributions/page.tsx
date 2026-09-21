@@ -17,10 +17,16 @@ export default async function ContributionsPage() {
   // PHASE 25 (§4/§7/§14): campaign_name and import_batch_id are new,
   // additive columns (migration 0018) — selected alongside everything
   // Phase 26 already fetched, still one query, still RLS-scoped.
+  // PHASE 27 (§4): import_batch_id is also read here (zero extra
+  // queries — this select already fetches every one of the owner's
+  // rows) so ContributionsList can tally each batch's REAL linked-
+  // campaign count as the ground truth for display, instead of only
+  // ever trusting import_batches.success_count — see that component's
+  // own comment for why the two can disagree.
   const { data } = await supabase
     .from("performance_datasets")
     .select(
-      `id, start_date, end_date, validation_status, created_at, data_source, campaign_name,
+      `id, start_date, end_date, validation_status, created_at, data_source, campaign_name, import_batch_id,
        platforms(internal_key, display_label),
        objectives(display_label, internal_key),
        verticals(display_label, internal_key),

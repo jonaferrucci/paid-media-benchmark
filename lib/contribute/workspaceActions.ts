@@ -45,6 +45,9 @@ interface DatasetJoinRow {
   end_date: string;
   data_source: string;
   validation_status: string;
+  // PHASE 27 (§4): used only to tally each batch's REAL linked-campaign
+  // count below — never rendered directly.
+  import_batch_id: string | null;
   platforms: { internal_key: string; display_label: string } | null;
   objectives: { internal_key: string } | null;
   verticals: { internal_key: string } | null;
@@ -92,7 +95,7 @@ export async function getWorkspaceSummaryAction(): Promise<WorkspaceSummary> {
     supabase
       .from("performance_datasets")
       .select(
-        `id, created_at, start_date, end_date, data_source, validation_status,
+        `id, created_at, start_date, end_date, data_source, validation_status, import_batch_id,
          platforms(internal_key, display_label),
          objectives(internal_key),
          verticals(internal_key),
@@ -157,11 +160,25 @@ export async function getWorkspaceSummaryAction(): Promise<WorkspaceSummary> {
   // state, never a fabricated one built from unrelated rows.
   type BatchJoinRow = { id: string; success_count: number; created_at: string; data_source: string; platforms: { display_label: string } | null };
   const batchRows = ((batchesRes.data as unknown as BatchJoinRow[] | null) ?? []);
+  // PHASE 27 (§4): a batch's own success_count is written in two steps
+  // (app/contribute/bulk-actions.ts inserts it as 0, then updates it
+  // once the import loop finishes) — if that second write is ever
+  // lost, success_count can understate a batch that genuinely
+  // produced campaigns. `rows` above already carries import_batch_id
+  // for the user's most recent campaigns (no new query), so the actual
+  // linked-campaign count is ground truth whenever we have at least
+  // one row for that batch — see app/account/contributions/
+  // ContributionsList.tsx's identical fix for the full account view.
+  const realCampaignCountByBatch = new Map<string, number>();
+  for (const row of rows) {
+    if (!row.import_batch_id) continue;
+    realCampaignCountByBatch.set(row.import_batch_id, (realCampaignCountByBatch.get(row.import_batch_id) ?? 0) + 1);
+  }
   const recentImports: RecentImportGroup[] = batchRows.map((b) => ({
     platformLabel: b.platforms?.display_label ?? "—",
     dataSource: b.data_source,
     submittedOnIso: b.created_at.slice(0, 10),
-    campaignCount: b.success_count,
+    campaignCount: realCampaignCountByBatch.get(b.id) ?? b.success_count,
   }));
 
   return {

@@ -119,8 +119,17 @@ const es = {
     // no persisted name (manual entries, generic imports, or historical
     // rows from before this phase) — never fabricated from other fields.
     unnamedCampaign: "Campaña sin nombre",
+    // PHASE 27 (§3): "pending" is performance_datasets.validation_status'
+    // universal insert default (app/contribute/actions.ts, app/contribute/
+    // bulk-actions.ts) — nothing in this codebase ever transitions a row
+    // away from it today, so a real, fully and successfully imported
+    // campaign sits at "pending" indefinitely. Labeling that "Pendiente"
+    // reads as an action item for the user; there is none — the import
+    // itself is complete. "Importada" states the true, factual condition
+    // (saved successfully) without implying anything is outstanding on
+    // their end, and without inventing a new status value.
     status: {
-      pending: "Pendiente",
+      pending: "Importada",
       valid: "Válido",
       flagged: "Marcado para revisión",
       excluded: "Excluido",
@@ -1341,8 +1350,15 @@ const en: typeof es = {
     // no persisted name (manual entries, generic imports, or historical
     // rows from before this phase) — never fabricated from other fields.
     unnamedCampaign: "Unnamed campaign",
+    // PHASE 27 (§3): "pending" is performance_datasets.validation_status'
+    // universal insert default — nothing in this codebase ever
+    // transitions a row away from it today, so a real, fully and
+    // successfully imported campaign sits at "pending" indefinitely.
+    // "Imported" states the true, factual condition without implying
+    // the user has anything left to do, and without inventing a new
+    // status value.
     status: {
-      pending: "Pending",
+      pending: "Imported",
       valid: "Valid",
       flagged: "Flagged for review",
       excluded: "Excluded",

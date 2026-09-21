@@ -23,6 +23,9 @@ interface ContributionRow {
   // PHASE 25 (§4): identity/provenance only — never a benchmark cohort
   // dimension, see migration 0018's own column comment.
   campaign_name: string | null;
+  // PHASE 27 (§4): used only to tally each batch's REAL linked-campaign
+  // count below — never rendered on the campaign card itself.
+  import_batch_id: string | null;
   platforms: { internal_key: string; display_label: string } | null;
   objectives: { display_label: string; internal_key: string } | null;
   verticals: { display_label: string; internal_key: string } | null;
@@ -94,6 +97,23 @@ export function ContributionsList({ datasets, batches = [] }: { datasets: Contri
     }))
   );
 
+  // PHASE 27 (§4): a batch's own success_count is written in two steps
+  // (app/contribute/bulk-actions.ts inserts it as 0, then updates it to
+  // the real count once the import loop finishes) — if that second
+  // write is ever lost, success_count can understate a batch that
+  // genuinely did produce campaigns, showing "0 campañas importadas"
+  // for a real, successful import. The `datasets` prop above already
+  // carries every one of the owner's rows with their real
+  // import_batch_id (added to the page's existing query, no new
+  // request), so the actual number of campaigns linked to a batch is
+  // ground truth — always preferred over the batch's own counter when
+  // we have at least one linked row to count.
+  const realCampaignCountByBatch = new Map<string, number>();
+  for (const d of datasets) {
+    if (!d.import_batch_id || d.validation_status === "deleted") continue;
+    realCampaignCountByBatch.set(d.import_batch_id, (realCampaignCountByBatch.get(d.import_batch_id) ?? 0) + 1);
+  }
+
   return (
     <div className="min-h-screen bg-canvas">
       <AppHeader onSearchClick={() => setSearchOpen(true)} />
@@ -124,7 +144,12 @@ export function ContributionsList({ datasets, batches = [] }: { datasets: Contri
               <h2 className="text-xs font-semibold uppercase tracking-wide text-ink-500">{t("contributions.importHistoryTitle")}</h2>
               <div className="mt-2 space-y-1.5">
                 {batches.map((b) => {
-                  const status = computeImportBatchStatus(b);
+                  // PHASE 27 (§4): prefer the real linked-campaign count
+                  // whenever we have one, over the batch's own stored
+                  // success_count.
+                  const realCount = realCampaignCountByBatch.get(b.id);
+                  const displayCount = realCount ?? b.success_count;
+                  const status = computeImportBatchStatus({ ...b, success_count: displayCount });
                   const profileLabel = b.export_profile && EXPORT_PROFILE_LABEL_KEYS[b.export_profile as ExportProfileId]
                     ? t(EXPORT_PROFILE_LABEL_KEYS[b.export_profile as ExportProfileId])
                     : null;
@@ -141,7 +166,7 @@ export function ContributionsList({ datasets, batches = [] }: { datasets: Contri
                         {" · "}
                         {new Date(b.created_at).toLocaleDateString()}
                         {" · "}
-                        {t("contributions.importHistoryCampaignsImported", { n: b.success_count })}
+                        {t("contributions.importHistoryCampaignsImported", { n: displayCount })}
                       </p>
                       <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium ${IMPORT_BATCH_STATUS_STYLE[status]}`}>
                         {t(`contributions.batchStatus.${status}`)}
@@ -158,14 +183,14 @@ export function ContributionsList({ datasets, batches = [] }: { datasets: Contri
               <p className="text-sm text-ink-600">{t("contributions.empty")}</p>
             </div>
           ) : (
-            <div className="mt-6 space-y-3">
+            <div className="mt-6 space-y-2">
               {datasets.map((d) => {
                 const derivedMetrics = Object.keys(calculateDerivedMetrics(rawInputsFor(d))) as DerivedMetricKey[];
                 return (
                   <Link
                     key={d.id}
                     href={`/account/contributions/${d.id}`}
-                    className="block rounded-2xl border border-line bg-surface p-4 shadow-sm transition-colors hover:border-primary/40"
+                    className="block rounded-2xl border border-line bg-surface p-3.5 shadow-sm transition-colors hover:border-primary/40"
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
@@ -182,15 +207,18 @@ export function ContributionsList({ datasets, batches = [] }: { datasets: Contri
                           {d.platforms?.display_label} · {d.objectives?.display_label}
                           {d.campaign_types?.display_label ? ` · ${d.campaign_types.display_label}` : ""}
                         </p>
-                        <p className="mt-0.5 text-xs text-ink-600">
-                          {d.verticals?.display_label} · {d.countries?.display_label}
-                        </p>
-                        <p className="mt-1 text-xs text-ink-400">
-                          {d.start_date} — {d.end_date}
+                        {/* PHASE 27 (§2/§6): vertical/country and the
+                            campaign period used to each get their own
+                            line — merged onto one, since both are
+                            secondary context and neither needs its own
+                            visual weight. No information dropped, one
+                            fewer line per card. */}
+                        <p className="mt-0.5 text-xs text-ink-400">
+                          {d.verticals?.display_label} · {d.countries?.display_label} · {d.start_date} — {d.end_date}
                         </p>
                         {/* §10: source + import date — real, already-stored
                             fields that were fetched but never shown before. */}
-                        <p className="mt-1 text-[11px] text-ink-400">
+                        <p className="mt-0.5 text-[11px] text-ink-400">
                           {t("contributions.sourceLabel")}: {t(`contributions.source.${d.data_source}`)} ·{" "}
                           {t("contributions.importedOn", { date: new Date(d.created_at).toLocaleDateString() })}
                         </p>
@@ -202,7 +230,7 @@ export function ContributionsList({ datasets, batches = [] }: { datasets: Contri
                     {/* §10/§16: which benchmark-ready metrics this campaign
                         actually supports — the same formula-derived truth
                         as the home workspace's Data Coverage section. */}
-                    <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                    <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                       {derivedMetrics.length === 0 ? (
                         <span className="text-[11px] text-ink-400">{t("contributions.noMetricsImported")}</span>
                       ) : (
