@@ -73,20 +73,29 @@ export function BenchmarkExplorer({ taxonomies }: { taxonomies: ContributionTaxo
       // PHASE 26 (§8): cross-link from a just-completed import —
       // /benchmark?prefillPlatform=...&prefillObjective=...&
       // prefillVertical=...&prefillCountry=.... Only ever pre-fills the
-      // dimensions the caller actually persisted; never infers audience/
-      // funnel/time window and never auto-submits, so the user still
-      // reviews and completes the search themselves.
+      // dimensions the caller actually persisted; never infers funnel/
+      // time window and never auto-submits, so the user still reviews
+      // and completes the search themselves.
+      //
+      // PHASE 30: prefillAudienceStrategy added alongside the original
+      // four — home's SearchOverlay has suggestion chips (Broad,
+      // Remarketing) that only ever set audienceStrategy, and with no
+      // param to carry that value here, that selection silently
+      // resolved to a blank /benchmark. Same mechanism, same param
+      // naming convention, no second prefill system.
       const prefillPlatform = searchParams.get("prefillPlatform");
       const prefillObjective = searchParams.get("prefillObjective");
       const prefillVertical = searchParams.get("prefillVertical");
       const prefillCountry = searchParams.get("prefillCountry");
-      if (prefillPlatform || prefillObjective || prefillVertical || prefillCountry) {
+      const prefillAudienceStrategy = searchParams.get("prefillAudienceStrategy");
+      if (prefillPlatform || prefillObjective || prefillVertical || prefillCountry || prefillAudienceStrategy) {
         setDraft((d) => ({
           ...d,
           platform: prefillPlatform ?? d.platform,
           objective: prefillObjective ?? d.objective,
           vertical: prefillVertical ?? d.vertical,
           country: prefillCountry ?? d.country,
+          audienceStrategy: prefillAudienceStrategy ?? d.audienceStrategy,
         }));
       }
       return;

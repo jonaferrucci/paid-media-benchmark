@@ -1,5 +1,44 @@
 import { AudienceStrategy, FunnelStage, Objective, Platform, Vertical } from "@/lib/types";
 
+// PHASE 30 — HOME DISCOVERY & TAXONOMY CONSISTENCY, item 2.
+//
+// This file stays a static, hand-maintained list rather than being
+// replaced with a live query against the real taxonomy tables
+// (lib/contribute/taxonomies.ts's getContributionTaxonomies(), the
+// same source /benchmark itself reads from). Why static, not fetched:
+// the values below are consumed by DiscoveryWizard/SearchOverlay, both
+// CLIENT components rendered directly on the home page — making them
+// server-fetch this data the way app/benchmark/page.tsx does would
+// mean converting Home's rendering shape (turning app/page.tsx and/or
+// these components into a server/client split, passing taxonomies
+// down as props) purely to source option LABELS, not to fix a
+// reported bug. That is a real, non-trivial architecture change this
+// phase's "no rediseño masivo" / "principalmente aplicación/UX"
+// constraints explicitly steer away from, and the actual product risk
+// this item names — "una opción seleccionable desde Home debe
+// representar una opción válida del benchmark real" — is fully
+// addressed a different way: by keeping the identifiers below IN SYNC
+// with the real source rather than by fetching it live.
+//
+// Verified in sync as of Phase 30 (cross-checked field-by-field
+// against supabase/seed.sql's platforms/objectives/verticals/
+// countries/audience_strategies/funnel_stages inserts, the same rows
+// getContributionTaxonomies() reads): every platform id, objective id,
+// vertical id, country id, audience-strategy id, and funnel-stage id
+// below is a real internal_key/iso_code that exists in the database —
+// each list here is a (documented, intentional) SUBSET of the real
+// taxonomy, never a divergent or invented value. Concretely:
+//   - Platform: exactly the 6 real platforms.internal_key rows — no
+//     more, no fewer.
+//   - Objective/vertical/country/audience-strategy/funnel-stage: each
+//     a subset of the real table (e.g. verticals also has "insurance",
+//     "fitness", "retail", etc. not offered here) — a smaller list is
+//     a legitimate product choice (fewer, more common home-page
+//     options), but every value THIS file does offer must keep
+//     matching a real row. If the database's taxonomy ever changes
+//     (a platform/vertical/etc. is renamed or removed), this file must
+//     be updated in the same change — it will not happen automatically
+//     the way it would if this were a live query.
 // Verticals are a controlled taxonomy (see 02-DATA-DIMENSIONS-AND-TAXONOMIES.md).
 // For the prototype, a representative subset carries realistic mock
 // benchmark data; the remainder exist for the filter list and correctly

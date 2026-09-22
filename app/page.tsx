@@ -43,12 +43,25 @@ import { CohortFilters } from "@/lib/types";
 // same prefillPlatform/prefillObjective/prefillVertical/prefillCountry
 // query params app/contribute/ContributeLanding.tsx's "compare this
 // campaign" link already uses — no new prefill mechanism invented.
+//
+// PHASE 30 fix: SearchOverlay's "Broad"/"Remarketing" audience-strategy
+// suggestions (components/dashboard/SearchOverlay.tsx) call onApply
+// with ONLY `{ audienceStrategy: ... }` set — no platform/objective/
+// vertical/country. Before this fix, this function silently dropped
+// that value (it only ever read the four fields above), so clicking
+// one of those chips produced an EMPTY query string and landed on a
+// completely blank /benchmark — the exact "selección de Home que no se
+// resuelve en /benchmark" this phase's audit was asked to find and fix.
+// Fixed by extending the SAME existing prefill mechanism with one more
+// param, prefillAudienceStrategy, read by BenchmarkExplorer.tsx right
+// alongside the other four — not a second/parallel prefill mechanism.
 function cohortFiltersToPrefillQuery(filters: Partial<CohortFilters>): string {
   const params = new URLSearchParams();
   if (filters.platform) params.set("prefillPlatform", filters.platform);
   if (filters.objective) params.set("prefillObjective", filters.objective);
   if (filters.verticalId) params.set("prefillVertical", filters.verticalId);
   if (filters.country) params.set("prefillCountry", filters.country);
+  if (filters.audienceStrategy) params.set("prefillAudienceStrategy", filters.audienceStrategy);
   return params.toString();
 }
 
