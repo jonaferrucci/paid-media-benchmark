@@ -1307,6 +1307,14 @@ function UploadFlow({
             <Check size={24} className="mx-auto text-pistachio" aria-hidden="true" />
             <p className="mt-3 font-display text-base font-semibold text-ink-900">{t("contribute.import.doneTitle")}</p>
             <p className="mt-1 text-sm text-ink-600">{t("contribute.import.doneSummary", { imported: result.imported, failed: result.failed })}</p>
+            {/* PHASE 28 (§8): a successful import never looks like a
+                failure — this note only clarifies that benchmark
+                eligibility is a separate, still-pending curator
+                decision, never framed as something wrong with the
+                import itself. */}
+            {result.imported > 0 && (
+              <p className="mt-1 text-xs text-ink-500">{t("contribute.import.benchmarkValidationPendingNote")}</p>
+            )}
             {readyCoverage.length > 0 && (
               <p className="mt-1 text-xs text-ink-500">
                 {t("contribute.import.benchmarkReadySummaryLabel")}: {readyCoverage.map((c) => `${DERIVED_METRIC_LABELS[c.metric]} — ${c.campaignCount}`).join(", ")}

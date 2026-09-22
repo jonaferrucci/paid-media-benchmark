@@ -7,7 +7,7 @@ import { DashboardSidebar } from "@/components/dashboard/DashboardSidebar";
 import { SearchOverlay } from "@/components/dashboard/SearchOverlay";
 import { useState } from "react";
 import { useTranslation } from "@/lib/i18n/LanguageContext";
-import { computeImportBatchStatus, IMPORT_BATCH_STATUS_STYLE } from "@/lib/contribute/importBatchStatus";
+import { computeImportBatchStatus, IMPORT_BATCH_STATUS_STYLE, resolveBatchDisplayCount } from "@/lib/contribute/importBatchStatus";
 
 // PHASE 25 — §17: a small, honest import-batch detail view. Never a
 // complex administration screen — just what the spec asks for: source,
@@ -37,11 +37,12 @@ export interface ImportBatchCampaignRow {
 export function ImportBatchDetail({ batch, campaigns }: { batch: ImportBatchDetailData; campaigns: ImportBatchCampaignRow[] }) {
   const { t } = useTranslation();
   const [searchOpen, setSearchOpen] = useState(false);
-  // PHASE 27 (§4): `campaigns` below is already a real query against
-  // performance_datasets.import_batch_id — its length is ground truth,
-  // preferred over batch.successCount (see ContributionsList.tsx's own
-  // comment on why that stored counter can understate a real import).
-  const displayCount = campaigns.length > 0 ? campaigns.length : batch.successCount;
+  // PHASE 28: batch.successCount is now finalized for real (migration
+  // 0019 + bulk-actions.ts's error-checked update) and is primary;
+  // `campaigns.length` (already a real query against
+  // performance_datasets.import_batch_id) is only the same defensive
+  // fallback centralized in lib/contribute/importBatchStatus.ts.
+  const displayCount = resolveBatchDisplayCount(batch.successCount, campaigns.length);
   const status = computeImportBatchStatus({
     row_count: batch.rowCount,
     success_count: displayCount,

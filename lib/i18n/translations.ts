@@ -119,22 +119,26 @@ const es = {
     // no persisted name (manual entries, generic imports, or historical
     // rows from before this phase) — never fabricated from other fields.
     unnamedCampaign: "Campaña sin nombre",
-    // PHASE 27 (§3): "pending" is performance_datasets.validation_status'
-    // universal insert default (app/contribute/actions.ts, app/contribute/
-    // bulk-actions.ts) — nothing in this codebase ever transitions a row
-    // away from it today, so a real, fully and successfully imported
-    // campaign sits at "pending" indefinitely. Labeling that "Pendiente"
-    // reads as an action item for the user; there is none — the import
-    // itself is complete. "Importada" states the true, factual condition
-    // (saved successfully) without implying anything is outstanding on
-    // their end, and without inventing a new status value.
+    // PHASE 28 (§7): this pill now represents ONLY benchmark-eligibility
+    // status, never import success — the two are different decisions
+    // (see the governance principle in migration 0019). Phase 27 had
+    // temporarily repurposed "pending" to mean "Importada" because
+    // nothing else on screen made the import/benchmark distinction; now
+    // that distinction is explicit (contributions.importCompleted +
+    // contributions.benchmarkStatusLabel, see ContributionDetail.tsx),
+    // this pill can honestly say "pending curator review" again.
     status: {
-      pending: "Importada",
-      valid: "Válido",
+      pending: "En revisión",
+      valid: "Aprobada para benchmarks",
       flagged: "Marcado para revisión",
-      excluded: "Excluido",
+      excluded: "No incluida en benchmarks",
       deleted: "Eliminado",
     },
+    // PHASE 28 (§7/§15): the import-success fact, always shown
+    // separately from the benchmark-eligibility pill above — never
+    // conflated, in either direction.
+    importCompleted: "Importación completada",
+    benchmarkStatusLabel: "Estado del benchmark",
     // PHASE 26 (§10/§11/§17): the compact per-contribution detail view
     // and the internal quality flag shown only to the owner.
     sourceLabel: "Origen",
@@ -669,6 +673,10 @@ const es = {
       confirmButton: "Confirmar importación",
       doneTitle: "Tus datos fueron cargados.",
       doneSummary: "{imported} campañas importadas, {failed} con errores.",
+      // PHASE 28 (§8): a successful import never reads as a failure —
+      // this only clarifies that benchmark eligibility is a separate,
+      // still-pending curator decision.
+      benchmarkValidationPendingNote: "Las campañas fueron importadas correctamente. Su incorporación a los benchmarks está pendiente de validación.",
       // PHASE 26 (§8): only shown when at least one imported campaign
       // has enough resolved context to actually run a comparison.
       ctaCompareThisCampaign: "Comparar esta campaña",
@@ -754,6 +762,11 @@ const es = {
     notAuthorized: "No tenés permisos de curación.",
     notAuthorizedBody: "Esta sección está reservada para curadores de contenido de Cucurucho.",
     loadError: "No pudimos cargar por completo la cola de revisión.",
+    // PHASE 28 — pending user contributions awaiting a benchmark-
+    // eligibility decision (never rate cards/snapshots/platforms,
+    // which are a different, public-catalog governance domain).
+    contributionsTitle: "Aportes pendientes de validación",
+    contributionsEmpty: "No hay aportes pendientes de revisión.",
     rateCardsTitle: "Tarifarios pendientes",
     rateCardsEmpty: "No hay tarifarios pendientes de revisión.",
     snapshotsTitle: "Métricas públicas pendientes",
@@ -1350,20 +1363,22 @@ const en: typeof es = {
     // no persisted name (manual entries, generic imports, or historical
     // rows from before this phase) — never fabricated from other fields.
     unnamedCampaign: "Unnamed campaign",
-    // PHASE 27 (§3): "pending" is performance_datasets.validation_status'
-    // universal insert default — nothing in this codebase ever
-    // transitions a row away from it today, so a real, fully and
-    // successfully imported campaign sits at "pending" indefinitely.
-    // "Imported" states the true, factual condition without implying
-    // the user has anything left to do, and without inventing a new
-    // status value.
+    // PHASE 28 (§7): this pill now represents ONLY benchmark-eligibility
+    // status, never import success — see the ES block's comment for the
+    // full history (Phase 27 had temporarily repurposed "pending" to
+    // mean "Imported" before this distinction was made explicit
+    // elsewhere on the page).
     status: {
-      pending: "Imported",
-      valid: "Valid",
+      pending: "In review",
+      valid: "Approved for benchmarks",
       flagged: "Flagged for review",
-      excluded: "Excluded",
+      excluded: "Not included in benchmarks",
       deleted: "Deleted",
     },
+    // PHASE 28 (§7/§15): the import-success fact, always shown
+    // separately from the benchmark-eligibility pill above.
+    importCompleted: "Import completed",
+    benchmarkStatusLabel: "Benchmark status",
     sourceLabel: "Source",
     source: {
       manual: "Manual entry",
@@ -1838,6 +1853,10 @@ const en: typeof es = {
       confirmButton: "Confirm import",
       doneTitle: "Your data has been uploaded.",
       doneSummary: "{imported} campaigns imported, {failed} with errors.",
+      // PHASE 28 (§8): a successful import never reads as a failure —
+      // this only clarifies that benchmark eligibility is a separate,
+      // still-pending curator decision.
+      benchmarkValidationPendingNote: "Your campaigns were imported successfully. Their inclusion in benchmarks is pending validation.",
       ctaCompareThisCampaign: "Compare this campaign",
       ctaViewBenchmarks: "View benchmarks",
       ctaContributeMore: "Contribute more data",
@@ -1921,6 +1940,11 @@ const en: typeof es = {
     notAuthorized: "You don't have curator permissions.",
     notAuthorizedBody: "This section is reserved for Cucurucho content curators.",
     loadError: "We couldn't fully load the review queue.",
+    // PHASE 28 — pending user contributions awaiting a benchmark-
+    // eligibility decision (never rate cards/snapshots/platforms,
+    // which are a different, public-catalog governance domain).
+    contributionsTitle: "Contributions pending validation",
+    contributionsEmpty: "No contributions awaiting review.",
     rateCardsTitle: "Pending rate cards",
     rateCardsEmpty: "No rate cards awaiting review.",
     snapshotsTitle: "Pending public metrics",

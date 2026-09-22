@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Trash2 } from "lucide-react";
+import { ArrowLeft, Trash2, Check } from "lucide-react";
 import { AppHeader } from "@/components/dashboard/AppHeader";
 import { DashboardSidebar } from "@/components/dashboard/DashboardSidebar";
 import { SearchOverlay } from "@/components/dashboard/SearchOverlay";
@@ -114,8 +114,21 @@ export function ContributionDetail({
             <h1 className="font-display text-xl font-semibold text-ink-900">
               {dataset.campaignName ?? t("contributions.unnamedCampaign")}
             </h1>
+          </div>
+          {/* PHASE 28 (§7/§15): "the campaign was imported" and "this
+              campaign is approved for benchmark aggregation" are
+              different facts — a single status pill conflated them
+              before this phase (Phase 27's "Importada" wording). This
+              row always shows the import succeeded (this page only
+              ever renders for a row that exists, i.e. was persisted)
+              plus a separately-labeled benchmark-eligibility pill, so
+              neither one is ever read as standing in for the other. */}
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <span className="inline-flex items-center gap-1 text-xs text-ink-500">
+              <Check size={12} className="text-pistachio" aria-hidden="true" /> {t("contributions.importCompleted")}
+            </span>
             <span className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-medium ${STATUS_STYLE[dataset.validationStatus] ?? ""}`}>
-              {t(`contributions.status.${dataset.validationStatus}`)}
+              {t("contributions.benchmarkStatusLabel")}: {t(`contributions.status.${dataset.validationStatus}`)}
             </span>
           </div>
 

@@ -11,7 +11,7 @@ import { calculateDerivedMetrics, type RawMetricInputs } from "@/lib/metrics/der
 import { DERIVED_METRIC_LABELS, type DerivedMetricKey } from "@/lib/contribute/coverage";
 import { flagSuspectedDuplicates } from "@/lib/contribute/dataQuality";
 import { EXPORT_PROFILE_LABEL_KEYS, type ExportProfileId } from "@/lib/import/platformExports";
-import { computeImportBatchStatus, IMPORT_BATCH_STATUS_STYLE } from "@/lib/contribute/importBatchStatus";
+import { computeImportBatchStatus, IMPORT_BATCH_STATUS_STYLE, tallyRealCampaignCountByBatch, resolveBatchDisplayCount } from "@/lib/contribute/importBatchStatus";
 
 interface ContributionRow {
   id: string;
@@ -97,22 +97,15 @@ export function ContributionsList({ datasets, batches = [] }: { datasets: Contri
     }))
   );
 
-  // PHASE 27 (§4): a batch's own success_count is written in two steps
-  // (app/contribute/bulk-actions.ts inserts it as 0, then updates it to
-  // the real count once the import loop finishes) — if that second
-  // write is ever lost, success_count can understate a batch that
-  // genuinely did produce campaigns, showing "0 campañas importadas"
-  // for a real, successful import. The `datasets` prop above already
-  // carries every one of the owner's rows with their real
-  // import_batch_id (added to the page's existing query, no new
-  // request), so the actual number of campaigns linked to a batch is
-  // ground truth — always preferred over the batch's own counter when
-  // we have at least one linked row to count.
-  const realCampaignCountByBatch = new Map<string, number>();
-  for (const d of datasets) {
-    if (!d.import_batch_id || d.validation_status === "deleted") continue;
-    realCampaignCountByBatch.set(d.import_batch_id, (realCampaignCountByBatch.get(d.import_batch_id) ?? 0) + 1);
-  }
+  // PHASE 28: success_count is now finalized for real (migration 0019
+  // + app/contribute/bulk-actions.ts's error-checked update), so the
+  // stored count is primary — this tally is only the defensive
+  // fallback lib/contribute/importBatchStatus.ts's resolveBatchDisplayCount
+  // uses for a legacy batch (created before this fix) or one whose
+  // finalize somehow still failed. See that module for the centralized
+  // logic — previously duplicated across this file, workspaceActions.ts,
+  // and ImportBatchDetail.tsx (Phase 27 §17 follow-up).
+  const realCampaignCountByBatch = tallyRealCampaignCountByBatch(datasets);
 
   return (
     <div className="min-h-screen bg-canvas">
@@ -144,11 +137,10 @@ export function ContributionsList({ datasets, batches = [] }: { datasets: Contri
               <h2 className="text-xs font-semibold uppercase tracking-wide text-ink-500">{t("contributions.importHistoryTitle")}</h2>
               <div className="mt-2 space-y-1.5">
                 {batches.map((b) => {
-                  // PHASE 27 (§4): prefer the real linked-campaign count
-                  // whenever we have one, over the batch's own stored
-                  // success_count.
-                  const realCount = realCampaignCountByBatch.get(b.id);
-                  const displayCount = realCount ?? b.success_count;
+                  // PHASE 28: stored success_count is primary now that
+                  // it's correctly finalized; the real tally is only a
+                  // defensive fallback (see importBatchStatus.ts).
+                  const displayCount = resolveBatchDisplayCount(b.success_count, realCampaignCountByBatch.get(b.id));
                   const status = computeImportBatchStatus({ ...b, success_count: displayCount });
                   const profileLabel = b.export_profile && EXPORT_PROFILE_LABEL_KEYS[b.export_profile as ExportProfileId]
                     ? t(EXPORT_PROFILE_LABEL_KEYS[b.export_profile as ExportProfileId])

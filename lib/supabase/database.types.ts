@@ -727,6 +727,11 @@ export interface Database {
           // both nullable/backfill-safe.
           campaign_name: string | null;
           import_batch_id: string | null;
+          // PHASE 28 (migration 0019) — curator review provenance. Null
+          // until a curator reviews the row; never settable by the
+          // owner (see that migration's tightened owner policies).
+          reviewed_by: string | null;
+          reviewed_at: string | null;
         };
         Insert: {
           id?: string;
@@ -756,6 +761,8 @@ export interface Database {
           updated_at?: string;
           campaign_name?: string | null;
           import_batch_id?: string | null;
+          reviewed_by?: string | null;
+          reviewed_at?: string | null;
         };
         Update: {
           id?: string;
@@ -785,6 +792,8 @@ export interface Database {
           updated_at?: string;
           campaign_name?: string | null;
           import_batch_id?: string | null;
+          reviewed_by?: string | null;
+          reviewed_at?: string | null;
         };
         Relationships: [
           {

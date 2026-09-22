@@ -228,7 +228,19 @@ export async function bulkSubmitContributionsAction(
     // Final counts reflect what actually happened, not the up-front
     // estimate — see migration 0018's own comment: a snapshot, never
     // retroactively recalculated after this point.
-    await supabase.from("import_batches").update({ success_count: imported }).eq("id", batchId);
+    //
+    // PHASE 28: this update used to be silently blocked forever — no
+    // UPDATE RLS policy existed on import_batches at all before
+    // migration 0019's "owners finalize own import batch" policy (plus
+    // its column grant limited to success_count). Now that it can
+    // actually succeed, its error is checked and logged — still
+    // non-blocking (a failed finalize never fails the import itself;
+    // provenance is valuable but not load-bearing, same philosophy as
+    // the batch-insert failure handling above), but no longer silent.
+    const { error: finalizeError } = await supabase.from("import_batches").update({ success_count: imported }).eq("id", batchId);
+    if (finalizeError) {
+      console.error("[bulk-import] batch finalization failed", finalizeError);
+    }
   }
 
   return { ok: imported > 0, imported, failed };

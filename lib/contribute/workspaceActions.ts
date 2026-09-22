@@ -21,6 +21,7 @@ import { listSavedComparisonsAction, type SavedComparison } from "@/app/comparis
 import { listScenariosAction, type SavedPlanningScenario } from "@/app/planner/actions";
 import { computeDataCoverage, computeDataGaps, type MetricCoverageEntry, type DataGapEntry, type RecentImportGroup, type DatasetRawSummary } from "./coverage";
 import { flagSuspectedDuplicates } from "./dataQuality";
+import { tallyRealCampaignCountByBatch, resolveBatchDisplayCount } from "./importBatchStatus";
 import type { RawMetricInputs } from "@/lib/metrics/derive";
 
 const RECENT_DATASET_LIMIT = 20;
@@ -160,25 +161,20 @@ export async function getWorkspaceSummaryAction(): Promise<WorkspaceSummary> {
   // state, never a fabricated one built from unrelated rows.
   type BatchJoinRow = { id: string; success_count: number; created_at: string; data_source: string; platforms: { display_label: string } | null };
   const batchRows = ((batchesRes.data as unknown as BatchJoinRow[] | null) ?? []);
-  // PHASE 27 (§4): a batch's own success_count is written in two steps
-  // (app/contribute/bulk-actions.ts inserts it as 0, then updates it
-  // once the import loop finishes) — if that second write is ever
-  // lost, success_count can understate a batch that genuinely
-  // produced campaigns. `rows` above already carries import_batch_id
-  // for the user's most recent campaigns (no new query), so the actual
-  // linked-campaign count is ground truth whenever we have at least
-  // one row for that batch — see app/account/contributions/
-  // ContributionsList.tsx's identical fix for the full account view.
-  const realCampaignCountByBatch = new Map<string, number>();
-  for (const row of rows) {
-    if (!row.import_batch_id) continue;
-    realCampaignCountByBatch.set(row.import_batch_id, (realCampaignCountByBatch.get(row.import_batch_id) ?? 0) + 1);
-  }
+  // PHASE 28: success_count is now finalized for real (migration 0019
+  // + app/contribute/bulk-actions.ts's error-checked update) — the
+  // stored count is primary, and `rows` above (already carrying
+  // import_batch_id, no new query) only backs the defensive fallback
+  // centralized in lib/contribute/importBatchStatus.ts, reused
+  // identically by app/account/contributions/ContributionsList.tsx and
+  // ImportBatchDetail.tsx (Phase 27 §17 follow-up: one counting
+  // helper, not three copies of it).
+  const realCampaignCountByBatch = tallyRealCampaignCountByBatch(rows);
   const recentImports: RecentImportGroup[] = batchRows.map((b) => ({
     platformLabel: b.platforms?.display_label ?? "—",
     dataSource: b.data_source,
     submittedOnIso: b.created_at.slice(0, 10),
-    campaignCount: realCampaignCountByBatch.get(b.id) ?? b.success_count,
+    campaignCount: resolveBatchDisplayCount(b.success_count, realCampaignCountByBatch.get(b.id)),
   }));
 
   return {

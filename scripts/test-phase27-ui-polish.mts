@@ -75,45 +75,70 @@ assertTrue(
 // ---------------------------------------------------------------------
 // §3: status language — "pending" no longer reads as an action item
 // for a campaign whose import already completed successfully.
+//
+// PHASE 28 UPDATE: this pill's job changed from "did the import
+// succeed" (Phase 27's fix, since nothing else on screen made the
+// import/benchmark distinction) to "is this benchmark-eligible" now
+// that migration 0019 + ContributionDetail.tsx's separate
+// contributions.importCompleted line make that distinction explicit.
+// The exact wording this assertion checks is intentionally superseded
+// — see scripts/test-phase28-contribution-validation.mts for the
+// current, authoritative wording check.
 // ---------------------------------------------------------------------
 const translationsSource = readFileSync(new URL("../lib/i18n/translations.ts", import.meta.url), "utf8");
 assertTrue(
-  translationsSource.includes('pending: "Importada"') && translationsSource.includes('pending: "Imported"'),
-  "the 'pending' validation_status displays as a factual, completed-sounding label in both locales — never 'Pendiente'/'Pending', which read as an outstanding action"
+  translationsSource.includes('pending: "En revisión"') && translationsSource.includes('pending: "In review"'),
+  "PHASE 28: the benchmark-status pill now reads as a review state (not an import action item), now that import success is stated separately"
 );
 assertTrue(
   !translationsSource.includes('pending: "Pendiente"') && !/pending: "Pending"[,\n]/.test(translationsSource),
-  "the old action-implying labels are gone"
+  "the old, pre-Phase-27 action-implying labels never come back"
 );
 
 // ---------------------------------------------------------------------
 // §4: import-history count must reflect the REAL persisted batch —
 // the batch's own success_count is only a fallback, never trusted over
 // an actual tally of linked performance_datasets rows when one exists.
+//
+// PHASE 28 UPDATE: migration 0019 fixed the root cause (import_batches
+// finally has a real, owner-scoped UPDATE policy), so the stored count
+// is primary now and the real tally is the defensive fallback — the
+// exact preference order flipped from Phase 27, and the tally/decision
+// logic itself was centralized into lib/contribute/importBatchStatus.ts
+// (tallyRealCampaignCountByBatch / resolveBatchDisplayCount) instead of
+// being duplicated inline in three places. See
+// test-phase28-contribution-validation.mts for the authoritative check
+// of that helper's own behavior; these assertions just confirm every
+// call site was migrated to use it.
 // ---------------------------------------------------------------------
+const importBatchStatusSource = readFileSync(new URL("../lib/contribute/importBatchStatus.ts", import.meta.url), "utf8");
 assertTrue(
-  contributionsListSource.includes("realCampaignCountByBatch.get(b.id)"),
-  "the account/contributions import-history row prefers the real tally of linked campaigns over the batch's own stored success_count"
+  importBatchStatusSource.includes("export function tallyRealCampaignCountByBatch") && importBatchStatusSource.includes("export function resolveBatchDisplayCount"),
+  "PHASE 28: the tally/display-count logic is centralized in one shared module instead of duplicated across three call sites"
 );
 assertTrue(
-  contributionsListSource.includes('if (!d.import_batch_id || d.validation_status === "deleted") continue;'),
-  "the real tally excludes rows without a batch link and the owner's own deleted rows — never inflating the count with unrelated data"
+  contributionsListSource.includes("resolveBatchDisplayCount(b.success_count, realCampaignCountByBatch.get(b.id))"),
+  "PHASE 28: the account/contributions import-history row uses the shared helper (stored count primary, real tally as fallback)"
+);
+assertTrue(
+  contributionsListSource.includes("tallyRealCampaignCountByBatch(datasets)"),
+  "PHASE 28: the real tally itself is now built by the shared helper, not an inline loop"
 );
 
 const workspaceActionsSource = readFileSync(new URL("../lib/contribute/workspaceActions.ts", import.meta.url), "utf8");
 assertTrue(
-  workspaceActionsSource.includes("realCampaignCountByBatch.get(b.id) ?? b.success_count"),
-  "the homepage Workspace's recent-imports cards apply the exact same real-count-over-stored-count preference"
+  workspaceActionsSource.includes("resolveBatchDisplayCount(b.success_count, realCampaignCountByBatch.get(b.id))"),
+  "PHASE 28: the homepage Workspace's recent-imports cards use the exact same shared helper"
 );
 assertTrue(
   workspaceActionsSource.includes("import_batch_id") && (workspaceActionsSource.match(/await Promise\.all\(\[/g) ?? []).length === 1,
-  "the real tally reuses the existing batched performance_datasets query — no new query was added just for this fix"
+  "the real tally still reuses the existing batched performance_datasets query — no new query was added just for this fix"
 );
 
 const importBatchDetailSource = readFileSync(new URL("../app/account/contributions/imports/[id]/ImportBatchDetail.tsx", import.meta.url), "utf8");
 assertTrue(
-  importBatchDetailSource.includes("const displayCount = campaigns.length > 0 ? campaigns.length : batch.successCount;"),
-  "the import-batch detail page also prefers its own already-real campaigns.length over the stored success_count"
+  importBatchDetailSource.includes("resolveBatchDisplayCount(batch.successCount, campaigns.length)"),
+  "PHASE 28: the import-batch detail page also uses the shared helper instead of its own inline preference logic"
 );
 
 // ---------------------------------------------------------------------

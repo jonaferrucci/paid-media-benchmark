@@ -9,6 +9,9 @@ import { SearchOverlay } from "@/components/dashboard/SearchOverlay";
 import { useTranslation } from "@/lib/i18n/LanguageContext";
 import type { GovernanceQueue } from "@/lib/media/governanceQueries";
 import { reviewRateCardAction, reviewSnapshotAction, reviewPlatformAction } from "@/lib/media/governanceActions";
+import { REVIEW_METRIC_LABEL_KEYS } from "@/lib/contribute/reviewMetricLabels";
+import type { PendingContributionsQueue } from "@/lib/contribute/reviewQueries";
+import { reviewContributionAction } from "@/lib/contribute/reviewActions";
 
 type RowState = "idle" | "saving" | "error";
 
@@ -82,7 +85,7 @@ function Section({ title, count, empty, children }: { title: string; count: numb
   );
 }
 
-export function CurationView({ queue }: { queue: GovernanceQueue }) {
+export function CurationView({ queue, contributions }: { queue: GovernanceQueue; contributions: PendingContributionsQueue }) {
   const { t } = useTranslation();
   const [searchOpen, setSearchOpen] = useState(false);
 
@@ -96,6 +99,7 @@ export function CurationView({ queue }: { queue: GovernanceQueue }) {
           <h1 className="font-display text-xl font-semibold text-ink-900">{t("curation.title")}</h1>
           <p className="mt-1 text-xs text-ink-600">{t("curation.subtitle")}</p>
           {queue.hasError && <p className="mt-2 text-xs text-caution">{t("curation.loadError")}</p>}
+          {contributions.hasError && <p className="mt-2 text-xs text-caution">{t("curation.loadError")}</p>}
 
           {/* Phase 21 item 13/20: catalog import is a curator-only tool,
               so its entry point lives here rather than adding another
@@ -108,6 +112,36 @@ export function CurationView({ queue }: { queue: GovernanceQueue }) {
             <Database size={14} aria-hidden="true" />
             {t("curation.catalogImport.entryCta")}
           </Link>
+
+          {/* PHASE 28 — contribution benchmark-eligibility review. Never
+              a second admin system: same Section/ReviewRow components,
+              same approve/reject labels, same curator gate as every
+              other queue on this page. Never shows owner identity —
+              lib/contribute/reviewQueries.ts's query itself never
+              selects/joins it. */}
+          <Section
+            title={t("curation.contributionsTitle")}
+            count={contributions.rows.length}
+            empty={t("curation.contributionsEmpty")}
+          >
+            {contributions.rows.map((c) => {
+              const metricsLabel = c.availableMetrics.length > 0
+                ? c.availableMetrics.map((k) => t(REVIEW_METRIC_LABEL_KEYS[k]!)).join(", ")
+                : t("contributions.noMetricsImported");
+              return (
+                <ReviewRow
+                  key={c.id}
+                  title={`${c.campaignName ?? t("contributions.unnamedCampaign")} · ${c.platformLabel} · ${c.objectiveLabel}`}
+                  subtitle={`${c.verticalLabel} · ${c.countryLabel} · ${c.startDate} — ${c.endDate} · ${c.currency}`}
+                  meta={`${t("contributions.sourceLabel")}: ${t(`contributions.source.${c.dataSource}`)} · ${t("contributions.importDateLabel")} ${new Date(c.createdAt).toLocaleDateString()} · ${metricsLabel}`}
+                  approveLabel={t("curation.approve")}
+                  rejectLabel={t("curation.reject")}
+                  onApprove={() => reviewContributionAction(c.id, "valid")}
+                  onReject={() => reviewContributionAction(c.id, "excluded")}
+                />
+              );
+            })}
+          </Section>
 
           <Section title={t("curation.rateCardsTitle")} count={queue.rateCards.length} empty={t("curation.rateCardsEmpty")}>
             {queue.rateCards.map((rc) => (
