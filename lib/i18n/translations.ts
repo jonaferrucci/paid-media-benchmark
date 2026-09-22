@@ -187,10 +187,14 @@ const es = {
   // "Comparar", "Explorar", "Planificar" only (§16); never "administrar"/
   // "analizar dataset"/"operaciones de datos".
   workspace: {
-    emptyTitle: "Empezá con tus datos",
-    emptyStep1: "1. Subí un reporte de tu plataforma",
-    emptyStep2: "2. Completá el contexto de la campaña",
-    emptyStep3: "3. Compará contra los benchmarks del mercado",
+    // PHASE 31 item 2/11: this IS the product's onboarding block for a
+    // signed-in user with zero data — a home page never gets a SECOND
+    // one. Copy aligned to the shortest useful path (§2's suggested
+    // flow), reusing the exact same keys rather than adding new ones.
+    emptyTitle: "Así se usa Cucurucho",
+    emptyStep1: "1. Encontrá un benchmark",
+    emptyStep2: "2. Importá una campaña",
+    emptyStep3: "3. Compará tus resultados",
     emptyCta: "Importar reporte",
     recentImportsTitle: "Importaciones recientes",
     recentImportsCampaignCount: "{n} campañas",
@@ -228,7 +232,12 @@ const es = {
     lowRange: "Rango bajo",
     highRange: "Rango alto",
     noDataTitle: "No hay datos para esta combinación",
-    noDataBody: "No encontramos suficientes campañas comparables para esta combinación.",
+    // PHASE 31 item 8: names both real next actions in the copy itself
+    // (adjusting the filters already visible on this same screen, or
+    // contributing the missing data) — the CTA below only ever offers
+    // one of them (Aportar datos), since a hard no_data result has no
+    // relaxation suggestion to build a second button from.
+    noDataBody: "Todavía no hay suficientes campañas comparables para esta combinación. Probá ajustar los filtros o aportar los datos que faltan.",
     insufficientTitle: "Datos insuficientes",
     insufficientBody: "Esta cohorte tiene muy pocos datasets para un benchmark confiable.",
     applySuggestion: "Aplicar sugerencia",
@@ -482,7 +491,7 @@ const es = {
     // that primary card, the demoted secondary-paths row, and the
     // template as an explicit fallback rather than a competing option.
     primaryTitle: "Importar reporte de una plataforma",
-    primaryBody: "Subí el CSV o Excel que descargaste desde tu plataforma publicitaria. Cucurucho identifica las columnas y te ayuda a ordenarlas.",
+    primaryBody: "Subí el reporte exportado desde la plataforma. Cucurucho detecta y mapea las columnas automáticamente.",
     primaryCta: "Importar archivo",
     secondaryTitle: "Otras formas de aportar datos",
     pathTemplateQuestion: "¿Preferís usar una plantilla de Cucurucho?",
@@ -671,16 +680,23 @@ const es = {
       noPlatformDetectedSummary: "{file} · {count} filas",
       ignoredColumnsSummary: "{n} columnas no se van a importar (no corresponden a un campo de Cucurucho).",
       confirmButton: "Confirmar importación",
-      doneTitle: "Tus datos fueron cargados.",
+      // PHASE 31 item 6: leads with the plain completion fact first.
+      doneTitle: "Importación completada",
       doneSummary: "{imported} campañas importadas, {failed} con errores.",
-      // PHASE 28 (§8): a successful import never reads as a failure —
-      // this only clarifies that benchmark eligibility is a separate,
-      // still-pending curator decision.
-      benchmarkValidationPendingNote: "Las campañas fueron importadas correctamente. Su incorporación a los benchmarks está pendiente de validación.",
+      // PHASE 28 (§8), reworded PHASE 31 item 6/7 to match the owner-
+      // facing "En revisión" status wording used everywhere else
+      // (app/account/contributions) — a successful import never reads
+      // as a failure; this only clarifies that benchmark eligibility is
+      // a separate, still-pending curator decision.
+      benchmarkValidationPendingNote: "Tus campañas quedaron en revisión para su incorporación a benchmarks.",
       // PHASE 26 (§8): only shown when at least one imported campaign
       // has enough resolved context to actually run a comparison.
+      // PHASE 31 item 6: exactly two STRONG next actions (view my
+      // contributions, compare a benchmark) — ctaContributeMore/ctaHome
+      // are kept but demoted to plain text links, never removed.
+      ctaViewMyContributions: "Ver mis aportes",
       ctaCompareThisCampaign: "Comparar esta campaña",
-      ctaViewBenchmarks: "Ver benchmarks",
+      ctaViewBenchmarks: "Comparar benchmark",
       ctaContributeMore: "Aportar más datos",
       ctaHome: "Volver al inicio",
     },
@@ -1422,10 +1438,10 @@ const en: typeof es = {
     deleteFailed: "We couldn't delete the campaign. Please try again.",
   },
   workspace: {
-    emptyTitle: "Start with your data",
-    emptyStep1: "1. Upload a platform report",
-    emptyStep2: "2. Complete the campaign context",
-    emptyStep3: "3. Compare it against market benchmarks",
+    emptyTitle: "How Cucurucho works",
+    emptyStep1: "1. Find a benchmark",
+    emptyStep2: "2. Import a campaign",
+    emptyStep3: "3. Compare your results",
     emptyCta: "Import report",
     recentImportsTitle: "Recent imports",
     recentImportsCampaignCount: "{n} campaigns",
@@ -1463,7 +1479,7 @@ const en: typeof es = {
     lowRange: "Low range",
     highRange: "High range",
     noDataTitle: "No data for this combination",
-    noDataBody: "We couldn't find enough comparable campaigns for this combination.",
+    noDataBody: "There isn't enough comparable campaign data for this combination yet. Try adjusting the filters or contributing the missing data.",
     insufficientTitle: "Insufficient data",
     insufficientBody: "This cohort has too few datasets for a reliable benchmark.",
     applySuggestion: "Apply suggestion",
@@ -1712,7 +1728,7 @@ const en: typeof es = {
     pathTemplateBody: "Download a ready-to-fill structure.",
     backToOptions: "Back to options",
     primaryTitle: "Import a report from a platform",
-    primaryBody: "Upload the CSV or Excel file you downloaded from your ad platform. Cucurucho identifies the columns and helps you sort them.",
+    primaryBody: "Upload the report exported from the platform. Cucurucho detects and maps the columns automatically.",
     primaryCta: "Import file",
     secondaryTitle: "Other ways to contribute data",
     pathTemplateQuestion: "Prefer to use a Cucurucho template?",
@@ -1851,14 +1867,14 @@ const en: typeof es = {
       noPlatformDetectedSummary: "{file} · {count} rows",
       ignoredColumnsSummary: "{n} columns won't be imported (they don't match a Cucurucho field).",
       confirmButton: "Confirm import",
-      doneTitle: "Your data has been uploaded.",
+      doneTitle: "Import completed",
       doneSummary: "{imported} campaigns imported, {failed} with errors.",
-      // PHASE 28 (§8): a successful import never reads as a failure —
-      // this only clarifies that benchmark eligibility is a separate,
-      // still-pending curator decision.
-      benchmarkValidationPendingNote: "Your campaigns were imported successfully. Their inclusion in benchmarks is pending validation.",
+      // PHASE 28 (§8), reworded PHASE 31 item 6/7 to match the "In
+      // review" owner-facing status wording used everywhere else.
+      benchmarkValidationPendingNote: "Your campaigns are in review for inclusion in benchmarks.",
+      ctaViewMyContributions: "View my contributions",
       ctaCompareThisCampaign: "Compare this campaign",
-      ctaViewBenchmarks: "View benchmarks",
+      ctaViewBenchmarks: "Compare benchmark",
       ctaContributeMore: "Contribute more data",
       ctaHome: "Back to home",
     },

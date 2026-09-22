@@ -1320,13 +1320,29 @@ function UploadFlow({
                 {t("contribute.import.benchmarkReadySummaryLabel")}: {readyCoverage.map((c) => `${DERIVED_METRIC_LABELS[c.metric]} — ${c.campaignCount}`).join(", ")}
               </p>
             )}
+            {/* PHASE 31 item 6: exactly two STRONG next actions after a
+                successful import — "Ver mis aportes" (their own
+                contributions list, where the "En revisión" status this
+                same screen just mentioned is visible) and "Comparar
+                benchmark" (this exact campaign's cohort when it's
+                resolvable, the same compareHref this screen already
+                computed — otherwise the plain /benchmark page). Every
+                other pre-existing action (contribute more, back home)
+                is kept, never removed, but demoted to a plain text
+                link — real navigation still one tap away, without
+                competing with the two primary actions. */}
             <div className="mt-4 flex flex-wrap justify-center gap-2">
-              {compareHref && (
-                <a href={compareHref} className="rounded-full bg-primary px-4 py-2 text-xs font-semibold text-white hover:opacity-90">{t("contribute.import.ctaCompareThisCampaign")}</a>
-              )}
-              <a href="/benchmark" className="rounded-full border border-line px-4 py-2 text-xs font-medium text-ink-700 hover:bg-surface2">{t("contribute.import.ctaViewBenchmarks")}</a>
-              <button onClick={onBack} className="rounded-full border border-line px-4 py-2 text-xs font-medium text-ink-700 hover:bg-surface2">{t("contribute.import.ctaContributeMore")}</button>
-              <a href="/" className="rounded-full border border-line px-4 py-2 text-xs font-medium text-ink-700 hover:bg-surface2">{t("contribute.import.ctaHome")}</a>
+              <a href="/account/contributions" className="rounded-full bg-primary px-4 py-2 text-xs font-semibold text-white hover:opacity-90">{t("contribute.import.ctaViewMyContributions")}</a>
+              <a
+                href={compareHref ?? "/benchmark"}
+                className="rounded-full bg-primary px-4 py-2 text-xs font-semibold text-white hover:opacity-90"
+              >
+                {compareHref ? t("contribute.import.ctaCompareThisCampaign") : t("contribute.import.ctaViewBenchmarks")}
+              </a>
+            </div>
+            <div className="mt-3 flex flex-wrap justify-center gap-x-4 gap-y-1">
+              <button onClick={onBack} className="text-xs font-medium text-ink-500 hover:text-primary hover:underline">{t("contribute.import.ctaContributeMore")}</button>
+              <a href="/" className="text-xs font-medium text-ink-500 hover:text-primary hover:underline">{t("contribute.import.ctaHome")}</a>
             </div>
           </div>
         );

@@ -86,8 +86,18 @@ export function ContextStep({ draft, onChange, onSubmit }: ContextStepProps) {
               value={draft.minAge ? `${draft.minAge}-${draft.maxAge}` : ""}
               options={[
                 { value: "", label: t("finder.all") },
+                // PHASE 31 item 1: "25-44" was a typo overlapping with
+                // the very next band — an age band list must be a
+                // partition (each age belongs to exactly one band), and
+                // 25-44/35-44 both covered ages 35-44 while nothing
+                // covered 25-34 at all. Corrected to the evidently
+                // intended 18-24/25-34/35-44/45-54 sequence. This is a
+                // wizard-only UI options list (not part of the DB
+                // schema or the benchmark's own age methodology — see
+                // lib/benchmark/spendBands.ts and the engine's actual
+                // age-range handling, both untouched by this fix).
                 { value: "18-24", label: "18–24" },
-                { value: "25-44", label: "25–44" },
+                { value: "25-34", label: "25–34" },
                 { value: "35-44", label: "35–44" },
                 { value: "45-54", label: "45–54" },
               ]}

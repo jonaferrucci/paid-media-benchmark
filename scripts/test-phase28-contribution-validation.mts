@@ -264,9 +264,14 @@ assertTrue(translationsSource.includes('pending: "En revisión"') && translation
 assertTrue(translationsSource.includes('valid: "Aprobada para benchmarks"') && translationsSource.includes('valid: "Approved for benchmarks"'), "approved contributions read as explicitly benchmark-approved, in both locales");
 assertTrue(translationsSource.includes('excluded: "No incluida en benchmarks"') && translationsSource.includes('excluded: "Not included in benchmarks"'), "rejected contributions read as excluded from benchmarks specifically, never as a generic/alarming \"Excluded\"");
 assertTrue(
-  translationsSource.includes("benchmarkValidationPendingNote:") &&
-  translationsSource.includes("Las campañas fueron importadas correctamente. Su incorporación a los benchmarks está pendiente de validación."),
-  "the import-success screen states the exact concise, non-alarming benchmark-pending note the spec calls for"
+  // PHASE 31 item 6 reworded this note ("Tus campañas quedaron en
+  // revisión para su incorporación a benchmarks.") to match the same
+  // "en revisión" wording used by the contribution-status labels above
+  // — this assertion checks for the current, Phase-31-updated copy,
+  // not the original Phase 28 wording it replaced.
+  translationsSource.includes('benchmarkValidationPendingNote: "Tus campañas quedaron en revisión para su incorporación a benchmarks."') &&
+  translationsSource.includes('benchmarkValidationPendingNote: "Your campaigns are in review for inclusion in benchmarks."'),
+  "the import-success screen states the current, concise, non-alarming benchmark-pending note in both locales"
 );
 
 const contributeLandingSource = readFileSync(new URL("../app/contribute/ContributeLanding.tsx", import.meta.url), "utf8");
