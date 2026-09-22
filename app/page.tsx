@@ -1,367 +1,91 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { ArrowLeft, Globe2 } from "lucide-react";
-import { DashboardSidebar } from "@/components/dashboard/DashboardSidebar";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { AppHeader } from "@/components/dashboard/AppHeader";
 import { SearchOverlay } from "@/components/dashboard/SearchOverlay";
 import { Hero } from "@/components/dashboard/Hero";
 import { QuickActions } from "@/components/dashboard/QuickActions";
-import { GlobalInsights } from "@/components/dashboard/GlobalInsights";
-import { MiniTrend } from "@/components/dashboard/MiniTrend";
-import { FeaturedModules } from "@/components/dashboard/FeaturedModules";
 import { Workspace } from "@/components/dashboard/Workspace";
-import { ExploreMarket } from "@/components/dashboard/ExploreMarket";
-import { DiscoveryWizard, WizardDraft } from "@/components/dashboard/wizard/DiscoveryWizard";
-import { PLATFORM_CARDS } from "@/lib/mock/taxonomies";
-import { ActiveBenchmarkCard } from "@/components/dashboard/ActiveBenchmarkCard";
-import { KPICard } from "@/components/dashboard/KPICard";
-import { ReachCard } from "@/components/dashboard/ReachCard";
-import { RangeVisualization } from "@/components/dashboard/RangeVisualization";
-import { VerticalAudienceMatrix } from "@/components/dashboard/VerticalAudienceMatrix";
-import { RelatedBenchmarks } from "@/components/dashboard/RelatedBenchmarks";
-import { MethodologyNote } from "@/components/dashboard/MethodologyNote";
-import { DetailedAnalysis } from "@/components/dashboard/DetailedAnalysis";
-import { InsufficientDataState, RelaxationKind } from "@/components/dashboard/InsufficientDataState";
-import { MetricTrendChart } from "@/components/dashboard/MetricTrendChart";
-import { DistributionChart } from "@/components/dashboard/DistributionChart";
-import { VerticalComparisonChart } from "@/components/dashboard/VerticalComparisonChart";
-import { AudienceComparisonChart } from "@/components/dashboard/AudienceComparisonChart";
-import { AudienceStrategy, CohortFilters } from "@/lib/types";
-import {
-  AUDIENCE_STRATEGIES,
-  COUNTRIES,
-  FUNNEL_STAGES,
-  TIME_WINDOWS,
-  VERTICALS,
-  VERTICALS_WITH_DATA,
-} from "@/lib/mock/taxonomies";
-import { OBJECTIVE_KPI_CONFIG } from "@/lib/config/objectiveKpis";
-import { getCohortSteps, getKpiResults, getReachBenchmark } from "@/lib/mock/benchmarks";
-import { useTranslation } from "@/lib/i18n/LanguageContext";
+import { DiscoveryWizard } from "@/components/dashboard/wizard/DiscoveryWizard";
+import { CohortFilters } from "@/lib/types";
 
-function partialFiltersToDraft(partial: Partial<CohortFilters>): Partial<WizardDraft> {
-  const draft: Partial<WizardDraft> = {};
-  if (partial.platform) {
-    const card = PLATFORM_CARDS.find((p) => p.platform === partial.platform);
-    if (card) draft.platformUiId = card.uiId;
-  }
-  if (partial.objective) {
-    draft.objective = partial.objective;
-    draft.objectiveUiKey = partial.objective;
-  }
-  if (partial.verticalId) draft.verticalId = partial.verticalId;
-  if (partial.country) draft.countryId = partial.country;
-  if (partial.audienceStrategy) draft.audienceStrategy = partial.audienceStrategy;
-  return draft;
+// PHASE 29 — REMOVE PROTOTYPE DATA FROM PRODUCTION.
+//
+// This page used to compute and render its own parallel "benchmark
+// result" (a local ResultView, entirely fed by lib/mock/benchmarks'
+// getKpiResults/getReachBenchmark/getCohortSteps, plus three homepage
+// modules — GlobalInsights, MiniTrend, FeaturedModules — showing
+// specific fabricated CPM/CPV/CTR numbers via lib/mock/random's
+// seededRandom/randomInRange, and an "Explore market" tab
+// (ExploreMarket) built entirely the same way) — none of it backed by
+// the real benchmark engine, all of it presented with full visual
+// weight as if it were real. That entire fabricated surface is removed
+// here rather than "fixed": the real, engine-backed, sample-size-safe
+// equivalent already exists at /benchmark (lib/benchmark/engine.ts,
+// unchanged by this phase), and the discovery-only components already
+// on this page (Workspace = real signed-in data, QuickActions = plain
+// navigation, no numbers) were already correct. This page's job now IS
+// what the product brief calls for: a discovery layer that routes into
+// the real tools — Comparar benchmarks (DiscoveryWizard → /benchmark),
+// Planificar medios, Explorar medios, Aportar datos (QuickActions), and
+// Mis comparaciones / Workspace (real, when signed in) — never a
+// second, fabricated copy of any of them.
+//
+// DiscoveryWizard itself is kept exactly as it was: it only ever
+// collects filter selections from the real, protected taxonomy option
+// lists (lib/mock/taxonomies — a static reference catalog of
+// selectable platforms/verticals/countries/etc., not a source of
+// fabricated benchmark NUMBERS, so out of this phase's scope) and never
+// computed or displayed a benchmark result itself. Only what happened
+// on completion changes: instead of rendering a fake local result, it
+// now hands the collected filters to the real /benchmark page via the
+// same prefillPlatform/prefillObjective/prefillVertical/prefillCountry
+// query params app/contribute/ContributeLanding.tsx's "compare this
+// campaign" link already uses — no new prefill mechanism invented.
+function cohortFiltersToPrefillQuery(filters: Partial<CohortFilters>): string {
+  const params = new URLSearchParams();
+  if (filters.platform) params.set("prefillPlatform", filters.platform);
+  if (filters.objective) params.set("prefillObjective", filters.objective);
+  if (filters.verticalId) params.set("prefillVertical", filters.verticalId);
+  if (filters.country) params.set("prefillCountry", filters.country);
+  return params.toString();
 }
 
 export default function OverviewPage() {
-  const { t } = useTranslation();
-  const [mode, setMode] = useState<"find" | "explore">("find");
-  const [stage, setStage] = useState<"discovery" | "result">("discovery");
-  const [showGlobalFromResult, setShowGlobalFromResult] = useState(false);
-  const [filters, setFilters] = useState<CohortFilters | null>(null);
-  const [wizardInitialDraft, setWizardInitialDraft] = useState<Partial<WizardDraft>>({});
-  const [wizardKey, setWizardKey] = useState(0);
+  const router = useRouter();
   const [searchOpen, setSearchOpen] = useState(false);
 
-  function applyPartial(partial: Partial<CohortFilters>) {
-    setFilters((f) => (f ? { ...f, ...partial } : f));
-  }
-
-  function handleExploreFromInsight(partial: Partial<CohortFilters>) {
-    setMode("find");
-    setStage("discovery");
-    setWizardInitialDraft(partialFiltersToDraft(partial));
-    setWizardKey((k) => k + 1);
-  }
-
-  function handleQuickBenchmark(quickFilters: CohortFilters) {
-    setFilters(quickFilters);
-    setStage("result");
+  function goToBenchmark(filters: Partial<CohortFilters>) {
+    const query = cohortFiltersToPrefillQuery(filters);
+    router.push(query ? `/benchmark?${query}` : "/benchmark");
   }
 
   return (
     <div className="min-h-screen overflow-x-hidden bg-canvas">
       <AppHeader onSearchClick={() => setSearchOpen(true)} />
-      {searchOpen && <SearchOverlay onClose={() => setSearchOpen(false)} onApply={applyPartial} />}
+      {/* PHASE 29: the quick-search overlay's suggestions were already
+          honest (a fixed, non-fabricated list of real taxonomy values —
+          "Meta Ads", "Beauty & Personal Care", etc., no numbers
+          attached) — only its destination changes, from local fake
+          result state to a real prefilled /benchmark navigation. */}
+      {searchOpen && <SearchOverlay onClose={() => setSearchOpen(false)} onApply={goToBenchmark} />}
 
-      {stage === "discovery" && (
-        <div>
-          <Hero />
+      <div>
+        <Hero />
 
-          {/* PHASE 26 (§1/§2): the signed-in workspace hub — renders
-              nothing for a signed-out visitor or while loading, so the
-              marketing/discovery experience below is unaffected. */}
-          <Workspace />
+        {/* PHASE 26 (§1/§2): the signed-in workspace hub — renders
+            nothing for a signed-out visitor or while loading, so the
+            marketing/discovery experience below is unaffected. Real
+            data only (lib/contribute/workspaceActions.ts), untouched
+            by this phase. */}
+        <Workspace />
 
-          <QuickActions />
+        <QuickActions />
 
-          <div className="mx-auto mb-3 flex max-w-xs items-center gap-1 rounded-full border border-line bg-surface p-1">
-            <button
-              onClick={() => setMode("find")}
-              className={`flex-1 rounded-full px-3 py-2 text-xs font-semibold transition-colors ${
-                mode === "find" ? "bg-primary text-white" : "text-ink-600"
-              }`}
-            >
-              {t("modeTabs.findBenchmark")}
-            </button>
-            <button
-              onClick={() => setMode("explore")}
-              className={`flex-1 rounded-full px-3 py-2 text-xs font-semibold transition-colors ${
-                mode === "explore" ? "bg-primary text-white" : "text-ink-600"
-              }`}
-            >
-              {t("modeTabs.exploreMarket")}
-            </button>
-          </div>
-
-          {mode === "find" ? (
-            <div className="space-y-10">
-              <DiscoveryWizard
-                key={wizardKey}
-                initialDraft={wizardInitialDraft}
-                onComplete={(completedFilters) => {
-                  setFilters(completedFilters);
-                  setStage("result");
-                }}
-              />
-              <MiniTrend onViewBenchmark={() => handleQuickBenchmark({
-                platform: "meta_ads", country: "AR", timeWindow: "last_12_months",
-                verticalId: "beauty_personal_care", objective: "traffic", audienceStrategy: "broad",
-                funnelStage: null, minAge: null, maxAge: null, campaignType: null, spendBand: null, durationBand: null,
-              })} />
-              <GlobalInsights onExplore={handleExploreFromInsight} />
-              <FeaturedModules onQuickBenchmark={handleQuickBenchmark} />
-            </div>
-          ) : (
-            <ExploreMarket />
-          )}
+        <div className="space-y-10 pb-16">
+          <DiscoveryWizard onComplete={goToBenchmark} />
         </div>
-      )}
-
-      {stage === "result" && filters && (
-        <ResultView
-          filters={filters}
-          setFilters={setFilters}
-          onEditSearch={() => setStage("discovery")}
-          showGlobal={showGlobalFromResult}
-          onShowGlobal={() => setShowGlobalFromResult(true)}
-          onHideGlobal={() => setShowGlobalFromResult(false)}
-        />
-      )}
-    </div>
-  );
-}
-
-function ResultView({
-  filters,
-  setFilters,
-  onEditSearch,
-  showGlobal,
-  onShowGlobal,
-  onHideGlobal,
-}: {
-  filters: CohortFilters;
-  setFilters: (updater: (f: CohortFilters | null) => CohortFilters | null) => void;
-  onEditSearch: () => void;
-  showGlobal: boolean;
-  onShowGlobal: () => void;
-  onHideGlobal: () => void;
-}) {
-  const { t } = useTranslation();
-
-  const vertical = VERTICALS.find((v) => v.id === filters.verticalId)!;
-  const audience = filters.audienceStrategy
-    ? AUDIENCE_STRATEGIES.find((a) => a.id === filters.audienceStrategy) ?? null
-    : null;
-  const funnel = filters.funnelStage
-    ? FUNNEL_STAGES.find((f) => f.id === filters.funnelStage) ?? null
-    : null;
-  const country = COUNTRIES.find((c) => c.id === filters.country)!;
-  const timeWindow = TIME_WINDOWS.find((tw) => tw.id === filters.timeWindow)!;
-  const ageLabel = filters.minAge !== null ? `${filters.minAge}–${filters.maxAge} ${t("finder.age").toLowerCase()}` : null;
-
-  const kpiConfig = OBJECTIVE_KPI_CONFIG[filters.objective];
-  const primaryMetrics = kpiConfig.primary.filter((m) => m !== "reach");
-  const hasReachPrimary = kpiConfig.primary.includes("reach");
-  const secondaryMetrics = kpiConfig.secondary.filter((m) => m !== "reach");
-  const outcomeMetrics = kpiConfig.outcomes;
-  const hasOutcomes = outcomeMetrics.length > 0;
-
-  const kpiResults = useMemo(
-    () => getKpiResults(filters, primaryMetrics),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [JSON.stringify(filters), filters.objective]
-  );
-  const secondaryResults = useMemo(
-    () => (secondaryMetrics.length ? getKpiResults(filters, secondaryMetrics) : []),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [JSON.stringify(filters), filters.objective]
-  );
-  const outcomeResults = useMemo(
-    () => (outcomeMetrics.length ? getKpiResults(filters, outcomeMetrics) : []),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [JSON.stringify(filters), filters.objective]
-  );
-  const reachBenchmark = useMemo(() => getReachBenchmark(filters), [JSON.stringify(filters)]);
-  const cohortSteps = useMemo(() => getCohortSteps(filters), [JSON.stringify(filters)]);
-
-  const exactCohortSampleSize = cohortSteps[cohortSteps.length - 1]?.sampleSize ?? 0;
-  const showInsufficientState =
-    VERTICALS_WITH_DATA.has(filters.verticalId) && exactCohortSampleSize < 10;
-
-  const primaryKpiForVisualization = kpiResults.find((k) => !k.insufficientData) ?? kpiResults[0];
-
-  function handleRelaxationChoice(kind: RelaxationKind) {
-    if (kind === "age") setFilters((f) => (f ? { ...f, minAge: null, maxAge: null } : f));
-    if (kind === "funnel") setFilters((f) => (f ? { ...f, funnelStage: null } : f));
-    if (kind === "audience") setFilters((f) => (f ? { ...f, audienceStrategy: null } : f));
-  }
-
-  function handleMatrixCellSelect(verticalId: string, audienceStrategy: AudienceStrategy) {
-    setFilters((f) => (f ? { ...f, verticalId, audienceStrategy } : f));
-  }
-
-  function applyPartial(partial: Partial<CohortFilters>) {
-    setFilters((f) => (f ? { ...f, ...partial } : f));
-  }
-
-  return (
-    <div>
-      <DashboardSidebar />
-      <div className="md:pl-[var(--sidebar-inset)] transition-[padding-left] duration-150">
-        <main className="space-y-6 px-4 py-6 md:px-8">
-          <div className="flex items-center justify-between">
-            <button
-              onClick={onEditSearch}
-              className="flex items-center gap-1.5 text-xs font-medium text-ink-600 hover:text-primary"
-            >
-              <ArrowLeft size={13} />
-              {t("wizard.editSearch")}
-            </button>
-            {!showGlobal && (
-              <button
-                onClick={onShowGlobal}
-                className="flex items-center gap-1.5 rounded-full border border-line bg-surface px-3 py-1.5 text-xs font-medium text-ink-700 hover:border-primary hover:text-primary"
-              >
-                <Globe2 size={13} />
-                {t("market.viewGlobalOverview")}
-              </button>
-            )}
-          </div>
-
-          {showGlobal ? (
-            <div>
-              <button
-                onClick={onHideGlobal}
-                className="mb-4 flex items-center gap-1.5 text-xs font-medium text-ink-600 hover:text-primary"
-              >
-                <ArrowLeft size={13} />
-                {t("market.backToBenchmark")}
-              </button>
-              <ExploreMarket />
-            </div>
-          ) : (
-            <>
-              <ActiveBenchmarkCard
-                platformLabel="Meta Ads"
-                objectiveLabel={t(`objectives.${filters.objective}`)}
-                verticalLabel={vertical.label}
-                audienceLabel={audience ? t(`audiences.${audience.id}`) : null}
-                funnelLabel={funnel ? t(`funnel.${funnel.id}`) : null}
-                ageLabel={ageLabel}
-                countryLabel={t(`countries.${country.id}`)}
-                timeWindowLabel={t(`timeWindows.${timeWindow.id}`)}
-                sampleSize={exactCohortSampleSize}
-                steps={cohortSteps}
-              />
-
-              {showInsufficientState && (
-                <InsufficientDataState
-                  verticalLabel={vertical.label}
-                  audienceLabel={audience ? t(`audiences.${audience.id}`) : t("finder.any")}
-                  funnelLabel={funnel ? t(`funnel.${funnel.id}`) : t("finder.all")}
-                  ageLabel={ageLabel ?? t("finder.all")}
-                  options={[
-                    ...(filters.minAge
-                      ? [{ kind: "age" as const, resultingSampleSize: Math.round(exactCohortSampleSize * 3.1) }]
-                      : []),
-                    ...(filters.funnelStage
-                      ? [{ kind: "funnel" as const, resultingSampleSize: Math.round(exactCohortSampleSize * 1.6) }]
-                      : []),
-                    ...(filters.audienceStrategy
-                      ? [{ kind: "audience" as const, resultingSampleSize: Math.round(exactCohortSampleSize * 2.4) }]
-                      : []),
-                  ]}
-                  onSelectOption={handleRelaxationChoice}
-                />
-              )}
-
-              <section>
-                <h2 className="mb-3 font-display text-base font-semibold text-ink-900">
-                  {hasOutcomes ? t("kpi.mediaEfficiency") : t("nav.benchmarks")}
-                </h2>
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-                  {kpiResults.map((kpi) => (
-                    <KPICard key={kpi.metric} kpi={kpi} variant="primary" />
-                  ))}
-                  {hasReachPrimary && <ReachCard reach={reachBenchmark} />}
-                </div>
-              </section>
-
-              {secondaryResults.length > 0 && (
-                <section>
-                  <h3 className="mb-2 text-xs font-medium uppercase tracking-wide text-ink-400">
-                    {t("kpi.supportingMetrics")}
-                  </h3>
-                  {/* POST-MVP MOBILE PASS §7: supporting KPI tiles no
-                      longer force 2-up below sm — one column keeps each
-                      metric's label/value pair readable at 320-425px. */}
-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-                    {secondaryResults.map((kpi) => (
-                      <KPICard key={kpi.metric} kpi={kpi} variant="supporting" />
-                    ))}
-                  </div>
-                </section>
-              )}
-
-              {hasOutcomes && (
-                <section>
-                  <div className="mb-3 flex items-center gap-2">
-                    <h2 className="font-display text-base font-semibold text-ink-900">
-                      {t("kpi.businessOutcomes")}
-                    </h2>
-                    <span className="text-xs text-ink-400">{t("kpi.businessOutcomesNote")}</span>
-                  </div>
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                    {outcomeResults.map((kpi) => (
-                      <KPICard key={kpi.metric} kpi={kpi} variant="outcome" />
-                    ))}
-                  </div>
-                </section>
-              )}
-
-              {primaryKpiForVisualization && <RangeVisualization kpi={primaryKpiForVisualization} />}
-
-              <VerticalAudienceMatrix filters={filters} onSelectCohort={handleMatrixCellSelect} />
-
-              <RelatedBenchmarks verticalLabel={vertical.label} onSelect={applyPartial} />
-
-              <MethodologyNote />
-
-              <DetailedAnalysis>
-                <MetricTrendChart filters={filters} />
-                <VerticalComparisonChart filters={filters} />
-                <AudienceComparisonChart filters={filters} />
-                {primaryKpiForVisualization && !primaryKpiForVisualization.insufficientData && (
-                  <DistributionChart kpi={primaryKpiForVisualization} />
-                )}
-              </DetailedAnalysis>
-            </>
-          )}
-        </main>
       </div>
     </div>
   );
