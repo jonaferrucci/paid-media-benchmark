@@ -182,6 +182,16 @@ const es = {
     deleteConfirmButton: "Sí, eliminar",
     deleteCancelButton: "Cancelar",
     deleteFailed: "No pudimos eliminar la campaña. Probá de nuevo.",
+    // PHASE 32 (§2/§9/§10): campaign → benchmark activation copy. Plain
+    // verbs only ("Comparar", "Explorar" — §13), and the pending/
+    // excluded explanations use the exact wording the phase spec
+    // itself calls for, never implying benchmark participation for
+    // either status.
+    compareBenchmarkCta: "Comparar con benchmark",
+    compareMetricLabel: "Comparar:",
+    pendingBenchmarkExplanation: "Tu campaña fue importada correctamente, pero todavía está en revisión para incorporarse a los benchmarks.",
+    excludedBenchmarkExplanation: "Esta campaña no participa de los benchmarks agregados.",
+    exploreBenchmarkCta: "Explorar benchmarks",
   },
   // PHASE 26: the signed-in home workspace — "Continuar", "Aportar",
   // "Comparar", "Explorar", "Planificar" only (§16); never "administrar"/
@@ -1436,6 +1446,12 @@ const en: typeof es = {
     deleteConfirmButton: "Yes, delete",
     deleteCancelButton: "Cancel",
     deleteFailed: "We couldn't delete the campaign. Please try again.",
+    // PHASE 32 (§2/§9/§10): campaign → benchmark activation copy.
+    compareBenchmarkCta: "Compare with benchmark",
+    compareMetricLabel: "Compare:",
+    pendingBenchmarkExplanation: "Your campaign was imported successfully, but it's still under review for inclusion in benchmarks.",
+    excludedBenchmarkExplanation: "This campaign does not participate in aggregate benchmarks.",
+    exploreBenchmarkCta: "Explore benchmarks",
   },
   workspace: {
     emptyTitle: "How Cucurucho works",

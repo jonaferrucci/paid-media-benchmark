@@ -102,8 +102,19 @@ assertTrue(
   "BenchmarkExplorer reads prefillAudienceStrategy via the same searchParams.get(...) pattern as the other four prefill params, and applies it to the draft"
 );
 assertTrue(
-  (benchmarkExplorerSource.match(/searchParams\.get\("prefill/g) ?? []).length === 5,
-  "exactly five prefill params are read (platform/objective/vertical/country/audienceStrategy) — no sixth/duplicate mechanism"
+  (benchmarkExplorerSource.match(/searchParams\.get\("prefill/g) ?? []).length >= 5,
+  "at least the original five prefill params (platform/objective/vertical/country/audienceStrategy) are still read"
+);
+// PHASE 32 extended this SAME single mechanism further (funnelStage/
+// businessModel/spendBand/durationBand/metric/userValue — all real,
+// already-existing /benchmark Draft fields, read from the campaign's
+// own data at app/account/contributions/[id]) — this assertion only
+// checks that it's still read inside the ONE prefill effect (a single
+// `searchParams.get("saved")` reopen-flow branch), never a second,
+// parallel prefill mechanism.
+assertTrue(
+  (benchmarkExplorerSource.match(/const savedId = searchParams\.get\("saved"\);/g) ?? []).length === 1,
+  "still exactly one prefill/reopen effect in BenchmarkExplorer — Phase 32's additional real fields extend it, never duplicate it"
 );
 
 // -----------------------------------------------------------------------

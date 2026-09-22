@@ -17,8 +17,13 @@ import { CampaignExplorer } from "./CampaignExplorer";
 import { SaveComparisonButton } from "@/app/comparisons/SaveComparisonButton";
 import { getSavedComparisonAction, type SavedComparison } from "@/app/comparisons/actions";
 import { resolveNoDataAction } from "@/lib/intelligence/benchmarkIntelligence";
+import { SINGLE_METRIC_OPTIONS } from "@/lib/benchmark/singleMetricOptions";
 
-const PRIMARY_METRICS = ["cpm", "ctr", "cpc", "reach", "frequency", "cpv"];
+// PHASE 32: now the single shared source of truth (lib/benchmark/
+// singleMetricOptions.ts) — the campaign-detail activation flow
+// (app/account/contributions/[id]/page.tsx) validates a prefilled
+// metric against the exact same list, never a duplicated one.
+const PRIMARY_METRICS: readonly string[] = SINGLE_METRIC_OPTIONS;
 
 interface Draft {
   metric: string;
@@ -83,12 +88,40 @@ export function BenchmarkExplorer({ taxonomies }: { taxonomies: ContributionTaxo
       // param to carry that value here, that selection silently
       // resolved to a blank /benchmark. Same mechanism, same param
       // naming convention, no second prefill system.
+      //
+      // PHASE 32 (§3/§4/§6): the campaign-detail "Comparar con
+      // benchmark" activation (app/account/contributions/[id]) extends
+      // the SAME mechanism with the real additional fields /benchmark
+      // already has Draft/query support for (funnelStage, businessModel
+      // — spendBand/durationBand only ever accompany the Reach metric,
+      // since that's the one metric that requires them) plus the metric
+      // itself and the campaign's own already-known value for it —
+      // still never a second prefill system, still never auto-submitted
+      // (the user still clicks "Ver benchmark" themselves; only the
+      // inputs are pre-filled). See lib/benchmark/singleMetricOptions.ts
+      // for why prefillMetric is validated against a real allow-list
+      // rather than trusted as-is from the URL.
       const prefillPlatform = searchParams.get("prefillPlatform");
       const prefillObjective = searchParams.get("prefillObjective");
       const prefillVertical = searchParams.get("prefillVertical");
       const prefillCountry = searchParams.get("prefillCountry");
       const prefillAudienceStrategy = searchParams.get("prefillAudienceStrategy");
-      if (prefillPlatform || prefillObjective || prefillVertical || prefillCountry || prefillAudienceStrategy) {
+      const prefillFunnelStage = searchParams.get("prefillFunnelStage");
+      const prefillBusinessModel = searchParams.get("prefillBusinessModel");
+      const prefillSpendBand = searchParams.get("prefillSpendBand");
+      const prefillDurationBand = searchParams.get("prefillDurationBand");
+      const rawPrefillMetric = searchParams.get("prefillMetric");
+      const prefillMetric = rawPrefillMetric && (SINGLE_METRIC_OPTIONS as readonly string[]).includes(rawPrefillMetric)
+        ? rawPrefillMetric
+        : null;
+      const rawPrefillUserValue = searchParams.get("prefillUserValue");
+      const parsedPrefillUserValue = rawPrefillUserValue !== null ? Number(rawPrefillUserValue) : null;
+      const prefillUserValue = parsedPrefillUserValue !== null && Number.isFinite(parsedPrefillUserValue) ? parsedPrefillUserValue : null;
+
+      if (
+        prefillPlatform || prefillObjective || prefillVertical || prefillCountry || prefillAudienceStrategy ||
+        prefillFunnelStage || prefillBusinessModel || prefillSpendBand || prefillDurationBand || prefillMetric
+      ) {
         setDraft((d) => ({
           ...d,
           platform: prefillPlatform ?? d.platform,
@@ -96,7 +129,19 @@ export function BenchmarkExplorer({ taxonomies }: { taxonomies: ContributionTaxo
           vertical: prefillVertical ?? d.vertical,
           country: prefillCountry ?? d.country,
           audienceStrategy: prefillAudienceStrategy ?? d.audienceStrategy,
+          funnelStage: prefillFunnelStage ?? d.funnelStage,
+          businessModel: prefillBusinessModel ?? d.businessModel,
+          spendBand: prefillSpendBand ?? d.spendBand,
+          durationBand: prefillDurationBand ?? d.durationBand,
+          metric: prefillMetric ?? d.metric,
         }));
+      }
+      // Only ever primes the "your result" input with a value the
+      // campaign detail page already computed from this owner's own
+      // data — never shown/compared until the user submits the search
+      // themselves, exactly like every other prefill path here.
+      if (prefillUserValue !== null) {
+        setInitialUserValue(prefillUserValue);
       }
       return;
     }

@@ -40,6 +40,62 @@ export interface BenchmarkReadinessEntry {
   cohortSampleSize: number;
 }
 
+// PHASE 32 (§2/§3/§4): the campaign → benchmark activation. `context`
+// mirrors exactly the cohort fields the campaign itself already has
+// (never invented) and reuses the Phase 30 Home->/benchmark prefill
+// param naming; `compareOptions` is the campaign's own real,
+// already-eligible metrics (see page.tsx — never a fabricated one) with
+// the value Cucurucho already knows, so the user never re-types it.
+export interface BenchmarkCompareOption {
+  metric: DerivedMetricKey | "reach";
+  userValue: number;
+  spendBand?: string;
+  durationBand?: string;
+}
+
+export interface BenchmarkActivation {
+  context: {
+    platform: string | null;
+    objective: string | null;
+    vertical: string | null;
+    country: string | null;
+    audienceStrategy: string | null;
+    funnelStage: string | null;
+    businessModel: string | null;
+  };
+  compareOptions: BenchmarkCompareOption[];
+}
+
+const METRIC_LABELS_WITH_REACH: Record<DerivedMetricKey | "reach", string> = {
+  ...DERIVED_METRIC_LABELS,
+  reach: "Reach",
+};
+
+// Builds the exact same /benchmark?prefill... URL shape the Home
+// discovery flow and the import-done screen already use (Phase 26/28/
+// 30) — one single mechanism, extended here rather than duplicated.
+// spendBand/durationBand are only ever attached alongside the Reach
+// metric itself (the one metric that requires them) — never applied as
+// a silent extra filter on any other metric's comparison.
+function buildBenchmarkHref(context: BenchmarkActivation["context"], option?: BenchmarkCompareOption): string {
+  const params = new URLSearchParams();
+  if (context.platform) params.set("prefillPlatform", context.platform);
+  if (context.objective) params.set("prefillObjective", context.objective);
+  if (context.vertical) params.set("prefillVertical", context.vertical);
+  if (context.country) params.set("prefillCountry", context.country);
+  if (context.audienceStrategy) params.set("prefillAudienceStrategy", context.audienceStrategy);
+  if (context.funnelStage) params.set("prefillFunnelStage", context.funnelStage);
+  if (context.businessModel) params.set("prefillBusinessModel", context.businessModel);
+  if (option) {
+    params.set("prefillMetric", option.metric);
+    params.set("prefillUserValue", String(option.userValue));
+    if (option.spendBand) params.set("prefillSpendBand", option.spendBand);
+    if (option.durationBand) params.set("prefillDurationBand", option.durationBand);
+  }
+  const qs = params.toString();
+  return qs ? `/benchmark?${qs}` : "/benchmark";
+}
+
 export interface ContributionDetailDataset {
   id: string;
   startDate: string;
@@ -62,12 +118,13 @@ export interface ContributionDetailDataset {
 }
 
 export function ContributionDetail({
-  dataset, raw, derivedKeys, readiness,
+  dataset, raw, derivedKeys, readiness, benchmarkActivation,
 }: {
   dataset: ContributionDetailDataset;
   raw: RawMetricInputs;
   derivedKeys: DerivedMetricKey[];
   readiness: BenchmarkReadinessEntry[];
+  benchmarkActivation: BenchmarkActivation;
 }) {
   const { t } = useTranslation();
   const router = useRouter();
@@ -131,6 +188,58 @@ export function ContributionDetail({
               {t("contributions.benchmarkStatusLabel")}: {t(`contributions.status.${dataset.validationStatus}`)}
             </span>
           </div>
+
+          {/* PHASE 32 (§2/§9/§10): the campaign → benchmark activation.
+              "Comparar con benchmark" is the dominant next action ONLY
+              for a validation_status === "valid" campaign — a pending
+              or excluded one gets an honest explanation instead, plus a
+              plainly-secondary, non-committal link to the general
+              benchmark finder that never implies this campaign is
+              already part of the aggregate. Never rendered for
+              flagged/deleted (out of this phase's scope; the existing
+              status pill above already covers those). */}
+          {dataset.validationStatus === "valid" && (
+            <div className="mt-4 rounded-2xl border border-line bg-surface p-4">
+              {benchmarkActivation.compareOptions.length > 1 ? (
+                <>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-ink-500">{t("contributions.compareMetricLabel")}</p>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {benchmarkActivation.compareOptions.map((option) => (
+                      <a
+                        key={option.metric}
+                        href={buildBenchmarkHref(benchmarkActivation.context, option)}
+                        className="rounded-full bg-primary px-4 py-2 text-xs font-semibold text-white hover:opacity-90"
+                      >
+                        {METRIC_LABELS_WITH_REACH[option.metric]}
+                      </a>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <a
+                  href={buildBenchmarkHref(benchmarkActivation.context, benchmarkActivation.compareOptions[0])}
+                  className="inline-flex rounded-full bg-primary px-4 py-2 text-xs font-semibold text-white hover:opacity-90"
+                >
+                  {t("contributions.compareBenchmarkCta")}
+                </a>
+              )}
+            </div>
+          )}
+          {(dataset.validationStatus === "pending" || dataset.validationStatus === "excluded") && (
+            <div className="mt-4 rounded-2xl border border-line bg-surface p-4">
+              <p className="text-sm text-ink-700">
+                {dataset.validationStatus === "pending"
+                  ? t("contributions.pendingBenchmarkExplanation")
+                  : t("contributions.excludedBenchmarkExplanation")}
+              </p>
+              <a
+                href={buildBenchmarkHref(benchmarkActivation.context)}
+                className="mt-2 inline-block text-xs font-medium text-ink-500 hover:text-primary hover:underline"
+              >
+                {t("contributions.exploreBenchmarkCta")}
+              </a>
+            </div>
+          )}
 
           <div className="mt-4 rounded-2xl border border-line bg-surface p-4">
             <p className="text-xs font-semibold uppercase tracking-wide text-ink-500">{t("contributions.detailContextTitle")}</p>
