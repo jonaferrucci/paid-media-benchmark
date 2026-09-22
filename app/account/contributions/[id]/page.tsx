@@ -116,12 +116,18 @@ export default async function ContributionDetailPage({ params }: { params: { id:
   // PHASE 32 (§4/§5): "Comparar con benchmark" only ever offers a
   // metric that (a) this campaign's own raw data actually supports,
   // (b) /benchmark's single-metric selector actually accepts
-  // (SINGLE_METRIC_OPTIONS — e.g. CPA/ROAS/CPE/CPL/ACOS/TACOS are real,
-  // derivable metrics but /benchmark has no dropdown option for them,
-  // so they're never offered here either), and (c) the real market
-  // cohort already has enough data for (readiness.sufficientData,
-  // computed above with no new formula). Never a fabricated metric,
-  // never a metric this exact campaign can't actually support.
+  // (SINGLE_METRIC_OPTIONS), and (c) the real market cohort already has
+  // enough data for (readiness.sufficientData, computed above with no
+  // new formula). Never a fabricated metric, never a metric this exact
+  // campaign can't actually support.
+  //
+  // PHASE 34: SINGLE_METRIC_OPTIONS now also includes CPA/ROAS/CPE/
+  // ACOS/TACOS after an end-to-end audit confirmed real support for
+  // each (raw inputs, formula, unit/direction, engine, UI, saved
+  // comparisons — see that file's own comment). CPL remains excluded —
+  // this campaign's own "conversions" raw value has no way to tell a
+  // sales/purchase count from a leads count, so CPL is deferred rather
+  // than guessed.
   const compareOptions: BenchmarkActivation["compareOptions"] = [];
   for (const entry of readiness) {
     if (entry.sufficientData && (SINGLE_METRIC_OPTIONS as readonly string[]).includes(entry.metric)) {

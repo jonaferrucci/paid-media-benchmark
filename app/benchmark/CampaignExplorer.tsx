@@ -13,14 +13,21 @@ import { DiagnosticSection } from "./DiagnosticSection";
 import { SaveComparisonButton } from "@/app/comparisons/SaveComparisonButton";
 import type { SavedComparison } from "@/app/comparisons/actions";
 import type { RelaxableDimension } from "@/lib/benchmark/cohortRules";
+import { SINGLE_METRIC_OPTIONS } from "@/lib/benchmark/singleMetricOptions";
 
-// Only metrics with a real, seeded definition in the metrics registry
-// (unit_type + benchmark_direction) are offered here — per Phase 7
-// item 4, no invented metric mappings. CVR (Conversion Rate) is
-// deliberately excluded: Phase 3 decided not to calculate it because
-// its denominator ("Relevant Traffic") isn't defined as a single
-// approved raw metric — see lib/metrics/derive.ts.
-const CAMPAIGN_METRICS = ["cpm", "ctr", "cpc", "cpa", "roas", "frequency", "reach", "cpv"];
+// PHASE 34 (§4 Metric Registry audit): this used to be its own,
+// separately-maintained list (Phase 7) — a real, demonstrated drift
+// from lib/benchmark/singleMetricOptions.ts's list (this file already
+// had cpa/roas before the single-metric dropdown did; it was still
+// missing cpe/acos/tacos after Phase 34 audited and approved them).
+// Unified onto that one shared source of truth rather than reconciling
+// two independently-maintained arrays by hand every time either
+// changes. CVR (Conversion Rate) remains excluded for the same
+// original reason: its denominator ("Relevant Traffic") isn't defined
+// as a single approved raw metric — see lib/metrics/derive.ts — and
+// CPL remains excluded per that shared file's own documented reason
+// (no canonical lead_count semantic distinct from conversions).
+const CAMPAIGN_METRICS: readonly string[] = SINGLE_METRIC_OPTIONS;
 
 interface CohortDraft {
   platform: string;

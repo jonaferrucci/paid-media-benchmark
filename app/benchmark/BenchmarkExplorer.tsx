@@ -687,6 +687,10 @@ const METRIC_EXAMPLES: Record<string, string> = {
   reach: "250000",
   frequency: "2.50",
   cpv: "0.03",
+  // PHASE 34: added alongside their SINGLE_METRIC_OPTIONS entries.
+  cpe: "1.80",
+  acos: "22.00",
+  tacos: "8.50",
 };
 
 // PHASE 33 (§8): "Contexto del benchmark" — every applied cohort

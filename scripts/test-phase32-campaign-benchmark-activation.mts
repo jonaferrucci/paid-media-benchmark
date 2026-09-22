@@ -83,9 +83,11 @@ assertTrue(
 // §4/§5 Metric selection reuses calculateDerivedMetrics/readiness — no
 // duplicated formula — and is filtered to exactly the metrics
 // /benchmark's own dropdown accepts (SINGLE_METRIC_OPTIONS), never an
-// invented or benchmark-incompatible one (e.g. CPA/ROAS/CPE/CPL/ACOS/
-// TACOS are real derivable metrics but have no /benchmark dropdown
-// option, so they must never appear as a compare CTA).
+// invented or benchmark-incompatible one. As of Phase 34, that list
+// includes CPA/ROAS/CPE/ACOS/TACOS (audited and approved — see
+// scripts/test-phase34-benchmark-metric-coverage.mts); CPL is the one
+// real derivable metric still excluded (no canonical lead semantic),
+// so it must never appear as a compare CTA.
 // -----------------------------------------------------------------------
 assertTrue(
   pageSource.includes("calculateDerivedMetrics(raw)") && pageSource.includes("getMetricBenchmark("),
@@ -97,8 +99,10 @@ assertTrue(
   "a metric is only offered when it's both /benchmark-compatible AND the real market cohort already has sufficient data"
 );
 assertTrue(
-  singleMetricOptionsSource.includes('export const SINGLE_METRIC_OPTIONS = ["cpm", "ctr", "cpc", "reach", "frequency", "cpv"] as const;'),
-  "SINGLE_METRIC_OPTIONS is the one real source of truth for /benchmark-acceptable metrics"
+  singleMetricOptionsSource.includes(
+    'export const SINGLE_METRIC_OPTIONS = ["cpm", "ctr", "cpc", "reach", "frequency", "cpv", "cpa", "roas", "cpe", "acos", "tacos"] as const;'
+  ),
+  "SINGLE_METRIC_OPTIONS is the one real source of truth for /benchmark-acceptable metrics (Phase 34: extended with the 5 audited-and-approved metrics, cpl still excluded)"
 );
 assertTrue(
   benchmarkExplorerSource.includes('import { SINGLE_METRIC_OPTIONS } from "@/lib/benchmark/singleMetricOptions";') &&
