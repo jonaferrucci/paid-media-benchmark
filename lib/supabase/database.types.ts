@@ -1188,6 +1188,17 @@ export interface Database {
         Args: { raw_spend: number; duration_days: number };
         Returns: number | null;
       };
+      // Phase 28 (post-audit revision, migration 0019): the ONLY
+      // supported write path for validation_status/reviewed_by/
+      // reviewed_at on performance_datasets. p_decision is narrowed to
+      // the two outcomes the function actually accepts — 'pending' /
+      // 'flagged' / 'deleted' are valid ValidationStatus values but are
+      // never valid RPC arguments, and the function itself re-checks
+      // this and raises if violated.
+      fn_review_contribution: {
+        Args: { p_dataset_id: string; p_decision: Extract<ValidationStatus, "valid" | "excluded"> };
+        Returns: { id: string; validation_status: ValidationStatus; reviewed_by: string | null; reviewed_at: string | null }[];
+      };
     };
     Enums: Record<string, never>;
     CompositeTypes: Record<string, never>;

@@ -27,12 +27,33 @@ export function authorizeContributionReview(isAuthenticated: boolean, isCurator:
 // was added).
 export type ContributionReviewDecision = "valid" | "excluded";
 
-// A contribution may only move OUT of "pending" — never re-review an
-// already-decided row (re-approving/re-rejecting, or silently
-// overwriting a prior decision, is not the smallest safe workflow —
-// same rule lib/media/governanceRules.ts already applies to rate
-// cards/snapshots/platforms), and never a "flagged"/"deleted" row
-// either, both of which represent a different, unrelated state.
+// Post-audit revision (migration 0019): the REAL enforcement of "a
+// contribution may only move OUT of pending, and only to valid or
+// excluded" now lives inside fn_review_contribution()'s own atomic
+// `UPDATE ... WHERE validation_status = 'pending'` — not in this
+// function or in any RLS WITH CHECK. This function is kept as the
+// pure, DB-free SPEC of that same rule: it is unit-tested directly
+// (no live database needed) so the transition matrix the RPC is
+// supposed to implement is independently verifiable, and the
+// migration's SQL is checked structurally (see
+// scripts/test-phase28-contribution-validation.mts) to confirm the
+// RPC's WHERE clause actually matches this same rule. It is
+// deliberately NOT called by reviewActions.ts before the RPC anymore
+// — pre-checking "is this row still pending?" and then updating it in
+// a second, separate call is exactly the check-then-act race the
+// atomic RPC exists to remove.
 export function isValidContributionReviewTransition(currentStatus: string, decision: ContributionReviewDecision): boolean {
   return currentStatus === "pending" && (decision === "valid" || decision === "excluded");
+}
+
+// A cheap, DB-free rejection of a garbage `decision` value before ever
+// calling the RPC. TypeScript's ContributionReviewDecision union only
+// protects callers that go through the type checker — a server action
+// is also reachable as a plain network call, so this guard is real
+// input validation, not just a type-narrowing convenience. It is
+// intentionally not the security boundary (fn_review_contribution()
+// re-validates the exact same thing server-side, since a client-side/
+// pure-function check can never be trusted as the only gate).
+export function isValidContributionReviewDecision(decision: string): decision is ContributionReviewDecision {
+  return decision === "valid" || decision === "excluded";
 }
