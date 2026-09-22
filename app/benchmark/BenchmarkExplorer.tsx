@@ -25,6 +25,30 @@ import { SINGLE_METRIC_OPTIONS } from "@/lib/benchmark/singleMetricOptions";
 // metric against the exact same list, never a duplicated one.
 const PRIMARY_METRICS: readonly string[] = SINGLE_METRIC_OPTIONS;
 
+// PHASE 33 (§8): extracted from the Spend Range / Duration Band <Select>
+// options below so the new "Contexto del benchmark" section can render
+// the same human labels for response.cohort.applied's band values —
+// one real source of truth, never a second hardcoded copy that could
+// drift from the actual selector options.
+const SPEND_BAND_OPTIONS: { value: string; label: string }[] = [
+  { value: "under_500", label: "< USD 500" },
+  { value: "500_2000", label: "USD 500-2,000" },
+  { value: "2000_10000", label: "USD 2,000-10,000" },
+  { value: "10000_50000", label: "USD 10,000-50,000" },
+  { value: "50000_100000", label: "USD 50,000-100,000" },
+  { value: "100000_plus", label: "USD 100,000+" },
+];
+const DURATION_BAND_OPTIONS: { value: string; label: string }[] = [
+  { value: "1_7", label: "1-7" },
+  { value: "8_14", label: "8-14" },
+  { value: "15_30", label: "15-30" },
+  { value: "31_60", label: "31-60" },
+  { value: "61_90", label: "61-90" },
+  { value: "91_180", label: "91-180" },
+  { value: "181_365", label: "181-365" },
+  { value: "365_plus", label: "365+" },
+];
+
 interface Draft {
   metric: string;
   platform: string;
@@ -393,14 +417,7 @@ export function BenchmarkExplorer({ taxonomies }: { taxonomies: ContributionTaxo
                   onChange={(v) => update("spendBand", v)}
                   allowEmpty
                   required={isReach}
-                  options={[
-                    { value: "under_500", label: "< USD 500" },
-                    { value: "500_2000", label: "USD 500-2,000" },
-                    { value: "2000_10000", label: "USD 2,000-10,000" },
-                    { value: "10000_50000", label: "USD 10,000-50,000" },
-                    { value: "50000_100000", label: "USD 50,000-100,000" },
-                    { value: "100000_plus", label: "USD 100,000+" },
-                  ]}
+                  options={SPEND_BAND_OPTIONS}
                 />
                 <Select
                   label={t("finder.duration")}
@@ -408,16 +425,7 @@ export function BenchmarkExplorer({ taxonomies }: { taxonomies: ContributionTaxo
                   onChange={(v) => update("durationBand", v)}
                   allowEmpty
                   required={isReach}
-                  options={[
-                    { value: "1_7", label: "1-7" },
-                    { value: "8_14", label: "8-14" },
-                    { value: "15_30", label: "15-30" },
-                    { value: "31_60", label: "31-60" },
-                    { value: "61_90", label: "61-90" },
-                    { value: "91_180", label: "91-180" },
-                    { value: "181_365", label: "181-365" },
-                    { value: "365_plus", label: "365+" },
-                  ]}
+                  options={DURATION_BAND_OPTIONS}
                 />
               </div>
             </details>
@@ -445,12 +453,14 @@ export function BenchmarkExplorer({ taxonomies }: { taxonomies: ContributionTaxo
                 response={response}
                 t={t}
                 onApplySuggestion={applyRelaxationSuggestion}
+                onRetry={() => handleSubmit()}
                 platformLabel={platformLabel(draft.platform)}
                 objectiveLabel={objectiveLabel(draft.objective)}
                 verticalLabel={verticalLabel(draft.vertical)}
                 countryLabel={countryLabel(draft.country)}
                 draft={draft}
                 initialUserValue={initialUserValue}
+                taxonomies={taxonomies}
               />
 
               {process.env.NODE_ENV !== "production" && (
@@ -478,29 +488,46 @@ export function ResultView({
   response,
   t,
   onApplySuggestion,
+  onRetry,
   platformLabel,
   objectiveLabel,
   verticalLabel,
   countryLabel,
   draft,
   initialUserValue,
+  taxonomies,
 }: {
   response: BenchmarkResponse;
   t: (key: string, vars?: Record<string, string | number>) => string;
   onApplySuggestion: () => void;
+  onRetry?: () => void;
   platformLabel: string;
   objectiveLabel: string;
   verticalLabel: string;
   countryLabel: string;
   draft?: Draft;
   initialUserValue?: number | null;
+  taxonomies?: ContributionTaxonomies;
 }) {
   if (response.status === "error") {
+    // PHASE 33 (§11): explains what happened AND gives the user
+    // something to do — previously this state was a dead end (no
+    // action at all). "Reintentar" simply re-runs the exact same
+    // query the user already built; it never retries silently or
+    // changes any input.
     return (
       <section className="rounded-2xl border border-caution/30 bg-caution-soft p-6 text-center">
         <AlertCircle size={20} className="mx-auto text-caution" aria-hidden="true" />
         <p className="mt-2 font-display text-base font-semibold text-ink-900">{t("benchmarkLive.errorTitle")}</p>
         <p className="mt-2 text-sm text-ink-700">{t("benchmarkLive.errorBody")}</p>
+        {onRetry && (
+          <button
+            onClick={onRetry}
+            className="mt-3 inline-block rounded-full border border-line bg-surface px-4 py-2 text-xs font-medium text-ink-900 hover:border-primary hover:text-primary"
+          >
+            {t("benchmarkLive.retryCta")}
+          </button>
+        )}
       </section>
     );
   }
@@ -539,8 +566,14 @@ export function ResultView({
         <Info size={20} className="text-caution" aria-hidden="true" />
         <p className="mt-2 font-display text-base font-semibold text-ink-900">{t("benchmarkLive.insufficientTitle")}</p>
         <p className="mt-2 text-sm text-ink-700">{t("benchmarkLive.insufficientBody")}</p>
+        {/* PHASE 33 (§7): a plain-language sentence, not raw "n = X"
+            technical notation — and keeps cohortSampleSize (the
+            broader cohort before this specific metric's own data
+            requirement) explicitly distinct from sampleSize (how many
+            of those actually have this metric), never conflating the
+            two into one number. */}
         <p className="mt-1 text-xs text-ink-600">
-          n = {response.sampleSize} (cohort: {response.cohortSampleSize})
+          {t("benchmarkLive.insufficientSampleDetail", { sampleSize: response.sampleSize, cohortSampleSize: response.cohortSampleSize })}
         </p>
         {nextAction === "expand_filters" && response.relaxationSuggestion ? (
           <button
@@ -580,6 +613,35 @@ export function ResultView({
         <p className="mt-1 text-sm text-ink-500">{t("benchmarkLive.marketMedianLabel")}</p>
       </div>
 
+      {/* PHASE 33 (§2/§3/§6): the P25/Median/P75 snapshot is now visible
+          as soon as there's a result — never gated behind entering a
+          "Tu resultado" value. §6's suggested plain three-number row
+          (no new chart library, no dependency). Once the user compares
+          their own value, ComparisonDetail's interactive track below
+          shows these SAME three numbers again but WITH their marker
+          positioned among them — a deliberate, minor overlap (richer
+          view replaces the plain one in substance, not literally
+          hidden) rather than lifting state up just to suppress it. */}
+      {p25 !== null && median !== null && p75 !== null && (
+        <div className="mt-4 rounded-xl border border-line bg-canvas p-3">
+          <p className="text-[11px] font-medium uppercase tracking-wide text-ink-500">{t("benchmarkLive.typicalRangeLabel")}</p>
+          <div className="mt-1.5 grid grid-cols-3 gap-2 text-center">
+            <div>
+              <p className="text-[10px] font-medium text-ink-400">P25</p>
+              <p className="tabular text-sm font-semibold text-ink-800">{formatMetricValue(p25, response.unit)}</p>
+            </div>
+            <div>
+              <p className="text-[10px] font-medium text-ink-400">{t("benchmarkLive.medianShort")}</p>
+              <p className="tabular text-sm font-semibold text-ink-900">{formatMetricValue(median, response.unit)}</p>
+            </div>
+            <div>
+              <p className="text-[10px] font-medium text-ink-400">P75</p>
+              <p className="tabular text-sm font-semibold text-ink-800">{formatMetricValue(p75, response.unit)}</p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Sample size: given real visual prominence per Phase 6/10, not
           buried as secondary metadata, but no longer competing with the
           headline number for attention either. */}
@@ -587,23 +649,12 @@ export function ResultView({
         {t("benchmarkLive.sampleSizeProminent", { n: response.sampleSize })}
       </p>
 
-      {(response.cohort.applied as { spendBand?: string; durationBand?: string }).spendBand && (
-        <p className="mt-2 text-xs font-medium text-coral">
-          {t("benchmarkLive.scaleContext")}: {(response.cohort.applied as { spendBand?: string }).spendBand} ·{" "}
-          {(response.cohort.applied as { durationBand?: string }).durationBand}
-        </p>
-      )}
-
-      {response.cohort.relaxed.length > 0 && (
-        <div className="mt-3 rounded-xl bg-primary-soft p-3 text-xs text-ink-700">
-          <p className="font-semibold text-primary">{t("benchmarkLive.relaxedNotice")}</p>
-          {response.cohort.relaxed.map((dim) => (
-            <p key={dim} className="mt-1">
-              {t("benchmarkLive.relaxedExplain", { dimension: t(`benchmarkLive.dimensionLabels.${dim}`) })}
-            </p>
-          ))}
-        </div>
-      )}
+      {/* PHASE 33 (§8): one compact "Contexto del benchmark" section
+          replaces the old separate scale-context note and relaxed-
+          dimension notice — same underlying facts (response.cohort),
+          never a new computation, just consolidated so cohort
+          information isn't scattered across the card. */}
+      {taxonomies && <CohortContextSection response={response} taxonomies={taxonomies} t={t} />}
 
       {p25 !== null && p75 !== null && median !== null && (
         <ComparisonSection
@@ -637,6 +688,86 @@ const METRIC_EXAMPLES: Record<string, string> = {
   frequency: "2.50",
   cpv: "0.03",
 };
+
+// PHASE 33 (§8): "Contexto del benchmark" — every applied cohort
+// dimension in ONE compact, clearly-labeled place, using real display
+// labels (never internal_key strings), showing only fields the query
+// actually applied (a null/absent field is simply omitted, never shown
+// as an empty or fabricated value). Platform/Objective/Vertical/
+// Country are intentionally NOT repeated here — they're already shown
+// directly above (the page's "what am I comparing" header) — this
+// section only adds the fields not already visible there. Relaxation
+// is folded in here too (was a separate floating notice before this
+// phase) since it's about the SAME cohort fields this section already
+// lists. response.cohort.applied is the engine's own, unmodified
+// CohortDescriptor (lib/benchmark/engine.ts's buildCohortDescriptor) —
+// this component only ever reads and labels it, never recomputes it.
+function CohortContextSection({
+  response,
+  taxonomies,
+  t,
+}: {
+  response: BenchmarkResponse;
+  taxonomies: ContributionTaxonomies;
+  t: (key: string, vars?: Record<string, string | number>) => string;
+}) {
+  const applied = response.cohort.applied as {
+    audienceStrategy?: string | null;
+    funnelStage?: string | null;
+    businessModel?: string | null;
+    spendBand?: string | null;
+    durationBand?: string | null;
+    timeWindow?: string | null;
+  };
+
+  const rows: { label: string; value: string }[] = [];
+  if (applied.audienceStrategy) {
+    rows.push({ label: t("contribute.audienceStrategy"), value: taxonomies.audienceStrategies.find((a) => a.internal_key === applied.audienceStrategy)?.display_label ?? applied.audienceStrategy });
+  }
+  if (applied.funnelStage) {
+    rows.push({ label: t("contribute.funnelStage"), value: taxonomies.funnelStages.find((f) => f.internal_key === applied.funnelStage)?.display_label ?? applied.funnelStage });
+  }
+  if (applied.businessModel) {
+    rows.push({ label: t("contribute.businessModel"), value: taxonomies.businessModels.find((b) => b.internal_key === applied.businessModel)?.display_label ?? applied.businessModel });
+  }
+  if (applied.spendBand) {
+    rows.push({ label: t("finder.spendRange"), value: SPEND_BAND_OPTIONS.find((o) => o.value === applied.spendBand)?.label ?? applied.spendBand });
+  }
+  if (applied.durationBand) {
+    rows.push({ label: t("finder.duration"), value: DURATION_BAND_OPTIONS.find((o) => o.value === applied.durationBand)?.label ?? applied.durationBand });
+  }
+  if (applied.timeWindow) {
+    rows.push({ label: t("finder.timeWindow"), value: t(`timeWindows.${applied.timeWindow}`) });
+  }
+
+  if (rows.length === 0 && response.cohort.relaxed.length === 0) return null;
+
+  return (
+    <div className="mt-3 rounded-xl border border-line bg-canvas p-3">
+      <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-500">{t("benchmarkLive.cohortContextTitle")}</p>
+      {rows.length > 0 && (
+        <dl className="mt-1.5 grid grid-cols-1 gap-x-4 gap-y-1 text-xs sm:grid-cols-2">
+          {rows.map((row) => (
+            <div key={row.label} className="flex justify-between gap-2 sm:justify-start">
+              <dt className="text-ink-500">{row.label}</dt>
+              <dd className="font-medium text-ink-800">{row.value}</dd>
+            </div>
+          ))}
+        </dl>
+      )}
+      {response.cohort.relaxed.length > 0 && (
+        <div className="mt-2 rounded-lg bg-primary-soft p-2 text-xs text-ink-700">
+          <p className="font-semibold text-primary">{t("benchmarkLive.relaxedNotice")}</p>
+          {response.cohort.relaxed.map((dim) => (
+            <p key={dim} className="mt-0.5">
+              {t("benchmarkLive.relaxedExplain", { dimension: t(`benchmarkLive.dimensionLabels.${dim}`) })}
+            </p>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function ComparisonSection({
   response,

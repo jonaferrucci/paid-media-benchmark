@@ -183,8 +183,16 @@ export function ComparisonDetail({
           DEL BENCHMARK (the existing Phase 6 deterministic
           interpretation sentence, unchanged). No new causal claim, no
           recommendation — purely a presentation split of content that
-          already existed. */}
-      <div className="mt-5 space-y-3 border-t border-line pt-4">
+          already existed.
+
+          PHASE 33 (§5): "Cómo leer este resultado" wraps these same
+          two paragraphs under one explicit heading — the underlying
+          classification/insight logic (lib/comparison/classify.ts) is
+          completely untouched; this is a title added above existing,
+          already-approved content, never new evaluative text. */}
+      <div className="mt-5 border-t border-line pt-4">
+        <p className="text-xs font-semibold text-ink-900">{t("benchmarkLive.readingHowToTitle")}</p>
+        <div className="mt-3 space-y-3">
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-500">{t("benchmarkLive.observationLabel")}</p>
           <p className="mt-1 text-sm text-ink-700">
@@ -212,6 +220,7 @@ export function ComparisonDetail({
               absDiff: percentDiff !== null ? Math.abs(percentDiff).toFixed(1).replace(".", ",") : "",
             })}
           </p>
+        </div>
         </div>
       </div>
     </div>

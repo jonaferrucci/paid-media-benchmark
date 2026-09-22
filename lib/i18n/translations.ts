@@ -250,11 +250,19 @@ const es = {
     noDataBody: "Todavía no hay suficientes campañas comparables para esta combinación. Probá ajustar los filtros o aportar los datos que faltan.",
     insufficientTitle: "Datos insuficientes",
     insufficientBody: "Esta cohorte tiene muy pocos datasets para un benchmark confiable.",
+    // PHASE 33 (§7): replaces the raw "n = X (cohort: Y)" technical
+    // notation with a plain sentence — and keeps cohortSampleSize (the
+    // broader cohort) explicitly distinct from sampleSize (how many of
+    // those have this specific metric), never merged into one number.
+    insufficientSampleDetail: "Encontramos {cohortSampleSize} campañas en esta cohorte, pero solo {sampleSize} tienen datos suficientes para esta métrica.",
     applySuggestion: "Aplicar sugerencia",
     reachBlockTitle: "Benchmark de Alcance no disponible",
     reachBlockBody: "El Alcance requiere Rango de Inversión y Duración de campaña para preservar la comparabilidad de escala. Ajustá estos filtros para obtener un benchmark válido.",
     errorTitle: "No pudimos calcular el benchmark",
     errorBody: "Ocurrió un error inesperado. Probá de nuevo en unos minutos.",
+    // PHASE 33 (§11): the error state previously had no action at all —
+    // this simply re-runs the same query, never a silent retry.
+    retryCta: "Reintentar",
     dimensionLabels: {
       age: "Edad",
       gender: "Género",
@@ -289,6 +297,15 @@ const es = {
     trackScreenReaderSummary: "Rango típico: de {p25} a {p75}, mediana {median}. Tu resultado: {value}.",
     medianShort: "Mediana",
     typicalRangeLabel: "Rango típico (P25-P75)",
+    // PHASE 33 (§8): the compact section listing every applied cohort
+    // dimension not already shown in the page's own "what am I
+    // comparing" header (Platform/Objective/Vertical/Country).
+    cohortContextTitle: "Contexto del benchmark",
+    // PHASE 33 (§5): a single heading wrapping the two EXISTING,
+    // unchanged interpretation paragraphs below (Observación + Lectura
+    // del benchmark) — makes "how to read this" explicit without
+    // duplicating their deterministic, already-approved content.
+    readingHowToTitle: "Cómo leer este resultado",
     observationLabel: "Observación",
     observationAbove: "Tu {metric} es {value}, un {absDiff}% por encima de la mediana de mercado.",
     observationBelow: "Tu {metric} es {value}, un {absDiff}% por debajo de la mediana de mercado.",
@@ -1498,11 +1515,13 @@ const en: typeof es = {
     noDataBody: "There isn't enough comparable campaign data for this combination yet. Try adjusting the filters or contributing the missing data.",
     insufficientTitle: "Insufficient data",
     insufficientBody: "This cohort has too few datasets for a reliable benchmark.",
+    insufficientSampleDetail: "We found {cohortSampleSize} campaigns in this cohort, but only {sampleSize} have enough data for this metric.",
     applySuggestion: "Apply suggestion",
     reachBlockTitle: "Reach benchmark unavailable",
     reachBlockBody: "Reach requires both Spend Range and campaign Duration to preserve scale comparability. Adjust these filters to obtain a valid benchmark.",
     errorTitle: "We couldn't calculate this benchmark",
     errorBody: "An unexpected error occurred. Please try again in a few minutes.",
+    retryCta: "Try again",
     dimensionLabels: {
       age: "Age",
       gender: "Gender",
@@ -1537,6 +1556,8 @@ const en: typeof es = {
     trackScreenReaderSummary: "Typical range: {p25} to {p75}, median {median}. Your result: {value}.",
     medianShort: "Median",
     typicalRangeLabel: "Typical range (P25-P75)",
+    cohortContextTitle: "Benchmark context",
+    readingHowToTitle: "How to read this result",
     observationLabel: "Observation",
     observationAbove: "Your {metric} is {value}, {absDiff}% above the market median.",
     observationBelow: "Your {metric} is {value}, {absDiff}% below the market median.",
