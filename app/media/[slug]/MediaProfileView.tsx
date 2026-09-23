@@ -20,7 +20,12 @@ function formatPrice(price: number, currency: string): string {
 function RateCardGroupCard({ group }: { group: MediaProfile["rateCardGroups"][number] }) {
   const { t, locale } = useTranslation();
   const [historyOpen, setHistoryOpen] = useState(false);
-  const { current, previous, change, history, isPendingOnly, pendingCount, format } = group;
+  const { current, previous, change, history, isPendingOnly, pendingCount, format, identity } = group;
+  // MVP RELEASE FIX (#3): a stable per-instance id (reusing the same
+  // composite identity already used as this card's own React `key`
+  // below) so aria-controls points at THIS card's history list, never
+  // a different rate-card group's, when several render on one profile.
+  const historyId = `rate-history-${identity.mediaFormatId}-${identity.propertyId ?? "none"}-${identity.currency}-${identity.pricingUnit}`.replace(/[^a-zA-Z0-9_-]/g, "-");
 
   // Item 1: an outlet whose only submissions are pending never shows a
   // price as fact — a calm, honest "sin precio verificado" state
@@ -79,13 +84,15 @@ function RateCardGroupCard({ group }: { group: MediaProfile["rateCardGroups"][nu
         <>
           <button
             onClick={() => setHistoryOpen((v) => !v)}
+            aria-expanded={historyOpen}
+            aria-controls={historyId}
             className="mt-2 inline-flex items-center gap-1 text-[11px] font-medium text-primary hover:underline"
           >
             {historyOpen ? t("media.hideHistory") : t("media.viewHistory", { n: history.length })}
             {historyOpen ? <ChevronUp size={12} aria-hidden="true" /> : <ChevronDown size={12} aria-hidden="true" />}
           </button>
           {historyOpen && (
-            <ul className="mt-1.5 space-y-1 border-t border-line pt-1.5">
+            <ul id={historyId} className="mt-1.5 space-y-1 border-t border-line pt-1.5">
               {history.map((h) => (
                 <li key={h.id} className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-ink-600">
                   <span className="tabular">{formatPrice(h.price, h.currency)}</span>

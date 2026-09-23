@@ -1033,6 +1033,8 @@ const es = {
   search: {
     placeholder: "Buscá una plataforma, vertical o audiencia…",
     open: "Buscar",
+    // MVP RELEASE FIX (#1): accessible name for SearchOverlay's icon-only close button.
+    close: "Cerrar búsqueda",
   },
   finder: {
     title: "Encontrá tu benchmark",
@@ -2257,6 +2259,7 @@ const en: typeof es = {
   search: {
     placeholder: "Search a platform, vertical or audience…",
     open: "Search",
+    close: "Close search",
   },
   finder: {
     title: "Find your benchmark",

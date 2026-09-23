@@ -132,7 +132,12 @@ export function MediaCatalogView({ catalog }: { catalog: MediaCatalog }) {
 
           <div className="mt-5">
             <label htmlFor="catalog-search" className="sr-only">{t("media.searchLabel")}</label>
-            <div className="flex max-w-sm items-center gap-2 rounded-full border border-line bg-surface px-3 py-2">
+            {/* MVP RELEASE FIX (#2): same fix as SearchOverlay — the
+                border lives on this wrapper, so focus-within (not the
+                input's own focus-visible) is what needs to change color;
+                reuses the same border-primary token every input in this
+                app already uses. */}
+            <div className="flex max-w-sm items-center gap-2 rounded-full border border-line bg-surface px-3 py-2 transition-colors focus-within:border-primary">
               <Search size={14} className="shrink-0 text-ink-400" aria-hidden="true" />
               <input
                 id="catalog-search"

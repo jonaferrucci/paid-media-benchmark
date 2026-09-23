@@ -47,7 +47,13 @@ export function SearchOverlay({ onClose, onApply }: SearchOverlayProps) {
       className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 p-4 pt-24"
     >
       <div className="w-full max-w-lg rounded-2xl border border-line bg-surfaceElevated p-4 shadow-lg">
-        <div className="flex items-center gap-2 rounded-full border border-line bg-canvas px-4 py-2.5">
+        {/* MVP RELEASE FIX (#2): the border lives on this wrapper, not the
+            input itself (icon + input + close button share one pill), so
+            the input's own focus-visible style would never be seen —
+            focus-within on the wrapper reuses the same
+            border-primary token every other input in this app already
+            uses for focus, so it reads consistently in both themes. */}
+        <div className="flex items-center gap-2 rounded-full border border-line bg-canvas px-4 py-2.5 transition-colors focus-within:border-primary">
           <Search size={15} className="text-ink-400" />
           <input
             autoFocus
@@ -56,7 +62,10 @@ export function SearchOverlay({ onClose, onApply }: SearchOverlayProps) {
             placeholder={t("search.placeholder")}
             className="flex-1 bg-transparent text-sm text-ink-900 outline-none placeholder:text-ink-400"
           />
-          <button onClick={onClose} className="text-ink-400 hover:text-ink-900">
+          {/* MVP RELEASE FIX (#1): icon-only close control had no
+              accessible name — same icon/behavior, only an aria-label
+              added. */}
+          <button onClick={onClose} aria-label={t("search.close")} className="text-ink-400 hover:text-ink-900">
             <X size={16} />
           </button>
         </div>

@@ -13,6 +13,24 @@ import {
 } from "@/lib/comparison/classify";
 import type { BenchmarkResponse } from "./actions";
 
+// MVP RELEASE FIX (#4): the percentile track's user-marker LABEL used
+// to share the same `-translate-x-1/2` centering as its leader line,
+// so at the real extremes markerPosition returns (near 0% or 100% —
+// any far-under/over-performing result) roughly half the label pill
+// extended past the track and got clipped by this card's
+// overflow-hidden ancestor (app/benchmark/BenchmarkExplorer.tsx's
+// result <section>). This only changes where the LABEL anchors
+// itself near the edges; the leader line/pin below it stays centered
+// on the exact same, completely untouched markerPosition — the
+// statistical position itself never moves, only the label's own
+// horizontal anchor point does, purely a presentation offset.
+const MARKER_LABEL_EDGE_THRESHOLD = 10;
+function markerLabelTransform(position: number): string {
+  if (position <= MARKER_LABEL_EDGE_THRESHOLD) return "translateX(0%)";
+  if (position >= 100 - MARKER_LABEL_EDGE_THRESHOLD) return "translateX(-100%)";
+  return "translateX(-50%)";
+}
+
 export const LABEL_STYLE: Record<string, string> = {
   muy_competitivo: "bg-pistachio-soft text-pistachio",
   competitivo: "bg-primary-soft text-primary",
@@ -160,15 +178,23 @@ export function ComparisonDetail({
               className="absolute top-1/2 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-surface bg-primary shadow"
               style={{ left: "50%" }}
             />
-            {/* user marker: distinct dark pin, transitions smoothly */}
+            {/* user marker pin + leader line: stays exactly centered on
+                the real, unmodified markerPosition — never shifts. */}
             <div
-              className="absolute -top-3 flex -translate-x-1/2 flex-col items-center transition-[left] duration-300 ease-out"
+              className="absolute top-1/2 h-5 w-0.5 -translate-x-1/2 -translate-y-1/2 bg-ink-900 transition-[left] duration-300 ease-out"
               style={{ left: `${markerPosition}%` }}
+            />
+            {/* user marker label: same left position, but its own anchor
+                (not a shared -translate-x-1/2) shifts near the track's
+                edges — see markerLabelTransform above — so the pill
+                text stays fully legible instead of being clipped. */}
+            <div
+              className="absolute -top-3 transition-[left] duration-300 ease-out"
+              style={{ left: `${markerPosition}%`, transform: markerLabelTransform(markerPosition) }}
             >
               <span className="whitespace-nowrap rounded-full bg-ink-900 px-2 py-0.5 text-[10px] font-medium text-white">
                 {t("benchmarkLive.yourResultMarker")}
               </span>
-              <span className="h-5 w-0.5 bg-ink-900" />
             </div>
           </div>
         </div>

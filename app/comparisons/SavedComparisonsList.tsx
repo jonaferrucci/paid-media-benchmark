@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { MoreVertical, Pencil, Copy, Trash2, ExternalLink, Search, Bookmark, FolderOpen } from "lucide-react";
@@ -44,6 +44,30 @@ export function SavedComparisonsList({
   const [renameValue, setRenameValue] = useState("");
   const [renameError, setRenameError] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const openMenuRef = useRef<HTMLDivElement>(null);
+
+  // MVP RELEASE FIX (#5): only one "more actions" menu is ever open at
+  // a time (openMenuId), so a single ref (attached below to whichever
+  // row is currently open) is enough to detect an outside click —
+  // reuses the same mousedown-outside pattern as
+  // components/dashboard/AccountMenu.tsx, plus an Escape handler.
+  // Preserves every existing action/routing/delete behavior — this
+  // only changes how the menu closes.
+  useEffect(() => {
+    if (!openMenuId) return;
+    function handleClickOutside(e: MouseEvent) {
+      if (openMenuRef.current && !openMenuRef.current.contains(e.target as Node)) setOpenMenuId(null);
+    }
+    function handleEscape(e: KeyboardEvent) {
+      if (e.key === "Escape") setOpenMenuId(null);
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("keydown", handleEscape);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleEscape);
+    };
+  }, [openMenuId]);
 
   function contextLabel(c: SavedComparison): string {
     const parts = [
@@ -220,7 +244,7 @@ export function SavedComparisonsList({
                       >
                         {t("comparisons.open")} <ExternalLink size={12} aria-hidden="true" />
                       </button>
-                      <div className="relative">
+                      <div className="relative" ref={openMenuId === c.id ? openMenuRef : undefined}>
                         <button
                           onClick={() => setOpenMenuId(openMenuId === c.id ? null : c.id)}
                           aria-label={t("comparisons.moreActions")}
