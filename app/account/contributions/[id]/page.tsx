@@ -108,7 +108,12 @@ export default async function ContributionDetailPage({ params }: { params: { id:
     readiness = await Promise.all(
       derivedKeys.map(async (metric) => {
         const result = await getMetricBenchmark(query, metric);
-        return { metric, sufficientData: result.sufficientData, cohortSampleSize: result.cohortSampleSize };
+        // PHASE 35 (§8): unit is already returned by this same call
+        // (read from the real metrics.unit_type column inside the
+        // engine) — carried through so "Resultados comparables" can
+        // format each value correctly (formatMetricValue) without a
+        // second query or a hardcoded per-metric unit guess.
+        return { metric, sufficientData: result.sufficientData, cohortSampleSize: result.cohortSampleSize, unit: result.unit };
       })
     );
   }
@@ -133,7 +138,7 @@ export default async function ContributionDetailPage({ params }: { params: { id:
     if (entry.sufficientData && (SINGLE_METRIC_OPTIONS as readonly string[]).includes(entry.metric)) {
       const value = derived[entry.metric];
       if (value !== undefined) {
-        compareOptions.push({ metric: entry.metric, userValue: Math.round(value * 100) / 100 });
+        compareOptions.push({ metric: entry.metric, userValue: Math.round(value * 100) / 100, unit: entry.unit });
       }
     }
   }
@@ -167,7 +172,7 @@ export default async function ContributionDetailPage({ params }: { params: { id:
         "reach"
       );
       if (reachResult.sufficientData) {
-        compareOptions.push({ metric: "reach", userValue: Math.round(raw.reach * 100) / 100, spendBand, durationBand });
+        compareOptions.push({ metric: "reach", userValue: Math.round(raw.reach * 100) / 100, spendBand, durationBand, unit: reachResult.unit });
       }
     }
   }

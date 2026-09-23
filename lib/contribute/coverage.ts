@@ -122,6 +122,12 @@ export interface RecentImportGroup {
   dataSource: string;
   submittedOnIso: string;
   campaignCount: number;
+  // PHASE 35 (§13): optional — only the real batch-based caller
+  // (lib/contribute/workspaceActions.ts, which reads the actual
+  // import_batches.source_filename column) ever sets this.
+  // groupRecentImports below has no such column to read from its rows
+  // and simply never sets it — never a second, differently-shaped type.
+  sourceFilename?: string | null;
 }
 
 export function groupRecentImports(rows: RecentImportInput[], maxGroups: number): RecentImportGroup[] {

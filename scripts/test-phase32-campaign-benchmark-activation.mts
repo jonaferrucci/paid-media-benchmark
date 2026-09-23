@@ -207,12 +207,22 @@ assertTrue(
 );
 
 // -----------------------------------------------------------------------
-// §12 Mobile: the new CTA rows wrap rather than forcing a fixed-width
-// row that could overflow at narrow viewports.
+// §12 Mobile: PHASE 35 (§8) restructured the multi-metric compare block
+// from a wrapped chip row into a "Resultados comparables" list (one row
+// per metric: label+value on the left, a "Comparar" button on the
+// right). The mobile-safety property this assertion originally checked
+// for — no fixed-width row that can overflow a narrow viewport — is now
+// achieved differently: each row's text side shrinks (min-w-0) and its
+// button side never does (shrink-0), rather than the row itself
+// wrapping. This assertion was updated to match that current, still
+// mobile-safe structure rather than the pre-Phase-35 markup.
 // -----------------------------------------------------------------------
 assertTrue(
-  detailSource.includes('className="mt-2 flex flex-wrap gap-2"'),
-  "the multi-metric compare CTA row wraps (flex-wrap) instead of a fixed-width row"
+  detailSource.includes('<div className="mt-2 divide-y divide-line">') &&
+  detailSource.includes('className="flex items-center justify-between gap-3 py-2 first:pt-0 last:pb-0"') &&
+  detailSource.includes('<div className="min-w-0">') &&
+  detailSource.includes('className="shrink-0 rounded-full bg-primary px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90"'),
+  "the comparable-results rows keep the label/value side shrinkable (min-w-0) and the Comparar button non-shrinking (shrink-0), so no row forces horizontal overflow at narrow widths"
 );
 
 // -----------------------------------------------------------------------

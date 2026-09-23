@@ -245,7 +245,10 @@ assertTrue(
   "readiness is still computed for every one of this campaign's own derivable metrics (not a hardcoded subset) — the new metrics are automatically included, never a parallel loop"
 );
 assertTrue(
-  contributionPageSource.includes("compareOptions.push({ metric: entry.metric, userValue: Math.round(value * 100) / 100 });"),
+  // PHASE 35 (§8) additionally threads the real `unit` through this same
+  // push call (for "Resultados comparables" formatting) — the assertion
+  // below matches that current line rather than the pre-Phase-35 one.
+  contributionPageSource.includes("compareOptions.push({ metric: entry.metric, userValue: Math.round(value * 100) / 100, unit: entry.unit });"),
   "a newly-eligible compareOption still carries this campaign's own real, already-computed value — prefillMetric/prefillUserValue need no new code path (buildBenchmarkHref already forwards both for any option)"
 );
 assertTrue(

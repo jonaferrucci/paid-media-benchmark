@@ -55,6 +55,12 @@ export function Workspace() {
 
   // §13: the clearest onboarding state for a signed-in user with
   // nothing yet — never an empty dashboard shell.
+  //
+  // PHASE 35 (§4): exactly two paths, matching the two real first steps
+  // named in the onboarding list right below (never a third/tutorial
+  // modal) — "encontrá un benchmark" and "importá una campaña" each get
+  // their own real link now, instead of one CTA that only ever went to
+  // /contribute.
   if (!summary.hasAnyData) {
     return (
       <section className="mx-auto mb-8 max-w-4xl px-4">
@@ -65,21 +71,73 @@ export function Workspace() {
             <li>{t("workspace.emptyStep2")}</li>
             <li>{t("workspace.emptyStep3")}</li>
           </ol>
-          <Link
-            href="/contribute"
-            className="mt-4 inline-flex items-center gap-1.5 rounded-full bg-primary px-4 py-2 text-xs font-semibold text-white hover:opacity-90"
-          >
-            <Upload size={13} aria-hidden="true" /> {t("workspace.emptyCta")}
-          </Link>
+          <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+            <Link
+              href="/benchmark"
+              className="inline-flex items-center gap-1.5 rounded-full border border-line px-4 py-2 text-xs font-semibold text-ink-700 hover:bg-surface2"
+            >
+              {t("workspace.emptyCtaBenchmark")}
+            </Link>
+            <Link
+              href="/contribute"
+              className="inline-flex items-center gap-1.5 rounded-full bg-primary px-4 py-2 text-xs font-semibold text-white hover:opacity-90"
+            >
+              <Upload size={13} aria-hidden="true" /> {t("workspace.emptyCta")}
+            </Link>
+          </div>
         </div>
       </section>
     );
   }
 
   const hasContinueItems = summary.comparisons.length > 0 || summary.plans.length > 0;
+  const { statusCounts } = summary;
+  const hasStatusCounts = statusCounts.pending > 0 || statusCounts.valid > 0 || statusCounts.comparisons > 0 || statusCounts.plans > 0;
 
   return (
     <section className="mx-auto mb-8 max-w-4xl space-y-6 px-4">
+      {/* PHASE 35 (§2/§3): "what needs my attention" — real counts only,
+          answering "which campaigns do I have / are in review / are
+          approved / do I have saved work on" BEFORE anything else on
+          this page. Pending/valid counts double as the section's two
+          contextual actions (§3's "revisar campaña aprobada" / "ver
+          campañas en revisión") — comparisons/plans stay plain counts
+          here since "continuar comparación/plan" is already the very
+          next section below, never duplicated as a second action. */}
+      {hasStatusCounts && (
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-ink-500">{t("workspace.statusTitle")}</p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {statusCounts.pending > 0 && (
+              <Link
+                href="/account/contributions"
+                className="rounded-full border border-line bg-surface px-3 py-1.5 text-xs font-medium text-ink-700 hover:border-primary/40"
+              >
+                {t("workspace.statusPendingCount", { n: statusCounts.pending })}
+              </Link>
+            )}
+            {statusCounts.valid > 0 && (
+              <Link
+                href={summary.mostRecentValidId ? `/account/contributions/${summary.mostRecentValidId}` : "/account/contributions"}
+                className="rounded-full border border-line bg-surface px-3 py-1.5 text-xs font-medium text-ink-700 hover:border-primary/40"
+              >
+                {t("workspace.statusValidCount", { n: statusCounts.valid })}
+              </Link>
+            )}
+            {statusCounts.comparisons > 0 && (
+              <span className="rounded-full border border-line bg-surface2/60 px-3 py-1.5 text-xs font-medium text-ink-600">
+                {t("workspace.statusComparisonsCount", { n: statusCounts.comparisons })}
+              </span>
+            )}
+            {statusCounts.plans > 0 && (
+              <span className="rounded-full border border-line bg-surface2/60 px-3 py-1.5 text-xs font-medium text-ink-600">
+                {t("workspace.statusPlansCount", { n: statusCounts.plans })}
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* §7/§14: "Continue working" — the exact same saved comparisons/
           saved planning scenarios RecentWork used to render, never a
           new persistence mechanism. */}
@@ -131,7 +189,13 @@ export function Workspace() {
           <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
             {summary.recentImports.map((group, i) => (
               <div key={i} className="rounded-xl border border-line bg-surface p-3">
-                <p className="text-xs font-semibold text-ink-900">{group.platformLabel}</p>
+                <p className="truncate text-xs font-semibold text-ink-900">
+                  {group.platformLabel}
+                  {/* §13: the real, already-stored filename when this
+                      batch has one — never an internal id, never a
+                      fabricated name for a manual/legacy batch. */}
+                  {group.sourceFilename ? <span className="font-normal text-ink-500"> · {group.sourceFilename}</span> : null}
+                </p>
                 <p className="mt-0.5 text-[11px] text-ink-500">{t("workspace.recentImportsCampaignCount", { n: group.campaignCount })}</p>
                 <p className="mt-1 text-[10px] text-ink-400">{formatDay(group.submittedOnIso, locale)}</p>
               </div>

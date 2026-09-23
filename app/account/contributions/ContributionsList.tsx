@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, ArrowRight } from "lucide-react";
 import { AppHeader } from "@/components/dashboard/AppHeader";
 import { DashboardSidebar } from "@/components/dashboard/DashboardSidebar";
 import { SearchOverlay } from "@/components/dashboard/SearchOverlay";
@@ -195,24 +195,20 @@ export function ContributionsList({ datasets, batches = [] }: { datasets: Contri
                         <p className="truncate text-sm font-medium text-ink-900">
                           {d.campaign_name ?? t("contributions.unnamedCampaign")}
                         </p>
+                        {/* PHASE 35 (§5/§6): "Mis campañas" card — exactly
+                            the fields the phase spec names (platform,
+                            objective, country, period, status) plus the
+                            comparable-metrics row below. Vertical,
+                            campaign type, source and import date are real
+                            and useful, but secondary/technical — moved
+                            to the detail page's own context/details
+                            sections rather than shown here, so this list
+                            stays a fast scan instead of a metadata dump. */}
                         <p className="mt-0.5 text-xs text-ink-600">
-                          {d.platforms?.display_label} · {d.objectives?.display_label}
-                          {d.campaign_types?.display_label ? ` · ${d.campaign_types.display_label}` : ""}
+                          {d.platforms?.display_label} · {d.objectives?.display_label} · {d.countries?.display_label}
                         </p>
-                        {/* PHASE 27 (§2/§6): vertical/country and the
-                            campaign period used to each get their own
-                            line — merged onto one, since both are
-                            secondary context and neither needs its own
-                            visual weight. No information dropped, one
-                            fewer line per card. */}
                         <p className="mt-0.5 text-xs text-ink-400">
-                          {d.verticals?.display_label} · {d.countries?.display_label} · {d.start_date} — {d.end_date}
-                        </p>
-                        {/* §10: source + import date — real, already-stored
-                            fields that were fetched but never shown before. */}
-                        <p className="mt-0.5 text-[11px] text-ink-400">
-                          {t("contributions.sourceLabel")}: {t(`contributions.source.${d.data_source}`)} ·{" "}
-                          {t("contributions.importedOn", { date: new Date(d.created_at).toLocaleDateString() })}
+                          {d.start_date} — {d.end_date}
                         </p>
                       </div>
                       <span className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-medium ${STATUS_STYLE[d.validation_status] ?? ""}`}>
@@ -238,6 +234,13 @@ export function ContributionsList({ datasets, batches = [] }: { datasets: Contri
                         </span>
                       )}
                     </div>
+                    {/* PHASE 35 (§5/§18): a plain, always-visible "next
+                        action" affordance — the whole card is already the
+                        link, this just makes that obvious on scan/mobile
+                        instead of relying on an implicit hover cue. */}
+                    <p className="mt-1.5 flex items-center gap-1 text-[11px] font-medium text-primary">
+                      {t("contributions.viewCampaignCta")} <ArrowRight size={11} aria-hidden="true" />
+                    </p>
                   </Link>
                 );
               })}

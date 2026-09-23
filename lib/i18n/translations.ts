@@ -53,7 +53,12 @@ const es = {
     resetEmailSentTitle: "Enlace enviado",
     resetEmailSentBody: "Si existe una cuenta con ese email, vas a recibir un enlace para restablecer tu contraseña.",
     myAccount: "Mi cuenta",
-    myContributions: "Mis aportes",
+    // PHASE 35 (§5/§16): "Mis campañas" — the campaign-first framing
+    // this phase renames the whole /account/contributions surface to;
+    // "dataset"/"aporte" language is deliberately retired from the
+    // owner-facing nav label (still used as an internal/DB word
+    // elsewhere, never in owner UI copy per §16).
+    myContributions: "Mis campañas",
     signOut: "Cerrar sesión",
   },
   authErrors: {
@@ -114,7 +119,8 @@ const es = {
     viewAll: "Ver todas",
   },
   contributions: {
-    empty: "Todavía no aportaste ningún dataset.",
+    // PHASE 35 (§16): "dataset" retired from owner-facing copy.
+    empty: "Todavía no tenés campañas cargadas.",
     // PHASE 25 (§15): a plain, neutral placeholder for a campaign with
     // no persisted name (manual entries, generic imports, or historical
     // rows from before this phase) — never fabricated from other fields.
@@ -154,9 +160,25 @@ const es = {
     metricsDerivedTitle: "Métricas calculadas",
     noMetricsImported: "Esta campaña no tiene métricas cargadas todavía.",
     viewDetail: "Ver detalle",
-    detailBackToList: "Volver a mis aportes",
+    // PHASE 35 (§5): "Ver campaña" — the list card's own next-action
+    // affordance; reused nowhere else, kept short since it always
+    // appears right next to an arrow icon.
+    viewCampaignCta: "Ver campaña",
+    detailBackToList: "Volver a mis campañas",
     detailContextTitle: "Contexto",
     detailPeriodTitle: "Período",
+    // PHASE 35 (§7/§8): the campaign's comparable results — real metric
+    // + real value (formatMetricValue, existing units — never a second
+    // formatter) + the same per-metric Comparar action the old chip
+    // row already linked to (compareBenchmarkCta, shortened below to
+    // fit a per-row button instead of one big block-level CTA).
+    comparableResultsTitle: "Resultados comparables",
+    // PHASE 35 (§7): the secondary, collapsible "everything else" —
+    // source/import metadata, raw imported values, every derived
+    // metric (not just the comparable ones), and the readiness detail —
+    // real fields already fetched, just no longer competing for
+    // attention with identity/status/comparable-results above the fold.
+    detailsSectionTitle: "Detalles de la campaña",
     qualityDuplicateNote: "Parecida a otro aporte tuyo — revisá si es un duplicado.",
     benchmarkReadinessTitle: "Comparación contra el mercado",
     benchmarkReadinessOwnDataOk: "Tu campaña tiene datos suficientes para {metric}.",
@@ -187,10 +209,21 @@ const es = {
     // excluded explanations use the exact wording the phase spec
     // itself calls for, never implying benchmark participation for
     // either status.
-    compareBenchmarkCta: "Comparar con benchmark",
+    // PHASE 35 (§8): shortened from "Comparar con benchmark" to fit a
+    // compact per-row button in the new "Resultados comparables" list
+    // (one row per metric) — same key, same underlying action, never a
+    // second/duplicated CTA string.
+    compareBenchmarkCta: "Comparar",
     compareMetricLabel: "Comparar:",
-    pendingBenchmarkExplanation: "Tu campaña fue importada correctamente, pero todavía está en revisión para incorporarse a los benchmarks.",
-    excludedBenchmarkExplanation: "Esta campaña no participa de los benchmarks agregados.",
+    // PHASE 35 (§9): matches the phase spec's own requested copy —
+    // reassures the import itself succeeded, distinct from benchmark
+    // eligibility, and never implies "Comparar esta campaña" is
+    // available yet.
+    pendingBenchmarkExplanation: "Tu campaña fue importada correctamente y está pendiente de revisión para su incorporación a benchmarks.",
+    // PHASE 35 (§11): reassures the campaign's data is kept, not treated
+    // as a failed import — only its benchmark participation is what's
+    // excluded.
+    excludedBenchmarkExplanation: "Esta campaña permanece guardada en tu cuenta, pero no participa de los benchmarks agregados.",
     exploreBenchmarkCta: "Explorar benchmarks",
   },
   // PHASE 26: the signed-in home workspace — "Continuar", "Aportar",
@@ -205,7 +238,19 @@ const es = {
     emptyStep1: "1. Encontrá un benchmark",
     emptyStep2: "2. Importá una campaña",
     emptyStep3: "3. Compará tus resultados",
-    emptyCta: "Importar reporte",
+    // PHASE 35 (§4): two real paths, matching the two CTAs now rendered
+    // side by side — never a third tutorial/modal.
+    emptyCtaBenchmark: "Encontrar un benchmark",
+    emptyCta: "Importar campaña",
+    // PHASE 35 (§2/§16): the new "what needs my attention" status row —
+    // real counts only, reusing the exact same status wording
+    // (contributions.status.pending/valid) rather than inventing a
+    // differently-worded second copy of the same fact.
+    statusTitle: "Estado de tus campañas",
+    statusPendingCount: "{n} en revisión",
+    statusValidCount: "{n} aprobadas para benchmarks",
+    statusComparisonsCount: "{n} comparación guardada",
+    statusPlansCount: "{n} plan guardado",
     recentImportsTitle: "Importaciones recientes",
     recentImportsCampaignCount: "{n} campañas",
     recentImportsCta: "Ver aportes",
@@ -1340,7 +1385,7 @@ const en: typeof es = {
     resetEmailSentTitle: "Link sent",
     resetEmailSentBody: "If an account exists with that email, you'll receive a password reset link.",
     myAccount: "My account",
-    myContributions: "My contributions",
+    myContributions: "My campaigns",
     signOut: "Sign out",
   },
   authErrors: {
@@ -1401,7 +1446,7 @@ const en: typeof es = {
     viewAll: "View all",
   },
   contributions: {
-    empty: "You haven't contributed any datasets yet.",
+    empty: "You don't have any campaigns yet.",
     // PHASE 25 (§15): a plain, neutral placeholder for a campaign with
     // no persisted name (manual entries, generic imports, or historical
     // rows from before this phase) — never fabricated from other fields.
@@ -1435,9 +1480,12 @@ const en: typeof es = {
     metricsDerivedTitle: "Calculated metrics",
     noMetricsImported: "This campaign has no metrics loaded yet.",
     viewDetail: "View detail",
-    detailBackToList: "Back to my contributions",
+    viewCampaignCta: "View campaign",
+    detailBackToList: "Back to my campaigns",
     detailContextTitle: "Context",
     detailPeriodTitle: "Period",
+    comparableResultsTitle: "Comparable results",
+    detailsSectionTitle: "Campaign details",
     qualityDuplicateNote: "Looks similar to another contribution of yours — check whether it's a duplicate.",
     benchmarkReadinessTitle: "Comparison against the market",
     benchmarkReadinessOwnDataOk: "Your campaign has enough data for {metric}.",
@@ -1464,10 +1512,10 @@ const en: typeof es = {
     deleteCancelButton: "Cancel",
     deleteFailed: "We couldn't delete the campaign. Please try again.",
     // PHASE 32 (§2/§9/§10): campaign → benchmark activation copy.
-    compareBenchmarkCta: "Compare with benchmark",
+    compareBenchmarkCta: "Compare",
     compareMetricLabel: "Compare:",
-    pendingBenchmarkExplanation: "Your campaign was imported successfully, but it's still under review for inclusion in benchmarks.",
-    excludedBenchmarkExplanation: "This campaign does not participate in aggregate benchmarks.",
+    pendingBenchmarkExplanation: "Your campaign was imported successfully and is pending review for inclusion in benchmarks.",
+    excludedBenchmarkExplanation: "This campaign stays saved in your account, but it does not participate in aggregate benchmarks.",
     exploreBenchmarkCta: "Explore benchmarks",
   },
   workspace: {
@@ -1475,7 +1523,13 @@ const en: typeof es = {
     emptyStep1: "1. Find a benchmark",
     emptyStep2: "2. Import a campaign",
     emptyStep3: "3. Compare your results",
-    emptyCta: "Import report",
+    emptyCtaBenchmark: "Find a benchmark",
+    emptyCta: "Import campaign",
+    statusTitle: "Your campaigns' status",
+    statusPendingCount: "{n} in review",
+    statusValidCount: "{n} approved for benchmarks",
+    statusComparisonsCount: "{n} saved comparison",
+    statusPlansCount: "{n} saved plan",
     recentImportsTitle: "Recent imports",
     recentImportsCampaignCount: "{n} campaigns",
     recentImportsCta: "View contributions",

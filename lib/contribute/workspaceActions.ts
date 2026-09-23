@@ -56,9 +56,32 @@ interface DatasetJoinRow {
   dataset_metric_values: { raw_numeric_value: number; metrics: { internal_key: string } | null }[] | null;
 }
 
+// PHASE 35 (§2): "what needs my attention" — real, unbounded counts.
+// Deliberately NOT derived from the RECENT_DATASET_LIMIT-capped `rows`
+// below (that cap is an intentional working-set size for coverage/gaps
+// — see this file's own top comment — but would silently UNDERCOUNT a
+// user with more than 20 campaigns, which is exactly the kind of
+// invented/misleading count §2 forbids). comparisons/plans counts are
+// the real total, not the RECENT_LIST_LIMIT-capped "continue working"
+// slice shown elsewhere in the same summary.
+export interface WorkspaceStatusCounts {
+  pending: number;
+  valid: number;
+  comparisons: number;
+  plans: number;
+}
+
 export interface WorkspaceSummary {
   signedIn: boolean;
   hasAnyData: boolean;
+  statusCounts: WorkspaceStatusCounts;
+  // The most recently created "valid" campaign among the same bounded,
+  // recency-ordered working set already fetched below — a best-effort
+  // deep link for "review an approved campaign" (§3), not a claim about
+  // which valid campaign is most important. Never a second query: this
+  // is simply the first match found in `rows`, which is already
+  // ordered created_at desc.
+  mostRecentValidId: string | null;
   recentImports: RecentImportGroup[];
   coverage: MetricCoverageEntry[];
   gaps: DataGapEntry[];
@@ -70,6 +93,8 @@ export interface WorkspaceSummary {
 const EMPTY_SUMMARY: WorkspaceSummary = {
   signedIn: false,
   hasAnyData: false,
+  statusCounts: { pending: 0, valid: 0, comparisons: 0, plans: 0 },
+  mostRecentValidId: null,
   recentImports: [],
   coverage: [],
   gaps: [],
@@ -90,9 +115,9 @@ export async function getWorkspaceSummaryAction(): Promise<WorkspaceSummary> {
   // groupRecentImports — left in place, unused here now, since
   // scripts/test-phase26-workspace.mts still exercises it directly and
   // it remains an honest fallback shape for anything that DOES need to
-  // group raw rows). Four independent reads, still batched — never
-  // sequential (§18).
-  const [datasetsRes, batchesRes, comparisons, plans] = await Promise.all([
+  // group raw rows). Five independent reads (PHASE 35 added the status-
+  // counts query below), still batched — never sequential (§18).
+  const [datasetsRes, statusRes, batchesRes, comparisons, plans] = await Promise.all([
     supabase
       .from("performance_datasets")
       .select(
@@ -111,12 +136,24 @@ export async function getWorkspaceSummaryAction(): Promise<WorkspaceSummary> {
       .neq("validation_status", "deleted")
       .order("created_at", { ascending: false })
       .limit(RECENT_DATASET_LIMIT),
+    // PHASE 35 (§2): one extra, simple, owner-scoped (RLS-enforced,
+    // same session-aware client) query — a single skinny column across
+    // EVERY non-deleted campaign, never capped like `rows` above, so
+    // the "N en revisión / N aprobadas" counts are real totals, not an
+    // artifact of the working-set limit.
+    supabase.from("performance_datasets").select("validation_status").neq("validation_status", "deleted"),
     supabase
       .from("import_batches")
-      .select("id, success_count, created_at, data_source, platforms(display_label)")
+      .select("id, success_count, created_at, data_source, source_filename, platforms(display_label)")
       .order("created_at", { ascending: false })
       .limit(RECENT_IMPORT_GROUPS),
-    listSavedComparisonsAction(RECENT_LIST_LIMIT),
+    // PHASE 35: no `limit` arg — fetch every one of the owner's saved
+    // comparisons (a per-user list, never large) so `comparisons.length`
+    // below is the real total for the attention counts; the existing
+    // RECENT_LIST_LIMIT slice for "continue working" is applied after,
+    // in-memory, on the same already-fetched array — never a second
+    // query. listScenariosAction() already had no limit of its own.
+    listSavedComparisonsAction(),
     listScenariosAction(),
   ]);
 
@@ -159,7 +196,10 @@ export async function getWorkspaceSummaryAction(): Promise<WorkspaceSummary> {
   // (migration 0018's own comment), so an account with only manual
   // entries simply shows no "Recent imports" cards — an honest empty
   // state, never a fabricated one built from unrelated rows.
-  type BatchJoinRow = { id: string; success_count: number; created_at: string; data_source: string; platforms: { display_label: string } | null };
+  type BatchJoinRow = {
+    id: string; success_count: number; created_at: string; data_source: string;
+    source_filename: string | null; platforms: { display_label: string } | null;
+  };
   const batchRows = ((batchesRes.data as unknown as BatchJoinRow[] | null) ?? []);
   // PHASE 28: success_count is now finalized for real (migration 0019
   // + app/contribute/bulk-actions.ts's error-checked update) — the
@@ -175,11 +215,32 @@ export async function getWorkspaceSummaryAction(): Promise<WorkspaceSummary> {
     dataSource: b.data_source,
     submittedOnIso: b.created_at.slice(0, 10),
     campaignCount: resolveBatchDisplayCount(b.success_count, realCampaignCountByBatch.get(b.id)),
+    // PHASE 35 (§13): a real, already-stored filename when the batch
+    // has one — never invented for a manual/legacy batch that doesn't.
+    sourceFilename: b.source_filename ?? null,
   }));
+
+  // PHASE 35 (§2): real, unbounded status counts from the dedicated
+  // statusRes query above — never the RECENT_DATASET_LIMIT-capped `rows`.
+  type StatusRow = { validation_status: string };
+  const statusRows = ((statusRes.data as unknown as StatusRow[] | null) ?? []);
+  const statusCounts: WorkspaceStatusCounts = {
+    pending: statusRows.filter((r) => r.validation_status === "pending").length,
+    valid: statusRows.filter((r) => r.validation_status === "valid").length,
+    comparisons: comparisons.length,
+    plans: plans.length,
+  };
+  // §3 "revisar campaña aprobada": a best-effort deep link into one
+  // real, recent valid campaign — `rows` is already ordered created_at
+  // desc, so the first match is genuinely the most recent one within
+  // the working set (never a claim about the single "best" one).
+  const mostRecentValidId = rows.find((r) => r.validation_status === "valid")?.id ?? null;
 
   return {
     signedIn: true,
     hasAnyData: rows.length > 0 || comparisons.length > 0 || plans.length > 0,
+    statusCounts,
+    mostRecentValidId,
     recentImports,
     coverage: computeDataCoverage(rawSummaries),
     gaps: computeDataGaps(rawSummaries),
