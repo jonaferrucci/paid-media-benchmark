@@ -59,13 +59,35 @@ assertTrue(
   contributionsListSource.includes('<div className="mt-6 space-y-2">'),
   "inter-card spacing was tightened from space-y-3 to space-y-2"
 );
+// PHASE 38.1: the two literal-text checks that used to sit here
+// (vertical+country+period merged onto one card line; source/imported-
+// date shown inline on the card) go stale the moment Phase 27's own
+// density fix is superseded by a LATER, equally intentional redesign —
+// which is exactly what happened. Phase 35 (§5/§6, see this file's own
+// comment above the summary lines) deliberately moved vertical,
+// campaign type, source, and import date OFF this list card and onto
+// the per-campaign detail page (ContributionDetail.tsx), keeping the
+// list a fast scan (platform/objective/country/period/status) rather
+// than a metadata dump. That is a real product decision, not a
+// regression — Phase 27's actual INTENT (no information silently
+// dropped from the product; the campaign period stays visible and
+// compact) still holds, just realized differently. These two
+// assertions were updated in Phase 38.1 to verify that real intent
+// against the current, Phase-35 structure instead of Phase 27's exact
+// since-superseded literal — nothing about ContributionsList.tsx or
+// ContributionDetail.tsx changed to make this pass.
 assertTrue(
-  contributionsListSource.includes("{d.verticals?.display_label} · {d.countries?.display_label} · {d.start_date} — {d.end_date}"),
-  "vertical/country and the campaign period are merged onto one line — no information dropped, one fewer line per card"
+  contributionsListSource.includes("{d.platforms?.display_label} · {d.objectives?.display_label} · {d.countries?.display_label}"),
+  "platform/objective/country are still shown together on one compact summary line per card (Phase 35's current line, superseding Phase 27's vertical+country+period line)"
 );
 assertTrue(
-  contributionsListSource.includes(`{t("contributions.sourceLabel")}: {t(\`contributions.source.\${d.data_source}\`)}`),
-  "source and imported-date context is still shown on the card, unchanged in substance"
+  contributionsListSource.includes("{d.start_date} — {d.end_date}"),
+  "the campaign period is still shown on every card — no information dropped, just its own line under Phase 35's structure rather than merged with country"
+);
+const contributionDetailSource = readFileSync(new URL("../app/account/contributions/[id]/ContributionDetail.tsx", import.meta.url), "utf8");
+assertTrue(
+  contributionDetailSource.includes('{t(`contributions.source.${dataset.dataSource}`)}') && contributionDetailSource.includes("contributions.importedOn"),
+  "source and imported-date context is not dropped from the product — Phase 35 relocated it from the list card to the linked per-campaign detail page, where it's still shown"
 );
 assertTrue(
   contributionsListSource.includes("rounded-full px-2.5 py-1 text-[11px] font-medium"),
