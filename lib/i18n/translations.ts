@@ -281,6 +281,20 @@ const es = {
     section1Title: "¿Qué querés comparar?",
     section2Title: "Mercado",
     section3Title: "Refinar comparación",
+    // HOME -> BENCHMARK CONTINUITY UX FIX: compact context confirmation
+    // ("Benchmark seleccionado") replacing a full dropdown re-fill when
+    // /benchmark arrives with complete context from Home or Campaign
+    // Detail, plus the new pre-submission "Tu resultado" framing and
+    // the "Refinar comparación" active-filter-count signal. section1/2/
+    // 3Title above are intentionally left in place, unused by the new
+    // layout but not deleted (no unrelated cleanup).
+    contextSummaryTitle: "Benchmark seleccionado",
+    changeContextCta: "Cambiar contexto",
+    doneEditingContextCta: "Listo",
+    metricQuestionTitle: "¿Qué métrica querés analizar?",
+    yourResultOptionalTitle: "Tu resultado (opcional)",
+    yourResultOptionalHint: "No necesitás tener tu propia campaña para consultar el mercado. Si ingresás un valor, Cucurucho lo compara con el benchmark.",
+    refineActiveCount: "{n} filtros activos",
     reachScaleRequired: "El Alcance requiere Rango de Inversión y Duración para preservar la comparabilidad de escala.",
     loading: "Calculando…",
     basedOn: "Basado en {n} datasets válidos",
@@ -1608,6 +1622,15 @@ const en: typeof es = {
     section1Title: "What do you want to compare?",
     section2Title: "Market",
     section3Title: "Refine comparison",
+    // HOME -> BENCHMARK CONTINUITY UX FIX: see the ES block's comment
+    // for the full rationale — same new keys, English copy.
+    contextSummaryTitle: "Selected benchmark",
+    changeContextCta: "Edit context",
+    doneEditingContextCta: "Done",
+    metricQuestionTitle: "Which metric do you want to analyze?",
+    yourResultOptionalTitle: "Your result (optional)",
+    yourResultOptionalHint: "You don't need your own campaign to check the market. If you enter a value, Cucurucho will compare it against the benchmark.",
+    refineActiveCount: "{n} active filters",
     reachScaleRequired: "Reach requires Spend Range and Duration to preserve scale comparability.",
     loading: "Calculating…",
     basedOn: "Based on {n} valid datasets",

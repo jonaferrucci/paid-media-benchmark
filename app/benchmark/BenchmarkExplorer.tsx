@@ -76,6 +76,16 @@ interface Draft {
   spendBand: string;
   durationBand: string;
   timeWindow: string;
+  // HOME->BENCHMARK CONTINUITY FIX (§5): raw text for the new
+  // pre-submission "Tu resultado (opcional)" field. Kept as a string
+  // (like ComparisonSection's own inputValue) so an in-progress/partial
+  // number is never silently coerced. This never replaces
+  // initialUserValue (still the one real value ComparisonSection reads
+  // to seed its own input/compared state) — handleSubmit forwards a
+  // valid parsed value into that same existing state at submit time, so
+  // a value entered here (or arriving via prefillUserValue) shows up
+  // already compared as soon as the response returns.
+  userValueInput: string;
 }
 
 const DEFAULT_DRAFT: Draft = {
@@ -90,6 +100,7 @@ const DEFAULT_DRAFT: Draft = {
   spendBand: "",
   durationBand: "",
   timeWindow: "last_12_months",
+  userValueInput: "",
 };
 
 export function BenchmarkExplorer({ taxonomies }: { taxonomies: ContributionTaxonomies }) {
@@ -105,6 +116,33 @@ export function BenchmarkExplorer({ taxonomies }: { taxonomies: ContributionTaxo
   const [campaignInit, setCampaignInit] = useState<SavedComparison | null>(null);
   const [reopenError, setReopenError] = useState<string | null>(null);
   const [reopenLoading, setReopenLoading] = useState(false);
+  // HOME->BENCHMARK CONTINUITY FIX (§3/§6): whether the compact
+  // "Benchmark seleccionado" summary is shown (false) or the full
+  // Platform/Objective/Vertical/Country pickers are shown (true).
+  // Seeded ONCE from the URL this page was actually loaded with — an
+  // arrival with complete context from Home or Campaign Detail starts
+  // collapsed; a direct /benchmark visit (or a partial prefill, e.g.
+  // SearchOverlay's audience-only chips) starts expanded exactly like
+  // before this fix, so direct-entry behavior never changes (§11).
+  // Never re-derived reactively afterward — toggled only by the
+  // "Cambiar contexto"/"Listo" control below and by the saved-
+  // comparison reopen flow, so a user manually filling in every field
+  // is never surprised by an automatic collapse.
+  const [contextEditing, setContextEditing] = useState<boolean>(() => {
+    const hasFullPrefillContext =
+      !!searchParams.get("prefillPlatform") &&
+      !!searchParams.get("prefillObjective") &&
+      !!searchParams.get("prefillVertical") &&
+      !!searchParams.get("prefillCountry");
+    return !hasFullPrefillContext;
+  });
+  // HOME->BENCHMARK CONTINUITY FIX (§8): mirrors the native <details>
+  // element's own open/closed state so "Refinar comparación" can expose
+  // a real aria-expanded instead of relying solely on the browser's
+  // built-in (non-ARIA) disclosure semantics. Starts closed; isReach
+  // below still forces it open exactly as before this fix (Reach's
+  // Spend Range/Duration Band stay visually mandatory).
+  const [refineOpen, setRefineOpen] = useState(false);
 
   // Phase 14 reopen flow: /benchmark?saved=<id>. Explicit, robust,
   // handles missing/deleted/other-owner cases with a user-facing
@@ -192,8 +230,15 @@ export function BenchmarkExplorer({ taxonomies }: { taxonomies: ContributionTaxo
       // campaign detail page already computed from this owner's own
       // data — never shown/compared until the user submits the search
       // themselves, exactly like every other prefill path here.
+      //
+      // HOME->BENCHMARK CONTINUITY FIX (§5/§10): also mirrors it into
+      // the new pre-submission "Tu resultado (opcional)" field so a
+      // Campaign Detail arrival visibly shows the value already
+      // populated before "Ver benchmark" is even clicked, not only
+      // after a result comes back.
       if (prefillUserValue !== null) {
         setInitialUserValue(prefillUserValue);
+        setDraft((d) => ({ ...d, userValueInput: String(prefillUserValue) }));
       }
       return;
     }
@@ -224,10 +269,20 @@ export function BenchmarkExplorer({ taxonomies }: { taxonomies: ContributionTaxo
         spendBand: saved.spendBand ?? "",
         durationBand: saved.durationBand ?? "",
         timeWindow: saved.timeWindow ?? DEFAULT_DRAFT.timeWindow,
+        // HOME->BENCHMARK CONTINUITY FIX (§5): keeps the new
+        // pre-submission field consistent with a restored comparison's
+        // own already-known result, same reasoning as the Campaign
+        // Detail prefill above.
+        userValueInput: saved.userValue != null ? String(saved.userValue) : "",
       };
       setMode("single");
       setDraft(restoredDraft);
       setInitialUserValue(saved.userValue);
+      // HOME->BENCHMARK CONTINUITY FIX (§6): a reopened comparison's
+      // context is fully known, so it starts on the compact summary
+      // exactly like a complete Home/Campaign arrival — never the full
+      // picker grid flashing before the restored result loads in.
+      setContextEditing(false);
       handleSubmit(undefined, restoredDraft);
     });
 
@@ -251,6 +306,21 @@ export function BenchmarkExplorer({ taxonomies }: { taxonomies: ContributionTaxo
     if (!effectiveCanSubmit) return;
     setLoading(true);
     const activeRelaxed = overrideRelaxed ?? relaxed;
+
+    // HOME->BENCHMARK CONTINUITY FIX (§5/§10): if the user already
+    // typed a value into the new pre-submission "Tu resultado
+    // (opcional)" field, forward it into the SAME initialUserValue
+    // state ComparisonSection already reads (Phase 32's Campaign Detail
+    // mechanism) — so the result appears already compared the moment
+    // the response returns, with zero changes to ComparisonSection/
+    // ComparisonDetail themselves (§12). An empty or non-numeric entry
+    // simply leaves initialUserValue exactly as it already was (e.g. a
+    // Campaign Detail prefillUserValue, or null for a Home-origin query
+    // the user chose to leave without a value).
+    const parsedPreValue = Number(effectiveDraft.userValueInput);
+    if (effectiveDraft.userValueInput.trim() !== "" && Number.isFinite(parsedPreValue)) {
+      setInitialUserValue(parsedPreValue);
+    }
 
     const input: BenchmarkFormInput = {
       metric: effectiveDraft.metric,
@@ -304,6 +374,27 @@ export function BenchmarkExplorer({ taxonomies }: { taxonomies: ContributionTaxo
   const verticalLabel = (key: string) => taxonomies.verticals.find((v) => v.internal_key === key)?.display_label ?? key;
   const countryLabel = (key: string) => taxonomies.countries.find((c) => c.iso_code === key)?.display_label ?? key;
 
+  // HOME->BENCHMARK CONTINUITY FIX (§3/§6): there is something real to
+  // summarize once every required dimension has a value, regardless of
+  // how it got there (Home prefill, Campaign Detail prefill, a
+  // restored saved comparison, or a direct-entry user who simply
+  // finished picking all four themselves). showContextSummary only
+  // additionally requires contextEditing to be false — never derived
+  // reactively beyond that, so filling in the last dropdown never
+  // auto-collapses the form out from under the user.
+  const hasCompleteContext = Boolean(draft.platform && draft.objective && draft.vertical && draft.country);
+  const showContextSummary = hasCompleteContext && !contextEditing;
+
+  // HOME->BENCHMARK CONTINUITY FIX (§8): real, currently-applied
+  // optional filters only — Platform/Objective/Vertical/Country and
+  // Metric are never counted here (they're not part of "Refinar
+  // comparación"), and Time Window is deliberately excluded too since
+  // this form has no visible control for it (see toTimeWindowInput's
+  // own comment in actions.ts) — counting an invisible field would be
+  // confusing, not reassuring.
+  const activeAdvancedCount = [draft.audienceStrategy, draft.funnelStage, draft.businessModel, draft.spendBand, draft.durationBand].filter(Boolean).length;
+  const refineDetailsOpen = isReach || refineOpen;
+
   return (
     <div className="min-h-screen bg-canvas">
       <AppHeader onSearchClick={() => setSearchOpen(true)} />
@@ -346,69 +437,165 @@ export function BenchmarkExplorer({ taxonomies }: { taxonomies: ContributionTaxo
             <>
           <div className={response ? "lg:flex lg:items-start lg:gap-8" : ""}>
           <section className="rounded-2xl border border-line bg-surface p-6 shadow-sm lg:w-[380px] lg:shrink-0">
-            {/* Section 1 — "¿Qué querés comparar?" (Metric + Platform) */}
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-ink-500">{t("benchmarkLive.section1Title")}</p>
-              {/* POST-MVP MOBILE PASS §7: filters flow as one vertical
-                  column below sm instead of squeezing two Select
-                  dropdowns (each with its own label) side by side. */}
-              <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {/* HOME->BENCHMARK CONTINUITY FIX (§3/§6): "Benchmark
+                seleccionado" — a compact, human-readable confirmation of
+                the context this query already has (Platform/Objective/
+                Vertical/Country), instead of re-showing four dropdowns
+                the user already resolved on Home or Campaign Detail.
+                Real display labels only (taxonomies-based label
+                functions above — the same ones the result header
+                already uses), never internal keys. The full pickers
+                (below, in the else-branch) are exactly the original
+                Section 1/2 fields, unchanged, still the only UI shown
+                for a direct /benchmark entry (§11) — this only adds a
+                second, collapsed presentation of the SAME state. */}
+            {showContextSummary ? (
+              <div className="rounded-xl border border-line bg-canvas p-3">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-500">{t("benchmarkLive.contextSummaryTitle")}</p>
+                <p className="mt-1 text-sm font-medium leading-snug text-ink-900">
+                  {[platformLabel(draft.platform), objectiveLabel(draft.objective), verticalLabel(draft.vertical), countryLabel(draft.country)].join(" · ")}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setContextEditing(true)}
+                  aria-expanded={false}
+                  className="mt-2 text-xs font-medium text-primary hover:underline"
+                >
+                  {t("benchmarkLive.changeContextCta")}
+                </button>
+              </div>
+            ) : (
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-ink-500">{t("benchmarkLive.section2Title")}</p>
+                {/* POST-MVP MOBILE PASS §7 (still honored): filters flow
+                    as one vertical column below sm instead of squeezing
+                    dropdowns together — now 2 columns at sm, 4 at lg,
+                    since Platform joins Objective/Vertical/Country here
+                    once Metric no longer shares this section. */}
+                <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                  <Select
+                    label={t("contribute.platform")}
+                    value={draft.platform}
+                    onChange={(v) => update("platform", v)}
+                    allowEmpty
+                    required
+                    options={taxonomies.platforms.map((p) => ({ value: p.internal_key, label: p.display_label }))}
+                  />
+                  <Select
+                    label={t("contribute.objective")}
+                    value={draft.objective}
+                    onChange={(v) => update("objective", v)}
+                    allowEmpty
+                    required
+                    options={taxonomies.objectives.map((o) => ({ value: o.internal_key, label: o.display_label }))}
+                  />
+                  <Select
+                    label={t("contribute.vertical")}
+                    value={draft.vertical}
+                    onChange={(v) => update("vertical", v)}
+                    allowEmpty
+                    required
+                    options={taxonomies.verticals.map((v) => ({ value: v.internal_key, label: v.display_label }))}
+                  />
+                  <Select
+                    label={t("contribute.country")}
+                    value={draft.country}
+                    onChange={(v) => update("country", v)}
+                    allowEmpty
+                    required
+                    options={taxonomies.countries.map((c) => ({ value: c.iso_code, label: c.display_label }))}
+                  />
+                </div>
+                {hasCompleteContext && (
+                  <button
+                    type="button"
+                    onClick={() => setContextEditing(false)}
+                    aria-expanded={true}
+                    className="mt-2 text-xs font-medium text-ink-500 hover:text-primary hover:underline"
+                  >
+                    {t("benchmarkLive.doneEditingContextCta")}
+                  </button>
+                )}
+              </div>
+            )}
+
+            {/* HOME->BENCHMARK CONTINUITY FIX (§4): the primary
+                remaining decision after context is confirmed — kept
+                exactly the same PRIMARY_METRICS list/options as before,
+                only pulled out of the old combined "¿Qué querés
+                comparar?" section so it reads as its own question.
+                Preserves a valid prefillMetric selection unchanged
+                (Phase 32/34 — see the prefill effect above). */}
+            <div className="mt-6 border-t border-line pt-5">
+              <p className="text-xs font-semibold uppercase tracking-wide text-ink-500">{t("benchmarkLive.metricQuestionTitle")}</p>
+              <div className="mt-3">
                 <Select
                   label={t("benchmarkLive.metric")}
                   value={draft.metric}
                   onChange={(v) => update("metric", v)}
                   options={PRIMARY_METRICS.map((m) => ({ value: m, label: m.toUpperCase() }))}
                 />
-                <Select
-                  label={t("contribute.platform")}
-                  value={draft.platform}
-                  onChange={(v) => update("platform", v)}
-                  allowEmpty
-                  required
-                  options={taxonomies.platforms.map((p) => ({ value: p.internal_key, label: p.display_label }))}
-                />
               </div>
             </div>
 
-            {/* Section 2 — "Mercado" (Objective + Vertical + Country) */}
+            {/* HOME->BENCHMARK CONTINUITY FIX (§5/§10): "Tu resultado
+                (opcional)" — makes explicit that consulting the market
+                never requires the user's own campaign, while still
+                letting one be entered up front. Feeds handleSubmit's
+                own initialUserValue forwarding above; ComparisonSection
+                below (post-result) is completely unchanged — same
+                input, same "Comparar" button, same math — the user can
+                still edit/re-enter the value there after seeing the
+                result. Preserves a valid prefillUserValue unchanged,
+                with no change to its existing rounding. */}
             <div className="mt-6 border-t border-line pt-5">
-              <p className="text-xs font-semibold uppercase tracking-wide text-ink-500">{t("benchmarkLive.section2Title")}</p>
-              <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
-                <Select
-                  label={t("contribute.objective")}
-                  value={draft.objective}
-                  onChange={(v) => update("objective", v)}
-                  allowEmpty
-                  required
-                  options={taxonomies.objectives.map((o) => ({ value: o.internal_key, label: o.display_label }))}
+              <label htmlFor="benchmark-pre-your-result" className="block">
+                <span className="text-xs font-semibold uppercase tracking-wide text-ink-500">{t("benchmarkLive.yourResultOptionalTitle")}</span>
+                <input
+                  id="benchmark-pre-your-result"
+                  type="number"
+                  inputMode="decimal"
+                  step="0.01"
+                  value={draft.userValueInput}
+                  onChange={(e) => setDraft((d) => ({ ...d, userValueInput: e.target.value }))}
+                  placeholder={t("benchmarkLive.yourResultExample", { example: METRIC_EXAMPLES[draft.metric] ?? "1.00" })}
+                  aria-describedby="benchmark-pre-your-result-hint"
+                  className="mt-1.5 w-full rounded-xl border border-line bg-canvas px-3 py-2 text-sm text-ink-900 outline-none focus-visible:border-primary sm:w-44"
                 />
-                <Select
-                  label={t("contribute.vertical")}
-                  value={draft.vertical}
-                  onChange={(v) => update("vertical", v)}
-                  allowEmpty
-                  required
-                  options={taxonomies.verticals.map((v) => ({ value: v.internal_key, label: v.display_label }))}
-                />
-                <Select
-                  label={t("contribute.country")}
-                  value={draft.country}
-                  onChange={(v) => update("country", v)}
-                  allowEmpty
-                  required
-                  options={taxonomies.countries.map((c) => ({ value: c.iso_code, label: c.display_label }))}
-                />
-              </div>
+              </label>
+              <p id="benchmark-pre-your-result-hint" className="mt-1 text-[11px] text-ink-500">
+                {t("benchmarkLive.yourResultOptionalHint")}
+              </p>
             </div>
 
-            {/* Section 3 — "Refinar comparación" (collapsible, secondary controls).
-                Native <details> — free keyboard/a11y support, no extra state.
-                Reach's Spend Range/Duration Band stay visually emphasized and
-                marked required exactly as before; nothing about which fields
-                are methodologically required has changed. */}
-            <details className="mt-6 border-t border-line pt-5" open={isReach}>
-              <summary className="cursor-pointer text-xs font-semibold uppercase tracking-wide text-ink-500 hover:text-primary">
+            {/* Section — "Refinar comparación" (collapsible, secondary controls).
+                Native <details> — free keyboard/a11y support. isReach still
+                forces it open exactly as before; Reach's Spend Range/Duration
+                Band stay visually emphasized and marked required exactly as
+                before — nothing about which fields are methodologically
+                required has changed. HOME->BENCHMARK CONTINUITY FIX (§8/§14):
+                onToggle mirrors the element's real state into refineOpen so
+                the summary can expose a real aria-expanded, and a "· N
+                filtros" count appears whenever a prefilled (or manually set)
+                optional filter is active while the panel stays collapsed —
+                those filters were never dropped, only not visually repeated
+                here; they still flow into handleSubmit's query exactly as
+                before. */}
+            <details
+              className="mt-6 border-t border-line pt-5"
+              open={refineDetailsOpen}
+              onToggle={(e) => setRefineOpen((e.target as HTMLDetailsElement).open)}
+            >
+              <summary
+                aria-expanded={refineDetailsOpen}
+                className="cursor-pointer text-xs font-semibold uppercase tracking-wide text-ink-500 hover:text-primary"
+              >
                 {t("benchmarkLive.section3Title")}
+                {activeAdvancedCount > 0 && (
+                  <span className="ml-1 font-normal normal-case tracking-normal text-ink-400">
+                    · {t("benchmarkLive.refineActiveCount", { n: activeAdvancedCount })}
+                  </span>
+                )}
               </summary>
               <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
                 <Select
