@@ -47,9 +47,15 @@ export function WizardBreadcrumb({ steps, currentIndex, onJump }: WizardBreadcru
           );
         })}
       </div>
-      <p className="mt-2 text-center text-[11px] text-ink-400 sm:hidden">
-        {t("wizard.stepOf", { current: currentIndex + 1, total: steps.length })}
-      </p>
+      {/* PHASE 39 (§8): once every required dimension is picked
+          (currentIndex reaches the optional refine/results screen,
+          past the last counted step), stop counting — "Paso 5 de 4"
+          would be nonsensical. All 4 pills already read as done above. */}
+      {currentIndex < steps.length && (
+        <p className="mt-2 text-center text-[11px] text-ink-400 sm:hidden">
+          {t("wizard.stepOf", { current: currentIndex + 1, total: steps.length })}
+        </p>
+      )}
     </div>
   );
 }

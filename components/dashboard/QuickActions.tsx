@@ -1,47 +1,47 @@
 "use client";
 
 import Link from "next/link";
-import { Sparkles, Compass, Layers, Upload, Bookmark, ArrowRight } from "lucide-react";
+import { Compass, Layers, Upload, ArrowRight } from "lucide-react";
 import { useTranslation } from "@/lib/i18n/LanguageContext";
 
-// Phase 20D item 1/2/21: the homepage's product launchpad. Every core
-// workflow (benchmark, planner, media catalog, contribution, and — once
-// signed in — saved comparisons) is reachable straight from home, so the
-// product works even for someone who never opens the sidebar. Deliberately
-// NOT built on EntityCard: these are launch buttons for actions, not a
-// list of entities, so they get their own simpler, bigger, single-accent-
-// color shape rather than the avatar/meta/badge entity shape.
+// Phase 20D item 1/2/21: the homepage's product launchpad for the
+// secondary workflows (planner, media catalog, contribution) — reachable
+// straight from home, so the product works even for someone who never
+// opens the sidebar. Deliberately NOT built on EntityCard: these are
+// launch buttons for actions, not a list of entities, so they get their
+// own simpler, bigger, single-accent-color shape rather than the
+// avatar/meta/badge entity shape.
 // Tailwind's JIT scanner only sees complete class strings in source, so
 // the accent is a lookup key into fully-spelled classes here — never a
 // dynamically-interpolated `bg-${accent}` (which the scanner would miss
 // entirely and silently drop from the generated CSS).
+//
+// PHASE 39 (§3/§6): "Comparar benchmarks" (duplicated the Benchmark
+// Finder above, now Home's one primary CTA) and "Mis comparaciones"
+// (not a strong CTA for a new visitor; returning users already see
+// their saved work surfaced first in Workspace) were removed — down to
+// exactly the 3 secondary tools the phase brief asks for, in the order
+// it lists them: Importar campaña, Explorar medios, Planificar.
 const ACCENT_CLASSES = {
-  brandLavender: { bg: "bg-brandLavender/20", text: "text-brandLavender" },
   brandMint: { bg: "bg-brandMint/20", text: "text-brandMint" },
   coral: { bg: "bg-coral/20", text: "text-coral" },
   brandPeach: { bg: "bg-brandPeach/20", text: "text-brandPeach" },
-  pistachio: { bg: "bg-pistachio/20", text: "text-pistachio" },
 } as const;
 
 type Accent = keyof typeof ACCENT_CLASSES;
 
 interface QuickAction {
   href: string;
-  icon: typeof Sparkles;
+  icon: typeof Compass;
   accent: Accent;
   titleKey: string;
   bodyKey: string;
 }
 
-const PRIMARY_ACTIONS: QuickAction[] = [
-  { href: "/benchmark", icon: Sparkles, accent: "brandLavender", titleKey: "benchmarkTitle", bodyKey: "benchmarkBody" },
-  { href: "/planner", icon: Compass, accent: "brandMint", titleKey: "plannerTitle", bodyKey: "plannerBody" },
-  { href: "/platforms", icon: Layers, accent: "coral", titleKey: "platformsTitle", bodyKey: "platformsBody" },
-  { href: "/contribute", icon: Upload, accent: "brandPeach", titleKey: "contributeTitle", bodyKey: "contributeBody" },
-];
-
 const SECONDARY_ACTIONS: QuickAction[] = [
-  { href: "/comparisons", icon: Bookmark, accent: "pistachio", titleKey: "comparisonsTitle", bodyKey: "comparisonsBody" },
+  { href: "/contribute", icon: Upload, accent: "brandPeach", titleKey: "contributeTitle", bodyKey: "contributeBody" },
+  { href: "/platforms", icon: Layers, accent: "coral", titleKey: "platformsTitle", bodyKey: "platformsBody" },
+  { href: "/planner", icon: Compass, accent: "brandMint", titleKey: "plannerTitle", bodyKey: "plannerBody" },
 ];
 
 function ActionCard({ action }: { action: QuickAction }) {
@@ -70,15 +70,13 @@ export function QuickActions() {
   const { t } = useTranslation();
   return (
     <section className="mx-auto mb-10 max-w-4xl px-4">
-      <h2 className="mb-3 text-center font-display text-base font-semibold text-ink-900">
+      <h2 className="mb-3 text-center font-display text-sm font-semibold text-ink-600">
         {t("quickActions.heading")}
       </h2>
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        {PRIMARY_ACTIONS.map((action) => (
-          <ActionCard key={action.href} action={action} />
-        ))}
-      </div>
-      <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+      {/* PHASE 39 (§6/§22): exactly 3 compact secondary cards, 1 column
+          on mobile — never competing in size or count with the
+          Benchmark Finder above. */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         {SECONDARY_ACTIONS.map((action) => (
           <ActionCard key={action.href} action={action} />
         ))}

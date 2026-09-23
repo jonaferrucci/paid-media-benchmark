@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { ChevronDown, SlidersHorizontal } from "lucide-react";
 import { CohortFilters } from "@/lib/types";
-import { FUNNEL_STAGES, TIME_WINDOWS } from "@/lib/mock/taxonomies";
+import { AUDIENCE_STRATEGIES, FUNNEL_STAGES, TIME_WINDOWS } from "@/lib/mock/taxonomies";
 import { useTranslation } from "@/lib/i18n/LanguageContext";
 
 interface ContextStepProps {
@@ -44,6 +44,16 @@ function Field({
   );
 }
 
+// PHASE 39 (§7/§15): this is now the wizard's final "results" screen —
+// the 4 required dimensions (Platform/Objective/Vertical/Country) are
+// already picked by the time the user lands here, so the primary CTA
+// ("Ver benchmark") is reachable immediately. Audience — previously a
+// forced, separate full-screen step (AudienceStep, removed) — now lives
+// here alongside the other already-optional advanced fields, collapsed
+// by default under "Afinar benchmark" (renamed from "Más opciones"),
+// exactly matching how audienceStrategy is already just one more
+// optional filter on the real /benchmark page (BenchmarkExplorer.tsx).
+// No methodological dimension was removed — only the forced ordering.
 export function ContextStep({ draft, onChange, onSubmit }: ContextStepProps) {
   const { t } = useTranslation();
   const [showAdvanced, setShowAdvanced] = useState(false);
@@ -63,7 +73,9 @@ export function ContextStep({ draft, onChange, onSubmit }: ContextStepProps) {
         />
 
         <button
+          type="button"
           onClick={() => setShowAdvanced((s) => !s)}
+          aria-expanded={showAdvanced}
           className="mt-4 flex items-center gap-1.5 text-xs font-medium text-ink-600 hover:text-primary"
         >
           <SlidersHorizontal size={13} />
@@ -72,6 +84,15 @@ export function ContextStep({ draft, onChange, onSubmit }: ContextStepProps) {
 
         {showAdvanced && (
           <div className="mt-3 grid grid-cols-1 gap-3 border-t border-line pt-3 sm:grid-cols-2">
+            <Field
+              label={t("finder.audience")}
+              value={draft.audienceStrategy ?? ""}
+              options={[
+                { value: "", label: t("finder.any") },
+                ...AUDIENCE_STRATEGIES.map((a) => ({ value: a.id, label: t(`audiences.${a.id}`) })),
+              ]}
+              onChange={(v) => onChange({ audienceStrategy: (v || null) as CohortFilters["audienceStrategy"] })}
+            />
             <Field
               label={t("finder.funnelStage")}
               value={draft.funnelStage ?? ""}
@@ -136,6 +157,7 @@ export function ContextStep({ draft, onChange, onSubmit }: ContextStepProps) {
         )}
 
         <button
+          type="button"
           onClick={onSubmit}
           className="mt-5 w-full rounded-full bg-primary py-3 text-sm font-semibold text-white transition-opacity hover:opacity-90"
         >

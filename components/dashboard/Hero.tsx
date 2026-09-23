@@ -1,5 +1,6 @@
 "use client";
 
+import { Layers, Percent, Eye } from "lucide-react";
 import { useTranslation } from "@/lib/i18n/LanguageContext";
 import { BrandArc, BrandFields } from "@/components/brand/BrandGeometry";
 import { useSupabaseUser } from "@/lib/supabase/useUser";
@@ -10,6 +11,21 @@ import { useSupabaseUser } from "@/lib/supabase/useUser";
 // returning user reaches their workspace (rendered right below, see
 // app/page.tsx) with less scroll. A first-time (signed-out) visitor
 // keeps the exact original hero.
+//
+// PHASE 39 (§4/§16): copy simplified (see translations.ts's hero.*
+// comment) and a compact, 3-point, non-numeric value-proposition row
+// added below the subtitle — purely descriptive of how the product
+// works (comparable cohorts, P25/Median/P75 ranges, visible sample/
+// filters), never a claim, count, or metric that could be mistaken for
+// real benchmark data. Only shown on the full (signed-out/first-visit)
+// hero, same as subtitle — a returning user's compact hero is
+// untouched.
+const VALUE_PROPS = [
+  { icon: Layers, titleKey: "hero.valueProp1Title", descKey: "hero.valueProp1Desc" },
+  { icon: Percent, titleKey: "hero.valueProp2Title", descKey: "hero.valueProp2Desc" },
+  { icon: Eye, titleKey: "hero.valueProp3Title", descKey: "hero.valueProp3Desc" },
+] as const;
+
 export function Hero() {
   const { t } = useTranslation();
   const { user } = useSupabaseUser();
@@ -22,7 +38,19 @@ export function Hero() {
         {t("hero.title")}
       </h1>
       {!compact && <p className="relative mt-3 text-base text-ink-600">{t("hero.subtitle")}</p>}
-      {!compact && <p className="relative mt-1.5 text-xs text-ink-400">{t("hero.supporting")}</p>}
+      {!compact && (
+        <div className="relative mt-6 grid grid-cols-1 gap-2.5 text-left sm:grid-cols-3">
+          {VALUE_PROPS.map(({ icon: Icon, titleKey, descKey }) => (
+            <div key={titleKey} className="flex items-start gap-2 rounded-xl border border-line/60 bg-surface/60 p-3">
+              <Icon size={15} className="mt-0.5 shrink-0 text-primary" aria-hidden="true" />
+              <div className="min-w-0">
+                <p className="text-xs font-semibold text-ink-900">{t(titleKey)}</p>
+                <p className="text-[11px] text-ink-500">{t(descKey)}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

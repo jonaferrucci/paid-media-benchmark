@@ -145,16 +145,31 @@ assertTrue(
 );
 
 // -----------------------------------------------------------------------
-// §6 QuickActions: exactly the four core actions + saved comparisons,
-// no decorative dashboard, no resurrected Phase 29 module.
-// -----------------------------------------------------------------------
+// §6 QuickActions: real destinations only, no decorative dashboard, no
+// resurrected Phase 29 module.
+//
+// PHASE 39 (§3/§6) UPDATE: this assertion originally required all five
+// of benchmark/planner/platforms/contribute/comparisons as QuickActions
+// links. Phase 39 intentionally removed two of them from this
+// component — "/benchmark" now duplicated the new Benchmark Finder
+// (app/page.tsx's own protagonist CTA, built from the exact same
+// DiscoveryWizard this file already checks elsewhere), and
+// "/comparisons" was never a strong CTA for a new visitor (a returning
+// user's saved comparisons already surface first in Workspace's own
+// "Continuar trabajando" section, checked in test-phase26-workspace.mts
+// and test-phase35-campaign-workspace-ux.mts). That's a real, intended
+// product decision — not a regression — so only this assertion was
+// updated, to verify the real current set (still real destinations,
+// still no dead links) instead of the superseded five-link literal.
 assertTrue(
-  quickActionsSource.includes('href: "/benchmark"') &&
   quickActionsSource.includes('href: "/planner"') &&
   quickActionsSource.includes('href: "/platforms"') &&
-  quickActionsSource.includes('href: "/contribute"') &&
-  quickActionsSource.includes('href: "/comparisons"'),
-  "QuickActions still links to exactly the five real destinations: benchmark/planner/platforms/contribute/comparisons"
+  quickActionsSource.includes('href: "/contribute"'),
+  "QuickActions links to its 3 current real secondary destinations: planner/platforms/contribute"
+);
+assertTrue(
+  !quickActionsSource.includes('href: "/benchmark"') && !quickActionsSource.includes('href: "/comparisons"'),
+  "QuickActions no longer duplicates /benchmark (now the Home Finder's own CTA) or /comparisons (surfaced instead via Workspace's continue-working section)"
 );
 assertTrue(
   !/GlobalInsights|MiniTrend|FeaturedModules|ExploreMarket/.test(quickActionsSource),

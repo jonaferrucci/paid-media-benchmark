@@ -1257,42 +1257,59 @@ const es = {
       "La {metric} se encuentra dentro del rango habitual para campañas similares. No debe evaluarse como \"mejor\" o \"peor\" de forma aislada.",
   },
   hero: {
-    title: "Encontrá el benchmark que necesitás",
-    subtitle: "Elegí plataforma, objetivo, vertical, mercado y audiencia para comparar resultados con campañas similares.",
-    supporting: "Datos para entender el mercado y planificar mejor.",
+    // PHASE 39 (§4/§5/§16): copy simplified to one clear sentence about
+    // what Cucurucho does, plus one supporting line naming the real
+    // filter dimensions — no invented sample sizes, no fixed benchmark
+    // numbers, no "agencia"/"market intelligence" language. The old
+    // second, vaguer supporting line ("Datos para entender el mercado y
+    // planificar mejor.") is replaced by three short, concrete,
+    // non-numeric value points below (valueProp1-3) — still no claims
+    // that could be mistaken for real benchmark data.
+    title: "Compará tus resultados con campañas similares",
+    subtitle: "Consultá benchmarks de medios digitales por plataforma, objetivo, vertical y país.",
+    valueProp1Title: "Datos comparables",
+    valueProp1Desc: "Campañas con contexto similar.",
+    valueProp2Title: "Rangos de mercado",
+    valueProp2Desc: "P25 · Mediana · P75.",
+    valueProp3Title: "Contexto visible",
+    valueProp3Desc: "Muestra y filtros siempre claros.",
   },
   quickActions: {
-    heading: "¿Qué querés hacer?",
+    // PHASE 39 (§3/§6): "Comparar benchmarks" and "Mis comparaciones"
+    // are removed from this grid — the Benchmark Finder above is now
+    // the Home's one primary CTA, and duplicating it here as a card
+    // read as two competing entry points to the same action. "Mis
+    // comparaciones" isn't a strong CTA for a new visitor either;
+    // returning users with saved work already see it surfaced first in
+    // Workspace's own "Continuar trabajando" section. Heading renamed
+    // to read as clearly secondary to the Finder above it.
+    heading: "Más herramientas",
     openCta: "Abrir",
-    benchmarkTitle: "Comparar benchmarks",
-    benchmarkBody: "Comparás tu campaña contra datos de mercado.",
     plannerTitle: "Planificar medios",
     plannerBody: "Compará oportunidades de medios y armá un escenario de presupuesto.",
     platformsTitle: "Explorar medios",
     platformsBody: "Descubrí plataformas y medios digitales con su info comercial.",
     contributeTitle: "Aportar datos",
     contributeBody: "Subí resultados de campaña, métricas públicas o tarifarios.",
-    comparisonsTitle: "Mis comparaciones",
-    comparisonsBody: "Volvé a tus comparaciones y planes guardados.",
   },
   wizard: {
     stepPlatform: "Plataforma",
     stepObjective: "Objetivo",
     stepVertical: "Vertical",
     stepCountry: "País",
-    stepAudience: "Audiencia",
-    stepContext: "Contexto",
     stepOf: "Paso {current} de {total}",
     questionPlatform: "¿Dónde vas a pautar?",
     questionObjective: "¿Qué querés lograr?",
     questionVertical: "¿En qué vertical?",
     questionCountry: "¿En qué mercado?",
-    questionAudience: "¿Qué tipo de audiencia querés analizar?",
     questionContext: "Últimos detalles",
     searchCategory: "Buscar categoría…",
     viewAllCategories: "Ver todas las categorías",
     viewAllCountries: "Ver todos los países",
-    moreOptions: "Más opciones",
+    // PHASE 39 (§7/§15): "Afinar benchmark" replaces the generic "Más
+    // opciones" — this toggle now also reveals Audiencia (moved out of
+    // its own forced step), not just Funnel/Edad/Inversión/Duración.
+    moreOptions: "Afinar benchmark",
     viewBenchmark: "Ver benchmark",
     editSearch: "Editar búsqueda",
     back: "Atrás",
@@ -1316,14 +1333,13 @@ const es = {
     leads: "Leads",
     sales: "Ventas",
   },
-  audienceDesc: {
-    broad: "Sin segmentación de intereses específica",
-    interest_based: "Segmentada por intereses declarados",
-    lookalike: "Similar a tus mejores clientes",
-    remarketing: "Usuarios que ya interactuaron con tu marca",
-    customer_list: "Basada en tu propia base de datos",
-    automated_algorithmic: "Optimización automática de la plataforma",
-  },
+  // PHASE 39 (§32): audienceDesc (the longer per-option descriptions
+  // AudienceStep.tsx used to show under each card) is removed — that
+  // component is gone (§7: Audience folded into ContextStep's "Afinar
+  // benchmark" as a plain select, consistent with every other advanced
+  // field there). The short audiences.* labels are still very much
+  // alive (SearchOverlay, BenchmarkExplorer, CampaignExplorer, this
+  // same select) — only the long-form description text is retired.
   modeTabs: {
     findBenchmark: "Encontrá tu benchmark",
     exploreMarket: "Explorar mercado",
@@ -2450,42 +2466,40 @@ const en: typeof es = {
       "{metric} falls within the typical range for similar campaigns. It should not be judged as \"better\" or \"worse\" in isolation.",
   },
   hero: {
-    title: "Find the benchmark you need",
-    subtitle: "Choose platform, objective, vertical, market and audience to compare results with similar campaigns.",
-    supporting: "Data to understand the market and plan better.",
+    title: "Compare your results against similar campaigns",
+    subtitle: "Check digital media benchmarks by platform, objective, vertical and country.",
+    valueProp1Title: "Comparable data",
+    valueProp1Desc: "Campaigns with similar context.",
+    valueProp2Title: "Market ranges",
+    valueProp2Desc: "P25 · Median · P75.",
+    valueProp3Title: "Visible context",
+    valueProp3Desc: "Sample size and filters always shown.",
   },
   quickActions: {
-    heading: "What do you want to do?",
+    heading: "More tools",
     openCta: "Open",
-    benchmarkTitle: "Compare benchmarks",
-    benchmarkBody: "Compare your campaign against market data.",
     plannerTitle: "Plan media",
     plannerBody: "Compare media opportunities and build a budget scenario.",
     platformsTitle: "Explore media",
     platformsBody: "Discover digital platforms and media with their commercial info.",
     contributeTitle: "Contribute data",
     contributeBody: "Upload campaign results, public metrics or rate cards.",
-    comparisonsTitle: "My comparisons",
-    comparisonsBody: "Get back to your saved comparisons and plans.",
   },
   wizard: {
     stepPlatform: "Platform",
     stepObjective: "Objective",
     stepVertical: "Vertical",
     stepCountry: "Country",
-    stepAudience: "Audience",
-    stepContext: "Context",
     stepOf: "Step {current} of {total}",
     questionPlatform: "Where are you advertising?",
     questionObjective: "What do you want to achieve?",
     questionVertical: "Which vertical?",
     questionCountry: "Which market?",
-    questionAudience: "What type of audience do you want to analyze?",
     questionContext: "Last details",
     searchCategory: "Search category…",
     viewAllCategories: "View all categories",
     viewAllCountries: "View all countries",
-    moreOptions: "More options",
+    moreOptions: "Refine benchmark",
     viewBenchmark: "View benchmark",
     editSearch: "Edit search",
     back: "Back",
@@ -2508,14 +2522,6 @@ const en: typeof es = {
     engagement: "Engagement",
     leads: "Leads",
     sales: "Sales",
-  },
-  audienceDesc: {
-    broad: "No specific interest targeting",
-    interest_based: "Segmented by declared interests",
-    lookalike: "Similar to your best customers",
-    remarketing: "Users who already engaged with your brand",
-    customer_list: "Based on your own customer database",
-    automated_algorithmic: "Automatic platform optimization",
   },
   modeTabs: {
     findBenchmark: "Find your benchmark",

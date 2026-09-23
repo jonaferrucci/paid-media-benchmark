@@ -9,6 +9,7 @@ import { QuickActions } from "@/components/dashboard/QuickActions";
 import { Workspace } from "@/components/dashboard/Workspace";
 import { DiscoveryWizard } from "@/components/dashboard/wizard/DiscoveryWizard";
 import { CohortFilters } from "@/lib/types";
+import { useTranslation } from "@/lib/i18n/LanguageContext";
 
 // PHASE 29 — REMOVE PROTOTYPE DATA FROM PRODUCTION.
 //
@@ -23,26 +24,27 @@ import { CohortFilters } from "@/lib/types";
 // weight as if it were real. That entire fabricated surface is removed
 // here rather than "fixed": the real, engine-backed, sample-size-safe
 // equivalent already exists at /benchmark (lib/benchmark/engine.ts,
-// unchanged by this phase), and the discovery-only components already
-// on this page (Workspace = real signed-in data, QuickActions = plain
-// navigation, no numbers) were already correct. This page's job now IS
-// what the product brief calls for: a discovery layer that routes into
-// the real tools — Comparar benchmarks (DiscoveryWizard → /benchmark),
-// Planificar medios, Explorar medios, Aportar datos (QuickActions), and
-// Mis comparaciones / Workspace (real, when signed in) — never a
-// second, fabricated copy of any of them.
+// unchanged by this phase). This page's job is a discovery layer that
+// routes into the real tools — never a second, fabricated copy of any
+// of them.
 //
-// DiscoveryWizard itself is kept exactly as it was: it only ever
-// collects filter selections from the real, protected taxonomy option
-// lists (lib/mock/taxonomies — a static reference catalog of
-// selectable platforms/verticals/countries/etc., not a source of
-// fabricated benchmark NUMBERS, so out of this phase's scope) and never
-// computed or displayed a benchmark result itself. Only what happened
-// on completion changes: instead of rendering a fake local result, it
-// now hands the collected filters to the real /benchmark page via the
-// same prefillPlatform/prefillObjective/prefillVertical/prefillCountry
-// query params app/contribute/ContributeLanding.tsx's "compare this
-// campaign" link already uses — no new prefill mechanism invented.
+// PHASE 39 (§3/§14): reordered to Hero → Benchmark Finder (the one
+// primary CTA) → Workspace (contextual: onboarding/status/continue-work
+// for a signed-in user, nothing for signed-out) → secondary tools
+// (Importar/Explorar/Planificar). Previously Workspace and QuickActions
+// both sat ABOVE the Finder, competing with it; the Finder is now the
+// visual protagonist directly under the Hero, exactly as it already was
+// on /benchmark's own real form.
+//
+// DiscoveryWizard itself only ever collects filter selections from the
+// real, protected taxonomy option lists (lib/mock/taxonomies — a static
+// reference catalog of selectable platforms/verticals/countries/etc.,
+// not a source of fabricated benchmark NUMBERS) and never computes or
+// displays a benchmark result itself. On completion it hands the
+// collected filters to the real /benchmark page via the same
+// prefillPlatform/prefillObjective/prefillVertical/prefillCountry query
+// params app/contribute/ContributeLanding.tsx's "compare this campaign"
+// link already uses — no new prefill mechanism invented, no auto-submit.
 //
 // PHASE 30 fix: SearchOverlay's "Broad"/"Remarketing" audience-strategy
 // suggestions (components/dashboard/SearchOverlay.tsx) call onApply
@@ -55,6 +57,20 @@ import { CohortFilters } from "@/lib/types";
 // Fixed by extending the SAME existing prefill mechanism with one more
 // param, prefillAudienceStrategy, read by BenchmarkExplorer.tsx right
 // alongside the other four — not a second/parallel prefill mechanism.
+//
+// PHASE 39 (§10/§11): the wizard's "Afinar benchmark" panel now also
+// collects funnelStage/spendBand/durationBand (see ContextStep.tsx) —
+// this function was silently dropping all three (the exact same class
+// of bug Phase 30 fixed for audienceStrategy) since it only ever read
+// the original four fields. Fixed the same way: three more params,
+// prefillFunnelStage/prefillSpendBand/prefillDurationBand, which
+// BenchmarkExplorer.tsx already reads (added for the campaign-detail
+// "Comparar con benchmark" activation in Phase 32) — still one prefill
+// mechanism, no second one. Age and Time Window have no prefill target
+// on /benchmark today (BenchmarkExplorer.tsx has no
+// prefillMinAge/MaxAge/TimeWindow param); adding one is out of this
+// phase's file scope (would touch app/benchmark/BenchmarkExplorer.tsx)
+// and is reported as a deferred issue rather than silently left broken.
 function cohortFiltersToPrefillQuery(filters: Partial<CohortFilters>): string {
   const params = new URLSearchParams();
   if (filters.platform) params.set("prefillPlatform", filters.platform);
@@ -62,11 +78,15 @@ function cohortFiltersToPrefillQuery(filters: Partial<CohortFilters>): string {
   if (filters.verticalId) params.set("prefillVertical", filters.verticalId);
   if (filters.country) params.set("prefillCountry", filters.country);
   if (filters.audienceStrategy) params.set("prefillAudienceStrategy", filters.audienceStrategy);
+  if (filters.funnelStage) params.set("prefillFunnelStage", filters.funnelStage);
+  if (filters.spendBand) params.set("prefillSpendBand", filters.spendBand);
+  if (filters.durationBand) params.set("prefillDurationBand", filters.durationBand);
   return params.toString();
 }
 
 export default function OverviewPage() {
   const router = useRouter();
+  const { t } = useTranslation();
   const [searchOpen, setSearchOpen] = useState(false);
 
   function goToBenchmark(filters: Partial<CohortFilters>) {
@@ -87,18 +107,32 @@ export default function OverviewPage() {
       <div>
         <Hero />
 
+        {/* PHASE 39 (§3/§14): the Benchmark Finder is Home's one
+            protagonist action — a distinct card, directly under the
+            Hero, its own heading reusing finder.title ("Encontrá tu
+            benchmark") so it visually outweighs every other block on
+            the page (Workspace's own headings and QuickActions'
+            "Más herramientas" are both plain, unboxed text). */}
+        <section className="mx-auto mb-10 max-w-4xl px-4">
+          <div className="rounded-3xl border border-line bg-surface/60 pb-2 pt-6 shadow-sm sm:pt-8">
+            <h2 className="px-4 text-center font-display text-xl font-semibold text-ink-900 sm:text-2xl">
+              {t("finder.title")}
+            </h2>
+            <DiscoveryWizard onComplete={goToBenchmark} />
+          </div>
+        </section>
+
         {/* PHASE 26 (§1/§2): the signed-in workspace hub — renders
             nothing for a signed-out visitor or while loading, so the
-            marketing/discovery experience below is unaffected. Real
-            data only (lib/contribute/workspaceActions.ts), untouched
-            by this phase. */}
+            discovery experience above/below is unaffected. Real data
+            only (lib/contribute/workspaceActions.ts), untouched by this
+            phase beyond the internal section reorder (see
+            Workspace.tsx). Placed right after the Finder (§12/§14: "para
+            usuario nuevo autenticado, onboarding puede ubicarse cerca
+            del Finder"). */}
         <Workspace />
 
         <QuickActions />
-
-        <div className="space-y-10 pb-16">
-          <DiscoveryWizard onComplete={goToBenchmark} />
-        </div>
       </div>
     </div>
   );

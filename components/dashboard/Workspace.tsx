@@ -96,51 +96,11 @@ export function Workspace() {
 
   return (
     <section className="mx-auto mb-8 max-w-4xl space-y-6 px-4">
-      {/* PHASE 35 (§2/§3): "what needs my attention" — real counts only,
-          answering "which campaigns do I have / are in review / are
-          approved / do I have saved work on" BEFORE anything else on
-          this page. Pending/valid counts double as the section's two
-          contextual actions (§3's "revisar campaña aprobada" / "ver
-          campañas en revisión") — comparisons/plans stay plain counts
-          here since "continuar comparación/plan" is already the very
-          next section below, never duplicated as a second action. */}
-      {hasStatusCounts && (
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-ink-500">{t("workspace.statusTitle")}</p>
-          <div className="mt-2 flex flex-wrap gap-2">
-            {statusCounts.pending > 0 && (
-              <Link
-                href="/account/contributions"
-                className="rounded-full border border-line bg-surface px-3 py-1.5 text-xs font-medium text-ink-700 hover:border-primary/40"
-              >
-                {t("workspace.statusPendingCount", { n: statusCounts.pending })}
-              </Link>
-            )}
-            {statusCounts.valid > 0 && (
-              <Link
-                href={summary.mostRecentValidId ? `/account/contributions/${summary.mostRecentValidId}` : "/account/contributions"}
-                className="rounded-full border border-line bg-surface px-3 py-1.5 text-xs font-medium text-ink-700 hover:border-primary/40"
-              >
-                {t("workspace.statusValidCount", { n: statusCounts.valid })}
-              </Link>
-            )}
-            {statusCounts.comparisons > 0 && (
-              <span className="rounded-full border border-line bg-surface2/60 px-3 py-1.5 text-xs font-medium text-ink-600">
-                {t("workspace.statusComparisonsCount", { n: statusCounts.comparisons })}
-              </span>
-            )}
-            {statusCounts.plans > 0 && (
-              <span className="rounded-full border border-line bg-surface2/60 px-3 py-1.5 text-xs font-medium text-ink-600">
-                {t("workspace.statusPlansCount", { n: statusCounts.plans })}
-              </span>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* §7/§14: "Continue working" — the exact same saved comparisons/
-          saved planning scenarios RecentWork used to render, never a
-          new persistence mechanism. */}
+      {/* PHASE 39 (§13): "Continuar trabajando" now comes FIRST — the
+          spec's priority order is continue comparison/plan, THEN
+          pending/approved status counts, with coverage/gaps staying at
+          the bottom (unchanged). Same content as before, just reordered
+          — no new persistence mechanism, no logic changed. */}
       {hasContinueItems && (
         <div>
           <p className="text-xs font-semibold uppercase tracking-wide text-ink-500">{t("comparisons.recentWorkTitle")}</p>
@@ -171,6 +131,44 @@ export function Workspace() {
                 </div>
               </Link>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* PHASE 35 (§2/§3): "what needs my attention" — real counts only,
+          answering "which campaigns do I have / are in review / are
+          approved" — never duplicated as a second action beyond the
+          pending/valid links themselves. */}
+      {hasStatusCounts && (
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-ink-500">{t("workspace.statusTitle")}</p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {statusCounts.pending > 0 && (
+              <Link
+                href="/account/contributions"
+                className="rounded-full border border-line bg-surface px-3 py-1.5 text-xs font-medium text-ink-700 hover:border-primary/40"
+              >
+                {t("workspace.statusPendingCount", { n: statusCounts.pending })}
+              </Link>
+            )}
+            {statusCounts.valid > 0 && (
+              <Link
+                href={summary.mostRecentValidId ? `/account/contributions/${summary.mostRecentValidId}` : "/account/contributions"}
+                className="rounded-full border border-line bg-surface px-3 py-1.5 text-xs font-medium text-ink-700 hover:border-primary/40"
+              >
+                {t("workspace.statusValidCount", { n: statusCounts.valid })}
+              </Link>
+            )}
+            {statusCounts.comparisons > 0 && (
+              <span className="rounded-full border border-line bg-surface2/60 px-3 py-1.5 text-xs font-medium text-ink-600">
+                {t("workspace.statusComparisonsCount", { n: statusCounts.comparisons })}
+              </span>
+            )}
+            {statusCounts.plans > 0 && (
+              <span className="rounded-full border border-line bg-surface2/60 px-3 py-1.5 text-xs font-medium text-ink-600">
+                {t("workspace.statusPlansCount", { n: statusCounts.plans })}
+              </span>
+            )}
           </div>
         </div>
       )}
