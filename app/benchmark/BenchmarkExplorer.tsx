@@ -14,6 +14,7 @@ import type { RelaxableDimension } from "@/lib/benchmark/cohortRules";
 import { formatMetricValue } from "@/lib/comparison/classify";
 import { ComparisonDetail } from "./ComparisonDetail";
 import { CampaignExplorer } from "./CampaignExplorer";
+import { HistoricalBenchmarkSection } from "./HistoricalBenchmarkSection";
 import { SaveComparisonButton } from "@/app/comparisons/SaveComparisonButton";
 import { getSavedComparisonAction, type SavedComparison } from "@/app/comparisons/actions";
 import { resolveNoDataAction } from "@/lib/intelligence/benchmarkIntelligence";
@@ -111,6 +112,12 @@ export function BenchmarkExplorer({ taxonomies }: { taxonomies: ContributionTaxo
   const [searchOpen, setSearchOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [response, setResponse] = useState<BenchmarkResponse | null>(null);
+  // HISTORICAL BENCHMARKS ARCHITECTURE: the exact BenchmarkFormInput
+  // actually submitted for the current `response` — never the live
+  // `draft` (which the user could keep editing after a result loads,
+  // before resubmitting). Historical Benchmarks always queries the SAME
+  // cohort the visible result already reflects.
+  const [lastSubmittedInput, setLastSubmittedInput] = useState<BenchmarkFormInput | null>(null);
   const [relaxed, setRelaxed] = useState<RelaxableDimension[]>([]);
   const [initialUserValue, setInitialUserValue] = useState<number | null>(null);
   const [campaignInit, setCampaignInit] = useState<SavedComparison | null>(null);
@@ -336,6 +343,7 @@ export function BenchmarkExplorer({ taxonomies }: { taxonomies: ContributionTaxo
       timeWindow: effectiveDraft.timeWindow,
       relaxedDimensions: activeRelaxed,
     };
+    setLastSubmittedInput(input);
 
     try {
       const result = await runBenchmarkQuery(input);
@@ -676,6 +684,7 @@ export function BenchmarkExplorer({ taxonomies }: { taxonomies: ContributionTaxo
                 draft={draft}
                 initialUserValue={initialUserValue}
                 taxonomies={taxonomies}
+                historicalInput={lastSubmittedInput}
               />
 
               {process.env.NODE_ENV !== "production" && (
@@ -711,6 +720,7 @@ export function ResultView({
   draft,
   initialUserValue,
   taxonomies,
+  historicalInput,
 }: {
   response: BenchmarkResponse;
   t: (key: string, vars?: Record<string, string | number>) => string;
@@ -723,6 +733,7 @@ export function ResultView({
   draft?: Draft;
   initialUserValue?: number | null;
   taxonomies?: ContributionTaxonomies;
+  historicalInput?: BenchmarkFormInput | null;
 }) {
   if (response.status === "error") {
     // PHASE 33 (§11): explains what happened AND gives the user
@@ -870,6 +881,18 @@ export function ResultView({
           never a new computation, just consolidated so cohort
           information isn't scattered across the card. */}
       {taxonomies && <CohortContextSection response={response} taxonomies={taxonomies} t={t} />}
+
+      {/* HISTORICAL BENCHMARKS ARCHITECTURE: collapsed by default,
+          lazily queried only when opened (§11) — placed right after the
+          aggregate result's own context, before "Tu resultado", exactly
+          per this feature's target conceptual order ("Resultado actual"
+          then "Histórico"). Only offered once the CURRENT query already
+          has a real result (p25/median/p75 all present) and we know
+          exactly which cohort to query historically — never shown
+          alongside methodology_block/no_data/insufficient_sample. */}
+      {historicalInput && p25 !== null && p75 !== null && median !== null && (
+        <HistoricalBenchmarkSection input={historicalInput} />
+      )}
 
       {p25 !== null && p75 !== null && median !== null && (
         <ComparisonSection

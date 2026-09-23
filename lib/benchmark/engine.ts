@@ -4,6 +4,8 @@ import { computeDistribution, flagOutliers } from "./stats";
 import { classifyDurationBand, classifySpendBand, normalizedMonthlySpend } from "./spendBands";
 import { resolveTimeWindow } from "./timeWindow";
 import { DEFAULT_MINIMUM_SAMPLE_SIZE, RELAXATION_ORDER, type CohortDimensions, type RelaxableDimension } from "./cohortRules";
+import { deriveBenchmarkStatus, type CohortQueryStatus } from "./resultStatus";
+import type { HistoricalPeriodBounds } from "./historicalPeriods";
 import type {
   BenchmarkQuery,
   BenchmarkResult,
@@ -242,17 +244,57 @@ function buildCohortDescriptor(query: BenchmarkQuery, relaxed: Set<RelaxableDime
   };
 }
 
-export async function getMetricBenchmark(query: BenchmarkQuery, metricKey: string): Promise<BenchmarkResult> {
+interface MetricRowMeta {
+  unit_type: string;
+  benchmark_direction: "lower_is_better" | "higher_is_better" | "contextual";
+}
+
+async function getMetricRowMeta(metricKey: string): Promise<MetricRowMeta | null> {
+  const { data } = await createAdminClient()
+    .from("metrics")
+    .select("unit_type, benchmark_direction")
+    .eq("internal_key", metricKey)
+    .maybeSingle();
+  return data ?? null;
+}
+
+// HISTORICAL BENCHMARKS ARCHITECTURE: extracted from getMetricBenchmark
+// below with ZERO behavior change (verified by the existing regression
+// suite, including the canonical CPM median=3.85/sampleSize=15 check) so
+// the new getHistoricalBenchmark can run this exact same cohort-
+// selection/percentile logic once per period WITHOUT re-fetching
+// minimumSampleSize or the metric's own unit_type/benchmark_direction on
+// every iteration — those never change across periods for the same
+// query+metric, so the caller resolves them once and passes them in.
+// getMetricBenchmark itself still resolves them internally, so its own
+// signature and behavior are completely unchanged for every existing
+// caller.
+async function computeMetricBenchmarkCore(
+  query: BenchmarkQuery,
+  metricKey: string,
+  minimumSampleSize: number,
+  // undefined = not yet resolved; fetched lazily below ONLY if the
+  // success branch is actually reached — preserves getMetricBenchmark's
+  // exact original query count (a Reach-block/no-data/insufficient
+  // result never touched the metrics table before this extraction, and
+  // still doesn't). getHistoricalBenchmark passes an already-resolved
+  // value (or null) instead, since it needs the same metric's meta
+  // across every period and resolving it once up front is cheaper than
+  // up to N lazy fetches inside the loop.
+  metricMeta?: MetricRowMeta | null
+): Promise<BenchmarkResult> {
   const relaxed = new Set(query.relaxedDimensions ?? []);
   const window = resolveTimeWindow(query.timeWindow);
-  const minimumSampleSize = await getMinimumSampleSize();
 
   // Reach requires Spend Range + Duration Band for any DIRECT benchmark.
   // If either is missing OR has been explicitly relaxed away (Phase 4.1
   // item 5), the engine refuses outright rather than silently falling
   // back to a broader, methodologically-invalid comparison. This is a
   // hard stop, not a sample-size question — even with 1,000 eligible
-  // datasets, Reach without scale context is not comparable.
+  // datasets, Reach without scale context is not comparable. Applied
+  // per-period here exactly like the live single query (§8 of the
+  // Historical Benchmarks spec: "Reach debe conservar sus requisitos
+  // metodológicos especiales").
   const reachScaleContextRelaxed = relaxed.has("spend_range") || relaxed.has("duration_band");
   if (metricKey === "reach" && (!query.spendBand || !query.durationBand || reachScaleContextRelaxed)) {
     return emptyResult(metricKey, query, relaxed, window, 0);
@@ -286,18 +328,14 @@ export async function getMetricBenchmark(query: BenchmarkQuery, metricKey: strin
 
   const stats = computeDistribution(chosen.values);
   const outliers = flagOutliers(chosen.values);
-  const { data: metricRow } = await createAdminClient()
-    .from("metrics")
-    .select("unit_type, benchmark_direction")
-    .eq("internal_key", metricKey)
-    .maybeSingle();
+  const resolvedMeta = metricMeta !== undefined ? metricMeta : await getMetricRowMeta(metricKey);
 
   return {
     metric: metricKey,
     statistic: "median",
     value: stats.median,
-    unit: metricRow?.unit_type ?? "count",
-    benchmarkDirection: metricRow?.benchmark_direction ?? "contextual",
+    unit: resolvedMeta?.unit_type ?? "count",
+    benchmarkDirection: resolvedMeta?.benchmark_direction ?? "contextual",
     p25: stats.p25,
     p75: stats.p75,
     mean: stats.mean,
@@ -310,6 +348,14 @@ export async function getMetricBenchmark(query: BenchmarkQuery, metricKey: strin
     outlierFlaggedCount: outliers.flaggedCount,
     freshness: { start: window.startDate, end: window.endDate, generatedAt: new Date().toISOString() },
   };
+}
+
+export async function getMetricBenchmark(query: BenchmarkQuery, metricKey: string): Promise<BenchmarkResult> {
+  const minimumSampleSize = await getMinimumSampleSize();
+  // metricMeta omitted -> resolved lazily inside computeMetricBenchmarkCore
+  // ONLY if the success branch is reached, exactly matching this
+  // function's behavior/query count from before the extraction above.
+  return computeMetricBenchmarkCore(query, metricKey, minimumSampleSize);
 }
 
 function emptyResult(
@@ -498,4 +544,137 @@ export async function getHistoricalTrend(query: BenchmarkQuery, metricKey: strin
   }
 
   return points;
+}
+
+// -----------------------------------------------------------------------
+// HISTORICAL BENCHMARKS ARCHITECTURE.
+//
+// getHistoricalTrend above predates this and is unused anywhere in the
+// app (dead code, left untouched per "no cambiar lógica existente sin
+// necesidad") — it only ever resolves a median per calendar month and
+// only ever varies audienceStrategy alongside the four required
+// dimensions, missing funnelStage/businessModel/spendBand/durationBand/
+// Reach's methodology block entirely, and returns no P25/P75/cohort
+// sample size. getHistoricalBenchmark below is its real, complete
+// successor: it reuses the SAME cohort-selection/percentile/minimum-
+// sample logic as the live single query (computeMetricBenchmarkCore,
+// shared with getMetricBenchmark above) for every real cohort dimension
+// BenchmarkQuery supports, and the SAME status precedence
+// (deriveBenchmarkStatus, shared with app/benchmark/actions.ts) — so a
+// historical period and the live "current" result can never silently
+// disagree about what counts as comparable or sufficient.
+//
+// Each period is just a `{kind: "custom", startDate, endDate}` override
+// of the SAME query's timeWindow — "custom" was already a fully
+// implemented, real TimeWindowInput case (lib/benchmark/timeWindow.ts)
+// that no UI path had ever exercised. No new query-building capability,
+// no new cohort-matching rule, no new percentile math.
+// -----------------------------------------------------------------------
+
+export interface HistoricalPeriodResult {
+  periodKey: string;
+  periodStart: string;
+  periodEnd: string;
+  // "error" is deliberately distinct from "no_data" — a query that ran
+  // and genuinely found nothing is a different, honest fact from a
+  // query that failed to run at all. Conflating the two would hide a
+  // real technical failure behind a legitimate-looking result, which
+  // the project's own data-visualization guidance explicitly rules out
+  // ("Do not hide methodological limitations to make the interface look
+  // complete").
+  status: CohortQueryStatus | "error";
+  metricSampleSize: number;
+  cohortSampleSize: number;
+  p25: number | null;
+  median: number | null;
+  p75: number | null;
+}
+
+export interface HistoricalBenchmarkResult {
+  metric: string;
+  unit: string;
+  benchmarkDirection: "lower_is_better" | "higher_is_better" | "contextual";
+  periods: HistoricalPeriodResult[];
+}
+
+/**
+ * Runs the SAME cohort query once per given period boundary, reusing
+ * every real filter the query already carries (platform/objective/
+ * vertical/country/audienceStrategy/funnelStage/businessModel/spendBand/
+ * durationBand/relaxedDimensions) — only `timeWindow` changes per
+ * iteration. minimumSampleSize and the metric's own unit/direction are
+ * each resolved exactly ONCE up front (not once per period) — see
+ * computeMetricBenchmarkCore's own comment for why, and for the one
+ * documented trade-off this introduces (an extra, otherwise-avoidable
+ * metrics-table lookup when every single period turns out reach-blocked
+ * or empty).
+ *
+ * Never applies cohort relaxation per period — a suggested relaxation is
+ * a live single-query concept (suggestCohortRelaxation above); silently
+ * broadening one period's cohort but not another's would make periods
+ * incomparable, which is exactly what this feature must never do (§8).
+ */
+export async function getHistoricalBenchmark(
+  query: BenchmarkQuery,
+  metricKey: string,
+  periods: HistoricalPeriodBounds[]
+): Promise<HistoricalBenchmarkResult> {
+  const minimumSampleSize = await getMinimumSampleSize();
+  const metricMeta = await getMetricRowMeta(metricKey);
+
+  const results: HistoricalPeriodResult[] = [];
+  for (const period of periods) {
+    const periodQuery: BenchmarkQuery = {
+      ...query,
+      timeWindow: { kind: "custom", startDate: period.start, endDate: period.end },
+    };
+
+    try {
+      const result = await computeMetricBenchmarkCore(periodQuery, metricKey, minimumSampleSize, metricMeta);
+      const status = deriveBenchmarkStatus({
+        metricKey,
+        spendBand: query.spendBand,
+        durationBand: query.durationBand,
+        relaxedDimensions: query.relaxedDimensions,
+        sufficientData: result.sufficientData,
+        cohortSampleSize: result.cohortSampleSize,
+      });
+      results.push({
+        periodKey: period.periodKey,
+        periodStart: period.start,
+        periodEnd: period.end,
+        status,
+        metricSampleSize: result.metricSampleSize,
+        cohortSampleSize: result.cohortSampleSize,
+        p25: result.p25,
+        median: result.value,
+        p75: result.p75,
+      });
+    } catch (err) {
+      // One period's query failing (a transient DB issue, never a
+      // methodological one) must never take down every other period's
+      // already-valid result — degrade only that period, exactly like
+      // runBenchmarkQuery's own top-level catch degrades to a generic
+      // "error" rather than throwing through to the UI.
+      console.error(`[benchmark] getHistoricalBenchmark failed for period ${period.periodKey}:`, err);
+      results.push({
+        periodKey: period.periodKey,
+        periodStart: period.start,
+        periodEnd: period.end,
+        status: "error",
+        metricSampleSize: 0,
+        cohortSampleSize: 0,
+        p25: null,
+        median: null,
+        p75: null,
+      });
+    }
+  }
+
+  return {
+    metric: metricKey,
+    unit: metricMeta?.unit_type ?? "count",
+    benchmarkDirection: metricMeta?.benchmark_direction ?? "contextual",
+    periods: results,
+  };
 }

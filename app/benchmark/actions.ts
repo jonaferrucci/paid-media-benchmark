@@ -1,8 +1,10 @@
 "use server";
 
 import { getMetricBenchmark, suggestCohortRelaxation } from "@/lib/benchmark/engine";
-import type { BenchmarkQuery, BenchmarkResult, TimeWindowInput } from "@/lib/benchmark/types";
+import type { BenchmarkQuery, BenchmarkResult } from "@/lib/benchmark/types";
 import type { RelaxableDimension } from "@/lib/benchmark/cohortRules";
+import { deriveBenchmarkStatus, type CohortQueryStatus } from "@/lib/benchmark/resultStatus";
+import { buildQuery, type BenchmarkFormInput } from "@/lib/benchmark/buildQuery";
 
 // -----------------------------------------------------------------------
 // Phase 5: the server-side bridge between the UI and the existing,
@@ -14,25 +16,28 @@ import type { RelaxableDimension } from "@/lib/benchmark/cohortRules";
 // (see lib/supabase/admin.ts, still confirmed server-only).
 // -----------------------------------------------------------------------
 
-export interface BenchmarkFormInput {
-  metric: string;
-  platform: string;
-  objective: string;
-  vertical: string;
-  country: string;
-  audienceStrategy?: string | null;
-  funnelStage?: string | null;
-  businessModel?: string | null;
-  minAge?: number | null;
-  maxAge?: number | null;
-  genderTargeting?: string | null;
-  spendBand?: string | null;
-  durationBand?: string | null;
-  timeWindow?: string; // "current_year" | "last_3_months" | "last_6_months" | "last_12_months"
-  relaxedDimensions?: RelaxableDimension[];
-}
+// HISTORICAL BENCHMARKS ARCHITECTURE: BenchmarkFormInput and buildQuery
+// now live in lib/benchmark/buildQuery.ts and are only re-imported here
+// (buildQuery is used below, never re-exported as a value) — this file
+// has a top-level "use server" directive, and Next.js's Server Actions
+// compiler requires every EXPORTED value from a "use server" file to be
+// an async function. buildQuery does no I/O and was never meant to be a
+// callable action, so `npm run build` correctly rejects exporting it
+// directly from here ("Server actions must be async functions"). A
+// type-only re-export is unaffected (erased at compile time, not a
+// runtime action reference), so existing type-only imports of
+// BenchmarkFormInput from "./actions" (BenchmarkExplorer.tsx,
+// CampaignExplorer.tsx, HistoricalBenchmarkSection.tsx) keep working
+// unchanged.
+export type { BenchmarkFormInput };
 
-export type BenchmarkStatus = "success" | "insufficient_sample" | "methodology_block" | "no_data" | "error";
+// HISTORICAL BENCHMARKS ARCHITECTURE: the 4 "real" derivable outcomes
+// now live in lib/benchmark/resultStatus.ts as CohortQueryStatus
+// (shared with the new per-period historical engine) — "error" is
+// added back here since it's specific to this transport layer's own
+// try/catch around the query (never something deriveBenchmarkStatus
+// itself returns). Same 5 string values as before this refactor.
+export type BenchmarkStatus = CohortQueryStatus | "error";
 
 export interface BenchmarkResponse {
   metric: string;
@@ -57,38 +62,6 @@ export interface BenchmarkResponse {
   relaxationSuggestion?: { dimension: RelaxableDimension; estimatedSampleSize: number } | null;
 }
 
-function toTimeWindowInput(kind: string | undefined): TimeWindowInput {
-  switch (kind) {
-    case "current_year":
-      return { kind: "current_year" };
-    case "last_3_months":
-      return { kind: "last_3_months" };
-    case "last_6_months":
-      return { kind: "last_6_months" };
-    default:
-      return { kind: "last_12_months" };
-  }
-}
-
-function buildQuery(input: BenchmarkFormInput): BenchmarkQuery {
-  return {
-    platform: input.platform,
-    objective: input.objective,
-    vertical: input.vertical,
-    country: input.country,
-    timeWindow: toTimeWindowInput(input.timeWindow),
-    audienceStrategy: input.audienceStrategy ?? null,
-    funnelStage: input.funnelStage ?? null,
-    businessModel: input.businessModel ?? null,
-    minAge: input.minAge ?? null,
-    maxAge: input.maxAge ?? null,
-    genderTargeting: input.genderTargeting ?? null,
-    spendBand: input.spendBand ?? null,
-    durationBand: input.durationBand ?? null,
-    relaxedDimensions: input.relaxedDimensions ?? [],
-  };
-}
-
 function requestedCohort(input: BenchmarkFormInput): Record<string, unknown> {
   return {
     platform: input.platform,
@@ -105,35 +78,30 @@ function requestedCohort(input: BenchmarkFormInput): Record<string, unknown> {
 }
 
 function toResponse(input: BenchmarkFormInput, result: BenchmarkResult): BenchmarkResponse {
-  // Reach's methodology block is distinguishable from a merely-small
-  // cohort: the engine returns cohortSampleSize=0 specifically for the
-  // "missing/relaxed required scale context" case (see engine.ts
-  // getMetricBenchmark's early return before any dataset lookup even
-  // runs). A genuinely empty cohort for a non-Reach metric also has
-  // cohortSampleSize=0, so the distinction is keyed on metric + the
-  // spend/duration precondition, not on the number alone.
-  const isReachMethodologyBlock =
-    input.metric === "reach" &&
-    (!input.spendBand ||
-      !input.durationBand ||
-      (input.relaxedDimensions ?? []).includes("spend_range") ||
-      (input.relaxedDimensions ?? []).includes("duration_band"));
+  // HISTORICAL BENCHMARKS ARCHITECTURE: this precedence (Reach
+  // methodology block distinguishable from a merely-small cohort >
+  // success > no_data > insufficient_sample) is now the ONE shared
+  // implementation in lib/benchmark/resultStatus.ts — pure extraction,
+  // same conditions, same order, same outcomes as before this refactor.
+  // Reused identically by the new per-period historical engine so the
+  // two paths can never silently disagree on what "no data" means.
+  const status: BenchmarkStatus = deriveBenchmarkStatus({
+    metricKey: input.metric,
+    spendBand: input.spendBand,
+    durationBand: input.durationBand,
+    relaxedDimensions: input.relaxedDimensions,
+    sufficientData: result.sufficientData,
+    cohortSampleSize: result.cohortSampleSize,
+  });
 
-  let status: BenchmarkStatus;
-  let message: string | undefined;
-
-  if (isReachMethodologyBlock) {
-    status = "methodology_block";
-    message = "reach_requires_scale_context";
-  } else if (result.sufficientData) {
-    status = "success";
-  } else if (result.cohortSampleSize === 0) {
-    status = "no_data";
-    message = "no_matching_datasets";
-  } else {
-    status = "insufficient_sample";
-    message = "sample_below_threshold";
-  }
+  const message: string | undefined =
+    status === "methodology_block"
+      ? "reach_requires_scale_context"
+      : status === "no_data"
+        ? "no_matching_datasets"
+        : status === "insufficient_sample"
+          ? "sample_below_threshold"
+          : undefined;
 
   return {
     metric: result.metric,
