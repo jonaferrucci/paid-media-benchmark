@@ -14,6 +14,18 @@ interface PlatformStepProps {
 // benchmark platform selection, media catalog, and planner opportunity
 // cards all read as the same "kind of thing" — same avatar chip, same
 // selection affordance — rather than three independently-styled grids.
+//
+// PHASE 39.2 (§6/§7): this is the ONLY consumer of PLATFORM_CARDS'
+// descriptionKey (confirmed by repo-wide search) — the secondary
+// description line it fed into EntityCard's `meta` prop was making
+// Home's Finder step feel dense (icon + name + a second, often-
+// truncated line). Dropping `meta` here is a Home-only visual
+// simplification: PLATFORM_CARDS/descriptionKey themselves are
+// untouched, so nothing about the shared platform taxonomy is
+// eliminated — only this one screen no longer renders it. Card titles
+// already wrap up to 2 lines (EntityCard's own line-clamp-2), so a
+// longer name like "DSP / Programmatic" still reads in full at 320px
+// instead of being truncated.
 export function PlatformStep({ selectedUiId, onSelect }: PlatformStepProps) {
   const { t } = useTranslation();
 
@@ -28,7 +40,6 @@ export function PlatformStep({ selectedUiId, onSelect }: PlatformStepProps) {
             key={card.uiId}
             avatar={<EntityAvatar label={card.label} platformUiId={card.uiId} size={40} />}
             title={card.label}
-            meta={t(card.descriptionKey)}
             selectable
             selected={selectedUiId === card.uiId}
             onSelect={() => onSelect(card.uiId)}

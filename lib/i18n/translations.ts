@@ -260,6 +260,18 @@ const es = {
     gapReach: "{n} campañas podrían sumar Frecuencia si agregás alcance.",
     gapVideoViews: "{n} campañas podrían sumar CPV si agregás reproducciones de video.",
     gapEngagements: "{n} campañas podrían sumar CPE si agregás interacciones.",
+    // PHASE 39.2 (§10): Home's compact "Continuar trabajando" now shows
+    // only the single most recent import batch, as one inline line —
+    // never the previous 3-card grid. recentImportsCampaignCount/
+    // recentImportsCta above are reused unchanged for it.
+    lastImportLabel: "Última importación",
+    // PHASE 39.2 (§12): replaces the per-gap bulleted list on Home (the
+    // gapsTitle/gapImpressions.. keys above stay defined — still real,
+    // just no longer rendered here) with ONE compact, actionable
+    // signal. The real computeDataGaps() result still decides whether
+    // this shows at all — only the presentation collapsed.
+    gapsSummaryTitle: "Mejorá tus comparaciones",
+    gapsSummaryBody: "Hay campañas a las que podés sumar más métricas.",
   },
   benchmarkLive: {
     title: "Encontrá tu benchmark",
@@ -1298,7 +1310,11 @@ const es = {
     stepVertical: "Vertical",
     stepCountry: "País",
     stepOf: "Paso {current} de {total}",
-    questionPlatform: "¿Dónde vas a pautar?",
+    // PHASE 39.2 (§5): the old phrasing ("¿Dónde vas a pautar?") reads
+    // like the Planner's own question ("where will you run media"),
+    // not the benchmark Finder's ("which platform's results do you
+    // want to look up"). Same step, same options, wording only.
+    questionPlatform: "¿Qué plataforma querés analizar?",
     questionObjective: "¿Qué querés lograr?",
     questionVertical: "¿En qué vertical?",
     questionCountry: "¿En qué mercado?",
@@ -1578,6 +1594,9 @@ const en: typeof es = {
     gapReach: "{n} campaigns could support Frequency if you add reach.",
     gapVideoViews: "{n} campaigns could support CPV if you add video views.",
     gapEngagements: "{n} campaigns could support CPE if you add engagements.",
+    lastImportLabel: "Latest import",
+    gapsSummaryTitle: "Improve your comparisons",
+    gapsSummaryBody: "Some campaigns could use more metrics.",
   },
   benchmarkLive: {
     title: "Find your benchmark",
@@ -2491,7 +2510,9 @@ const en: typeof es = {
     stepVertical: "Vertical",
     stepCountry: "Country",
     stepOf: "Step {current} of {total}",
-    questionPlatform: "Where are you advertising?",
+    // PHASE 39.2 (§5): matches the ES change — the Finder asks which
+    // platform's results you want to look up, not where you'll run media.
+    questionPlatform: "What platform do you want to analyze?",
     questionObjective: "What do you want to achieve?",
     questionVertical: "Which vertical?",
     questionCountry: "Which market?",

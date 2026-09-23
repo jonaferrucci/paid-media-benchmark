@@ -252,12 +252,26 @@ const benchmarkExplorerSource = read("app/benchmark/BenchmarkExplorer.tsx");
     workspaceSource.includes('{t("workspace.emptyCtaBenchmark")}') && workspaceSource.includes('{t("workspace.emptyCta")}'),
     "the zero-data onboarding still offers exactly its 2 real first-step CTAs (find a benchmark / import a campaign)"
   );
+  // PHASE 39.2 UPDATE: §9/§11 of that phase folded the standalone
+  // "Estado de tus campañas" heading into a compact chip row inside
+  // "Continuar trabajando" and retired the "Qué podés analizar"
+  // heading from Home entirely (an explicit, instructed density
+  // change — see Workspace.tsx's own PHASE 39.2 comment), so
+  // workspace.statusTitle/workspace.coverageTitle are no longer
+  // rendered at all. Updated to check the current, real structure:
+  // the continuity block still comes first, its status chips are
+  // still inside it (before the compact gap signal that replaced the
+  // old per-gap list), and neither retired heading calls still exist.
   const continueIdx = workspaceSource.indexOf('{t("comparisons.recentWorkTitle")}');
-  const statusIdx = workspaceSource.indexOf('{t("workspace.statusTitle")}');
-  const coverageIdx = workspaceSource.indexOf('{t("workspace.coverageTitle")}');
+  const statusChipIdx = workspaceSource.indexOf('t("workspace.statusPendingCount"');
+  const gapsSignalIdx = workspaceSource.indexOf('t("workspace.gapsSummaryTitle")');
   assertTrue(
-    continueIdx !== -1 && statusIdx !== -1 && coverageIdx !== -1 && continueIdx < statusIdx && statusIdx < coverageIdx,
-    "returning-user section order is Continuar trabajando -> Estado de campañas -> coverage/gaps (never secondary info before recent work)"
+    continueIdx !== -1 && statusChipIdx !== -1 && gapsSignalIdx !== -1 && continueIdx < statusChipIdx && statusChipIdx < gapsSignalIdx,
+    "returning-user section order is Continuar trabajando (with status chips folded in) -> compact gap signal (never secondary info before recent work)"
+  );
+  assertTrue(
+    !workspaceSource.includes('{t("workspace.statusTitle")}') && !workspaceSource.includes('{t("workspace.coverageTitle")}'),
+    "the standalone Estado-de-campañas and Qué-podés-analizar headings are gone from Home (Phase 39.2 §9/§11)"
   );
 }
 

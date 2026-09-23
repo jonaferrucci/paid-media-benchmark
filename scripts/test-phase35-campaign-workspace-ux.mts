@@ -186,22 +186,43 @@ assertTrue(
   workspaceActionsSource.includes("source_filename") && workspaceActionsSource.includes("sourceFilename: b.source_filename ?? null,"),
   "the real, already-stored import_batches.source_filename is threaded through — never invented for a batch that has none"
 );
+// PHASE 39.2 UPDATE: Home now shows only the single most recent import
+// (§10) instead of a 3-card grid, so the old `.map((group) => ...)`
+// variable name is gone — the same conditional-filename behavior lives
+// on directly under a `lastImport` local instead of `group`.
 assertTrue(
-  workspaceSource.includes("group.sourceFilename ?") ,
+  workspaceSource.includes("lastImport.sourceFilename ?"),
   "Workspace only renders the filename when the batch actually has one"
 );
 
 // -----------------------------------------------------------------------
-// §14 Coverage/gaps preserved and still positioned after campaign
-// status/continue-working/recent-imports (never removed, never
-// reordered above the campaign-status attention section).
-// -----------------------------------------------------------------------
+// §14 Coverage/gaps preserved and still positioned after continue-
+// working/campaign-status/recent-imports (never removed, never
+// reordered above the continuity block).
+//
+// PHASE 39.2 UPDATE: Home's density pass (§9/§11/§12, fully instructed
+// and documented in Workspace.tsx's own PHASE 39.2 comment) folded the
+// standalone "Estado de tus campañas" heading into a compact chip row
+// inside "Continuar trabajando" (no more t("workspace.statusTitle")
+// call) and retired "Qué podés analizar" (coverage) from Home entirely
+// (no more t("workspace.coverageTitle") call) — the underlying
+// computeDataCoverage()/computeDataGaps() calls in workspaceActions.ts
+// this test's own suite exercises elsewhere are untouched, only Home's
+// render path changed. The two literal-call assertions this replaced
+// no longer have anything to check (those calls were intentionally
+// removed, not lost by accident) — verified instead: the status chips
+// still render inside the continuity block (before the compact gap
+// signal), and the compact gap signal itself still comes after it.
 {
-  const statusIdx = workspaceSource.indexOf('t("workspace.statusTitle")');
-  const coverageIdx = workspaceSource.indexOf('t("workspace.coverageTitle")');
-  const gapsIdx = workspaceSource.indexOf('t("workspace.gapsTitle")');
-  assertTrue(statusIdx > -1 && coverageIdx > -1 && gapsIdx > -1, "status/coverage/gaps sections all still exist");
-  assertTrue(statusIdx < coverageIdx && coverageIdx < gapsIdx, "campaign-status attention comes before coverage, which comes before gaps");
+  const continueIdx = workspaceSource.indexOf('t("comparisons.recentWorkTitle")');
+  const statusChipIdx = workspaceSource.indexOf('t("workspace.statusPendingCount"');
+  const gapsSignalIdx = workspaceSource.indexOf('t("workspace.gapsSummaryTitle")');
+  assertTrue(continueIdx > -1 && statusChipIdx > -1 && gapsSignalIdx > -1, "continuity block, status chips, and the compact gap signal all still exist");
+  assertTrue(continueIdx < statusChipIdx && statusChipIdx < gapsSignalIdx, "campaign-status attention is still inside the continuity block, which still comes before the gap signal");
+  assertTrue(
+    !workspaceSource.includes('t("workspace.coverageTitle")') && !workspaceSource.includes('t("workspace.statusTitle")') && !workspaceSource.includes('t("workspace.gapsTitle")'),
+    "Phase 39.2 (§9/§11): the standalone status/coverage/gaps section headings are gone from Home, replaced by the compact continuity block and gap signal"
+  );
 }
 
 // -----------------------------------------------------------------------

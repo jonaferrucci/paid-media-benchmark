@@ -9,36 +9,31 @@
 // RecentWork entirely: "Continue working" (§7) is now one section
 // inside this hub instead of a separate component, reusing the exact
 // same saved-comparisons/saved-plans actions — no new persistence.
-
+//
+// PHASE 39.2 (§1/§8/§9/§10/§11/§12): Home had accumulated too much
+// "operational density" below the Benchmark Finder — five independent
+// headed sections in a row (Continuar trabajando / Estado de tus
+// campañas / Importaciones recientes / Qué podés analizar / Podrías
+// sumar más) made Home read like a dashboard again. This is a
+// PRESENTATION-only change (§23) — same WorkspaceSummary fields, same
+// queries (lib/contribute/workspaceActions.ts untouched), same links:
+// status counts and the most recent import batch are now compact
+// inline elements folded INTO one "Continuar trabajando" block instead
+// of two extra headed sections; "Qué podés analizar" (coverage) is
+// retired from Home entirely — its logic/labels
+// (lib/contribute/coverage.ts's DERIVED_METRIC_LABELS) are untouched
+// and still used on /account/contributions and /contribute; and the
+// old per-gap bulleted list ("Podrías sumar más") collapses into ONE
+// compact, actionable signal card. No new fetches, no query changes.
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowRight, Upload } from "lucide-react";
 import { useTranslation } from "@/lib/i18n/LanguageContext";
 import { useSupabaseUser } from "@/lib/supabase/useUser";
 import { getWorkspaceSummaryAction, type WorkspaceSummary } from "@/lib/contribute/workspaceActions";
-import { DERIVED_METRIC_LABELS, type DerivedMetricKey } from "@/lib/contribute/coverage";
-
-// §5: one translation key per raw field a gap can point at — never a
-// generic interpolated field/metric identifier leaking into the UI.
-const GAP_MESSAGE_KEYS: Record<string, string> = {
-  impressions: "workspace.gapImpressions",
-  clicks: "workspace.gapClicks",
-  conversions: "workspace.gapConversions",
-  attributed_revenue: "workspace.gapAttributedRevenue",
-  total_revenue: "workspace.gapTotalRevenue",
-  reach: "workspace.gapReach",
-  video_views: "workspace.gapVideoViews",
-  engagements: "workspace.gapEngagements",
-};
 
 function formatUpdatedAt(iso: string, locale: string): string {
   return new Intl.DateTimeFormat(locale === "es" ? "es-AR" : "en-US", { day: "numeric", month: "short" }).format(new Date(iso));
-}
-
-// submittedOnIso is already a bare YYYY-MM-DD (see groupRecentImports) —
-// appending a fixed local midnight avoids a UTC-parsing day-shift.
-function formatDay(dayIso: string, locale: string): string {
-  return formatUpdatedAt(`${dayIso}T00:00:00`, locale);
 }
 
 export function Workspace() {
@@ -93,150 +88,134 @@ export function Workspace() {
   const hasContinueItems = summary.comparisons.length > 0 || summary.plans.length > 0;
   const { statusCounts } = summary;
   const hasStatusCounts = statusCounts.pending > 0 || statusCounts.valid > 0 || statusCounts.comparisons > 0 || statusCounts.plans > 0;
+  // PHASE 39.2 (§8): one continuity block instead of three independent
+  // headed sections — shown as soon as ANY of its three ingredients has
+  // real content, so a user who has only imported (no saved comparison
+  // or plan yet) still sees that here, rather than nothing at all.
+  const hasContinuity = hasContinueItems || hasStatusCounts || summary.recentImports.length > 0;
 
   return (
     <section className="mx-auto mb-8 max-w-4xl space-y-6 px-4">
-      {/* PHASE 39 (§13): "Continuar trabajando" now comes FIRST — the
-          spec's priority order is continue comparison/plan, THEN
-          pending/approved status counts, with coverage/gaps staying at
-          the bottom (unchanged). Same content as before, just reordered
-          — no new persistence mechanism, no logic changed. */}
-      {hasContinueItems && (
+      {/* PHASE 39.2 (§8/§9/§10): "Continuar trabajando" is now the single
+          center of continuity — comparisons/plans to resume, THEN a
+          compact status-chip row, THEN the single most recent import,
+          all inside one block instead of three separately-headed
+          sections. Same underlying data and links as before, only the
+          presentation is merged. */}
+      {hasContinuity && (
         <div>
           <p className="text-xs font-semibold uppercase tracking-wide text-ink-500">{t("comparisons.recentWorkTitle")}</p>
-          <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
-            {summary.comparisons.map((c) => (
-              <Link
-                key={`cmp-${c.id}`}
-                href={`/benchmark?saved=${c.id}`}
-                className="group rounded-xl border border-l-[3px] border-l-brandLavender border-line bg-surface p-3 transition-colors hover:bg-surface2/40"
-              >
-                <p className="line-clamp-2 text-xs font-semibold text-ink-900">{c.name}</p>
-                <div className="mt-1.5 flex items-center justify-between">
-                  <span className="text-[10px] text-ink-400">{formatUpdatedAt(c.updatedAt, locale)}</span>
-                  <ArrowRight size={11} className="text-ink-400 group-hover:text-primary" aria-hidden="true" />
-                </div>
-              </Link>
-            ))}
-            {summary.plans.map((p) => (
-              <Link
-                key={`plan-${p.id}`}
-                href="/planner"
-                className="group rounded-xl border border-l-[3px] border-l-brandPeach border-line bg-surface p-3 transition-colors hover:bg-surface2/40"
-              >
-                <p className="line-clamp-2 text-xs font-semibold text-ink-900">{p.name}</p>
-                <div className="mt-1.5 flex items-center justify-between">
-                  <span className="text-[10px] text-ink-400">{formatUpdatedAt(p.updatedAt, locale)}</span>
-                  <ArrowRight size={11} className="text-ink-400 group-hover:text-primary" aria-hidden="true" />
-                </div>
-              </Link>
-            ))}
-          </div>
-        </div>
-      )}
 
-      {/* PHASE 35 (§2/§3): "what needs my attention" — real counts only,
-          answering "which campaigns do I have / are in review / are
-          approved" — never duplicated as a second action beyond the
-          pending/valid links themselves. */}
-      {hasStatusCounts && (
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-ink-500">{t("workspace.statusTitle")}</p>
-          <div className="mt-2 flex flex-wrap gap-2">
-            {statusCounts.pending > 0 && (
-              <Link
-                href="/account/contributions"
-                className="rounded-full border border-line bg-surface px-3 py-1.5 text-xs font-medium text-ink-700 hover:border-primary/40"
-              >
-                {t("workspace.statusPendingCount", { n: statusCounts.pending })}
-              </Link>
-            )}
-            {statusCounts.valid > 0 && (
-              <Link
-                href={summary.mostRecentValidId ? `/account/contributions/${summary.mostRecentValidId}` : "/account/contributions"}
-                className="rounded-full border border-line bg-surface px-3 py-1.5 text-xs font-medium text-ink-700 hover:border-primary/40"
-              >
-                {t("workspace.statusValidCount", { n: statusCounts.valid })}
-              </Link>
-            )}
-            {statusCounts.comparisons > 0 && (
-              <span className="rounded-full border border-line bg-surface2/60 px-3 py-1.5 text-xs font-medium text-ink-600">
-                {t("workspace.statusComparisonsCount", { n: statusCounts.comparisons })}
-              </span>
-            )}
-            {statusCounts.plans > 0 && (
-              <span className="rounded-full border border-line bg-surface2/60 px-3 py-1.5 text-xs font-medium text-ink-600">
-                {t("workspace.statusPlansCount", { n: statusCounts.plans })}
-              </span>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* §3: recent imports — an honest, documented approximation (see
-          lib/contribute/coverage.ts's groupRecentImports comment) since
-          there is no separate import-batch table to group by. */}
-      {summary.recentImports.length > 0 && (
-        <div>
-          <div className="flex items-center justify-between">
-            <p className="text-xs font-semibold uppercase tracking-wide text-ink-500">{t("workspace.recentImportsTitle")}</p>
-            <Link href="/account/contributions" className="text-xs font-medium text-primary hover:underline">
-              {t("workspace.recentImportsCta")}
-            </Link>
-          </div>
-          <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
-            {summary.recentImports.map((group, i) => (
-              <div key={i} className="rounded-xl border border-line bg-surface p-3">
-                <p className="truncate text-xs font-semibold text-ink-900">
-                  {group.platformLabel}
-                  {/* §13: the real, already-stored filename when this
-                      batch has one — never an internal id, never a
-                      fabricated name for a manual/legacy batch. */}
-                  {group.sourceFilename ? <span className="font-normal text-ink-500"> · {group.sourceFilename}</span> : null}
-                </p>
-                <p className="mt-0.5 text-[11px] text-ink-500">{t("workspace.recentImportsCampaignCount", { n: group.campaignCount })}</p>
-                <p className="mt-1 text-[10px] text-ink-400">{formatDay(group.submittedOnIso, locale)}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* §4: factual, formula-derived coverage — no arbitrary score. */}
-      <div>
-        <p className="text-xs font-semibold uppercase tracking-wide text-ink-500">{t("workspace.coverageTitle")}</p>
-        {summary.coverage.length === 0 ? (
-          <p className="mt-2 text-xs text-ink-500">{t("workspace.coverageEmpty")}</p>
-        ) : (
-          <>
-            <p className="mt-1 text-xs text-ink-600">{t("workspace.coverageSubtitle")}</p>
-            <div className="mt-2 flex flex-wrap gap-2">
-              {summary.coverage.map((entry) => (
-                <span key={entry.metric} className="rounded-full border border-line bg-surface2 px-3 py-1.5 text-[11px] text-ink-700">
-                  <span className="font-semibold text-ink-900">{DERIVED_METRIC_LABELS[entry.metric as DerivedMetricKey]}</span>
-                  {" · "}
-                  {t("workspace.coverageCampaignCount", { n: entry.campaignCount })}
-                </span>
+          {hasContinueItems && (
+            <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
+              {summary.comparisons.map((c) => (
+                <Link
+                  key={`cmp-${c.id}`}
+                  href={`/benchmark?saved=${c.id}`}
+                  className="group rounded-xl border border-l-[3px] border-l-brandLavender border-line bg-surface p-3 transition-colors hover:bg-surface2/40"
+                >
+                  <p className="line-clamp-2 text-xs font-semibold text-ink-900">{c.name}</p>
+                  <div className="mt-1.5 flex items-center justify-between">
+                    <span className="text-[10px] text-ink-400">{formatUpdatedAt(c.updatedAt, locale)}</span>
+                    <ArrowRight size={11} className="text-ink-400 group-hover:text-primary" aria-hidden="true" />
+                  </div>
+                </Link>
+              ))}
+              {summary.plans.map((p) => (
+                <Link
+                  key={`plan-${p.id}`}
+                  href="/planner"
+                  className="group rounded-xl border border-l-[3px] border-l-brandPeach border-line bg-surface p-3 transition-colors hover:bg-surface2/40"
+                >
+                  <p className="line-clamp-2 text-xs font-semibold text-ink-900">{p.name}</p>
+                  <div className="mt-1.5 flex items-center justify-between">
+                    <span className="text-[10px] text-ink-400">{formatUpdatedAt(p.updatedAt, locale)}</span>
+                    <ArrowRight size={11} className="text-ink-400 group-hover:text-primary" aria-hidden="true" />
+                  </div>
+                </Link>
               ))}
             </div>
-          </>
-        )}
-      </div>
+          )}
 
-      {/* §5: actionable, never-fabricated data gaps. */}
+          {/* PHASE 39.2 (§9): "Estado de tus campañas" folded in as a
+              compact chip row — no section heading of its own, same
+              real counts/links as before (PHASE 35 §2/§3). flex-wrap
+              keeps this legible at 320px instead of a 3-column grid. */}
+          {hasStatusCounts && (
+            <div className="mt-2 flex flex-wrap gap-2">
+              {statusCounts.pending > 0 && (
+                <Link
+                  href="/account/contributions"
+                  className="rounded-full border border-line bg-surface px-3 py-1.5 text-xs font-medium text-ink-700 hover:border-primary/40"
+                >
+                  {t("workspace.statusPendingCount", { n: statusCounts.pending })}
+                </Link>
+              )}
+              {statusCounts.valid > 0 && (
+                <Link
+                  href={summary.mostRecentValidId ? `/account/contributions/${summary.mostRecentValidId}` : "/account/contributions"}
+                  className="rounded-full border border-line bg-surface px-3 py-1.5 text-xs font-medium text-ink-700 hover:border-primary/40"
+                >
+                  {t("workspace.statusValidCount", { n: statusCounts.valid })}
+                </Link>
+              )}
+              {statusCounts.comparisons > 0 && (
+                <span className="rounded-full border border-line bg-surface2/60 px-3 py-1.5 text-xs font-medium text-ink-600">
+                  {t("workspace.statusComparisonsCount", { n: statusCounts.comparisons })}
+                </span>
+              )}
+              {statusCounts.plans > 0 && (
+                <span className="rounded-full border border-line bg-surface2/60 px-3 py-1.5 text-xs font-medium text-ink-600">
+                  {t("workspace.statusPlansCount", { n: statusCounts.plans })}
+                </span>
+              )}
+            </div>
+          )}
+
+          {/* PHASE 39.2 (§10): only the single most recent import batch,
+              as one compact line — never the previous 3-card grid. Real
+              data only: no invented date, and the real, already-stored
+              filename (PHASE 27/35) only when this batch actually has
+              one — same underlying recentImports array (PHASE 25 §16),
+              just its first entry instead of a 3-card grid of all of
+              them. */}
+          {summary.recentImports.length > 0 && (() => {
+            const lastImport = summary.recentImports[0];
+            return (
+              <div className="mt-2 flex items-center justify-between gap-2 rounded-xl border border-line bg-surface px-3 py-2">
+                <p className="min-w-0 truncate text-xs text-ink-700">
+                  <span className="font-semibold text-ink-900">{t("workspace.lastImportLabel")}</span>
+                  {" · "}
+                  {lastImport.platformLabel}
+                  {lastImport.sourceFilename ? <span className="text-ink-500"> · {lastImport.sourceFilename}</span> : null}
+                  {" · "}
+                  {t("workspace.recentImportsCampaignCount", { n: lastImport.campaignCount })}
+                </p>
+                <Link href="/account/contributions" className="shrink-0 text-xs font-medium text-primary hover:underline">
+                  {t("workspace.recentImportsCta")}
+                </Link>
+              </div>
+            );
+          })()}
+        </div>
+      )}
+
+      {/* PHASE 39.2 (§11/§12/§13): "Qué podés analizar" (coverage) is
+          retired from Home entirely — computeDataCoverage() still runs
+          unchanged in workspaceActions.ts and DERIVED_METRIC_LABELS
+          still backs /account/contributions and /contribute, only this
+          render path is gone. The old per-gap bulleted list ("Podrías
+          sumar más") collapses into ONE compact, actionable signal —
+          the real computeDataGaps() result still decides whether this
+          shows at all; there is no "all complete" message when there
+          are no gaps, the block is simply absent. */}
       {summary.gaps.length > 0 && (
         <div className="rounded-xl border border-dashed border-line bg-surface2/40 p-4">
-          <div className="flex items-center justify-between">
-            <p className="text-xs font-semibold uppercase tracking-wide text-ink-500">{t("workspace.gapsTitle")}</p>
-            <Link href="/contribute" className="text-xs font-medium text-primary hover:underline">
-              {t("workspace.gapsCta")}
-            </Link>
-          </div>
-          <ul className="mt-2 space-y-1.5 text-xs text-ink-600">
-            {summary.gaps.map((gap) => (
-              <li key={gap.missingField}>{t(GAP_MESSAGE_KEYS[gap.missingField], { n: gap.campaignCount })}</li>
-            ))}
-          </ul>
+          <p className="font-display text-sm font-semibold text-ink-900">{t("workspace.gapsSummaryTitle")}</p>
+          <p className="mt-1 text-xs text-ink-600">{t("workspace.gapsSummaryBody")}</p>
+          <Link href="/contribute" className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline">
+            {t("workspace.gapsCta")} <ArrowRight size={11} aria-hidden="true" />
+          </Link>
         </div>
       )}
     </section>

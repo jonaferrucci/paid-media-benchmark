@@ -93,13 +93,32 @@ assertTrue(
 );
 
 // -----------------------------------------------------------------------
-// §3 Returning-user flow untouched: recent work / recent imports /
-// coverage / gaps sections and their gating are all still present and
-// unmodified in shape.
+// §3 Returning-user flow: recent work / recent imports / gaps gating are
+// all still present and driven by the same real data as before.
+//
+// PHASE 39.2 UPDATE: the "coverage section still reflects real,
+// formula-derived coverage" assertion below checked for
+// `summary.coverage.length === 0`, the gate for Home's old "Qué podés
+// analizar" block. Phase 39.2 (§11) intentionally retires that render
+// path from Home entirely — an explicit, instructed density change,
+// not a regression — while computeDataCoverage() itself keeps running
+// unchanged in workspaceActions.ts and DERIVED_METRIC_LABELS keeps
+// backing /account/contributions and /contribute (see
+// test-phase26-workspace.mts, which still exercises that logic
+// directly). The stale literal-render check was replaced with a check
+// of the current, real state: the coverage heading is gone from Home,
+// and summary.coverage itself is still computed and returned.
 // -----------------------------------------------------------------------
 assertTrue(workspaceSource.includes("const hasContinueItems = summary.comparisons.length > 0 || summary.plans.length > 0;"), "\"Continue working\" still gates on real saved comparisons/plans, unchanged");
 assertTrue(workspaceSource.includes("summary.recentImports.length > 0"), "recent imports section still gates on real recentImports data, unchanged");
-assertTrue(workspaceSource.includes("summary.coverage.length === 0"), "coverage section still reflects real, formula-derived coverage, unchanged");
+assertTrue(!workspaceSource.includes('t("workspace.coverageTitle")'), "Home no longer renders the retired \"Qué podés analizar\" coverage section (Phase 39.2 §11)");
+{
+  const workspaceActionsSource = readFileSync(new URL("../lib/contribute/workspaceActions.ts", import.meta.url), "utf8");
+  assertTrue(
+    workspaceActionsSource.includes("coverage: computeDataCoverage(rawSummaries),"),
+    "the underlying coverage computation is untouched — only Home's render of it was retired"
+  );
+}
 assertTrue(!/qualityScore|healthScore|completenessScore/i.test(workspaceSource), "still no arbitrary quality/health score introduced");
 
 // -----------------------------------------------------------------------
