@@ -24,17 +24,39 @@ const benchmarkExplorerSource = readFileSync(new URL("../app/benchmark/Benchmark
 const translationsSource = readFileSync(new URL("../lib/i18n/translations.ts", import.meta.url), "utf8");
 
 // -----------------------------------------------------------------------
-// §1 Age-range typo: 18-24 / 25-34 / 35-44 / 45-54, a real partition —
-// no band overlaps another, no gap is left uncovered.
-// -----------------------------------------------------------------------
-assertTrue(contextStepSource.includes('{ value: "25-34", label: "25–34" }'), "the age band is corrected to 25-34 (was the overlapping/typo'd 25-44)");
-assertTrue(!contextStepSource.includes('{ value: "25-44", label: "25–44" }'), "the old, overlapping 25-44 band is gone");
+// §1 Age-range typo (ORIGINAL Phase 31 fix): 18-24 / 25-34 / 35-44 /
+// 45-54, a real partition — no band overlaps another, no gap left
+// uncovered.
+//
+// PHASE 39.1 UPDATE: the entire Age field this fix lived in was removed
+// from ContextStep.tsx (Phase 39.1 §2) — /benchmark has no end-to-end
+// support for minAge/maxAge (no prefill target, no Draft field), so
+// Home offering an Age control silently dropped the selection on
+// arrival at /benchmark. That's a real, intentional, explicitly
+// instructed fix, not a regression of Phase 31's own work — the
+// corrected 18-24/25-34/35-44/45-54 partition doesn't exist ANYWHERE
+// else in the codebase to re-check (confirmed by grep), so the two
+// literal-presence assertions below were replaced with a check of the
+// current, real state: Age is gone from Home, and nothing about
+// CohortFilters/minAge/maxAge themselves (untouched, still real fields)
+// was deleted. See ContextStep.tsx's and
+// test-phase39-home-simplification.mts's own comments for the full
+// reasoning.
+assertTrue(!contextStepSource.includes('{ value: "25-44", label: "25–44" }'), "the old, overlapping 25-44 typo'd band never comes back");
 assertTrue(
-  contextStepSource.includes('{ value: "18-24", label: "18–24" }') &&
-  contextStepSource.includes('{ value: "35-44", label: "35–44" }') &&
-  contextStepSource.includes('{ value: "45-54", label: "45–54" }'),
-  "the other three age bands (18-24, 35-44, 45-54) are preserved exactly as before"
+  !contextStepSource.includes('{ value: "25-34", label: "25–34" }') &&
+  !contextStepSource.includes('{ value: "18-24", label: "18–24" }') &&
+  !contextStepSource.includes('{ value: "35-44", label: "35–44" }') &&
+  !contextStepSource.includes('{ value: "45-54", label: "45–54" }'),
+  "Age is no longer offered in ContextStep at all (Phase 39.1 §2 — no honest prefill target exists on /benchmark for it)"
 );
+{
+  const typesSource = readFileSync(new URL("../lib/types.ts", import.meta.url), "utf8");
+  assertTrue(
+    typesSource.includes("minAge: number | null;") && typesSource.includes("maxAge: number | null;"),
+    "minAge/maxAge remain real, unchanged fields on CohortFilters — only Home's UI control for them was removed"
+  );
+}
 
 // -----------------------------------------------------------------------
 // §2/§11 First-time onboarding lives in exactly ONE place — Workspace's

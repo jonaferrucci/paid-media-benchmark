@@ -153,10 +153,18 @@ const benchmarkExplorerSource = read("app/benchmark/BenchmarkExplorer.tsx");
   assertTrue(!existsSync(new URL("components/dashboard/wizard/AudienceStep.tsx", root)), "the forced, separate AudienceStep screen was removed");
 
   // §7: nothing methodological was deleted — every advanced dimension
-  // still exists as a real, selectable field inside ContextStep.
+  // that actually reaches /benchmark still exists as a real, selectable
+  // field inside ContextStep.
+  //
+  // PHASE 39.1 UPDATE: Age was intentionally removed from this panel
+  // (see the dedicated §2/Age-related block further below in this
+  // file) — it never had a real prefill target on /benchmark, so
+  // offering it in Home silently dropped the selection. That's a real,
+  // intentional fix, not a regression, so this one assertion was
+  // dropped rather than left to fail; the other 5 advanced fields are
+  // unaffected and still checked exactly as before.
   assertTrue(contextStepSource.includes('label={t("finder.audience")}'), "Audience is still a real, selectable filter (now inside \"Afinar benchmark\", not a forced step)");
   assertTrue(contextStepSource.includes('label={t("finder.funnelStage")}'), "Funnel Stage is preserved");
-  assertTrue(contextStepSource.includes('label={t("finder.age")}'), "Age is preserved");
   assertTrue(contextStepSource.includes('label={t("finder.spendRange")}'), "Spend Range is preserved");
   assertTrue(contextStepSource.includes('label={t("finder.duration")}'), "Duration is preserved");
   assertTrue(contextStepSource.includes('label={t("finder.timeWindow")}'), "Time Window is preserved");
@@ -193,12 +201,35 @@ const benchmarkExplorerSource = read("app/benchmark/BenchmarkExplorer.tsx");
 // 9/10/11. Prefill routing: Home -> /benchmark forwards every field the
 // wizard/SearchOverlay can now set, and /benchmark reads it, and never
 // auto-submits (the user still has to click through on /benchmark).
+//
+// PHASE 39.1 (§1/§4): prefillTimeWindow added to the SILENT DROP TEST —
+// every field still visible inside "Afinar benchmark" must have a real
+// round trip: Home sets it -> app/page.tsx forwards it as a prefill
+// param -> BenchmarkExplorer.tsx reads it back out. Age is deliberately
+// checked for ABSENCE instead (§2): it has no round trip, so it must
+// not be offered at all rather than silently dropped.
 // -----------------------------------------------------------------------
 {
-  for (const param of ["prefillPlatform", "prefillObjective", "prefillVertical", "prefillCountry", "prefillAudienceStrategy", "prefillFunnelStage", "prefillSpendBand", "prefillDurationBand"]) {
+  for (const param of ["prefillPlatform", "prefillObjective", "prefillVertical", "prefillCountry", "prefillAudienceStrategy", "prefillFunnelStage", "prefillSpendBand", "prefillDurationBand", "prefillTimeWindow"]) {
     assertTrue(pageCodeOnly.includes(`params.set("${param}"`), `app/page.tsx's cohortFiltersToPrefillQuery forwards ${param}`);
     assertTrue(benchmarkExplorerSource.includes(`searchParams.get("${param}")`), `BenchmarkExplorer.tsx reads ${param} back out`);
   }
+  assertTrue(
+    benchmarkExplorerSource.includes('rawPrefillTimeWindow && (SUPPORTED_PREFILL_TIME_WINDOWS as readonly string[]).includes(rawPrefillTimeWindow)'),
+    "prefillTimeWindow is validated against a real allow-list of end-to-end supported windows, never trusted as-is from the URL"
+  );
+  assertTrue(
+    benchmarkExplorerSource.includes('const SUPPORTED_PREFILL_TIME_WINDOWS = ["current_year", "last_3_months", "last_6_months", "last_12_months"] as const;'),
+    "\"custom\" is never treated as a supported prefill Time Window (no date-range input exists anywhere in this flow)"
+  );
+  assertTrue(
+    !contextStepSource.includes('label={t("finder.age")}') && !contextStepSource.includes('label={t("finder.age")'),
+    "Age is not offered anywhere in Home's \"Afinar benchmark\" panel (no real prefill target exists for it on /benchmark)"
+  );
+  assertTrue(
+    contextStepSource.includes('TIME_WINDOWS.filter((tw) => tw.id !== "custom")'),
+    "Home's own Time Window options exclude \"custom\" (matches app/benchmark/actions.ts's toTimeWindowInput, which has never implemented it)"
+  );
   assertTrue(
     searchOverlaySource.includes("onApply(s.apply)") && searchOverlaySource.includes("onClose()"),
     "SearchOverlay still hands its selection to the same onApply/goToBenchmark mechanism, then closes"

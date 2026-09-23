@@ -25,6 +25,21 @@ import { SINGLE_METRIC_OPTIONS } from "@/lib/benchmark/singleMetricOptions";
 // metric against the exact same list, never a duplicated one.
 const PRIMARY_METRICS: readonly string[] = SINGLE_METRIC_OPTIONS;
 
+// PHASE 39.1 (§1): the real, end-to-end supported Time Window values —
+// exactly the cases app/benchmark/actions.ts's toTimeWindowInput()
+// implements. "custom" is deliberately excluded: TimeWindow (lib/
+// types.ts) lists it and the engine's own resolveTimeWindow() can
+// handle it given a start/end date, but toTimeWindowInput() has never
+// had a "custom" case (it silently falls through to last_12_months for
+// anything it doesn't recognize) and no start/end date input exists
+// anywhere in this form or in Home's wizard. Treating "custom" as
+// "supported" here would prefill a value whose label reads "Período
+// personalizado" while the actual computed benchmark silently used the
+// last 12 months instead — exactly the kind of mismatch this phase
+// exists to eliminate. Same reasoning as prefillMetric's allow-list
+// below: never trust a URL value as-is.
+const SUPPORTED_PREFILL_TIME_WINDOWS = ["current_year", "last_3_months", "last_6_months", "last_12_months"] as const;
+
 // PHASE 33 (§8): extracted from the Spend Range / Duration Band <Select>
 // options below so the new "Contexto del benchmark" section can render
 // the same human labels for response.cohort.applied's band values —
@@ -125,6 +140,14 @@ export function BenchmarkExplorer({ taxonomies }: { taxonomies: ContributionTaxo
       // inputs are pre-filled). See lib/benchmark/singleMetricOptions.ts
       // for why prefillMetric is validated against a real allow-list
       // rather than trusted as-is from the URL.
+      //
+      // PHASE 39.1 (§1): prefillTimeWindow added — Home's "Afinar
+      // benchmark" panel lets a user pick a Time Window, and that
+      // selection was being silently dropped on arrival here (the exact
+      // same class of bug already fixed for audienceStrategy in Phase
+      // 30 and for funnelStage/spendBand/durationBand in Phase 39).
+      // Validated against SUPPORTED_PREFILL_TIME_WINDOWS rather than
+      // trusted as-is, same reasoning as prefillMetric.
       const prefillPlatform = searchParams.get("prefillPlatform");
       const prefillObjective = searchParams.get("prefillObjective");
       const prefillVertical = searchParams.get("prefillVertical");
@@ -134,6 +157,10 @@ export function BenchmarkExplorer({ taxonomies }: { taxonomies: ContributionTaxo
       const prefillBusinessModel = searchParams.get("prefillBusinessModel");
       const prefillSpendBand = searchParams.get("prefillSpendBand");
       const prefillDurationBand = searchParams.get("prefillDurationBand");
+      const rawPrefillTimeWindow = searchParams.get("prefillTimeWindow");
+      const prefillTimeWindow = rawPrefillTimeWindow && (SUPPORTED_PREFILL_TIME_WINDOWS as readonly string[]).includes(rawPrefillTimeWindow)
+        ? rawPrefillTimeWindow
+        : null;
       const rawPrefillMetric = searchParams.get("prefillMetric");
       const prefillMetric = rawPrefillMetric && (SINGLE_METRIC_OPTIONS as readonly string[]).includes(rawPrefillMetric)
         ? rawPrefillMetric
@@ -144,7 +171,7 @@ export function BenchmarkExplorer({ taxonomies }: { taxonomies: ContributionTaxo
 
       if (
         prefillPlatform || prefillObjective || prefillVertical || prefillCountry || prefillAudienceStrategy ||
-        prefillFunnelStage || prefillBusinessModel || prefillSpendBand || prefillDurationBand || prefillMetric
+        prefillFunnelStage || prefillBusinessModel || prefillSpendBand || prefillDurationBand || prefillTimeWindow || prefillMetric
       ) {
         setDraft((d) => ({
           ...d,
@@ -157,6 +184,7 @@ export function BenchmarkExplorer({ taxonomies }: { taxonomies: ContributionTaxo
           businessModel: prefillBusinessModel ?? d.businessModel,
           spendBand: prefillSpendBand ?? d.spendBand,
           durationBand: prefillDurationBand ?? d.durationBand,
+          timeWindow: prefillTimeWindow ?? d.timeWindow,
           metric: prefillMetric ?? d.metric,
         }));
       }

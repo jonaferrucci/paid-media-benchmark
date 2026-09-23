@@ -68,7 +68,18 @@ export function ContextStep({ draft, onChange, onSubmit }: ContextStepProps) {
         <Field
           label={t("finder.timeWindow")}
           value={draft.timeWindow ?? "last_12_months"}
-          options={TIME_WINDOWS.map((tw) => ({ value: tw.id, label: t(`timeWindows.${tw.id}`) }))}
+          // PHASE 39.1 (§1): "custom" is excluded here even though
+          // TIME_WINDOWS (lib/mock/taxonomies.ts) lists it — this form
+          // (and /benchmark's own, which Home now prefills into) has no
+          // start/end date input anywhere, and app/benchmark/actions.ts's
+          // toTimeWindowInput() has never implemented a "custom" case
+          // either (it silently falls back to last_12_months for
+          // anything unrecognized). Offering "Período personalizado"
+          // here would show that label while the computed benchmark
+          // silently used a different window — exactly the mismatch
+          // this phase exists to eliminate. Only real, end-to-end
+          // supported windows are offered.
+          options={TIME_WINDOWS.filter((tw) => tw.id !== "custom").map((tw) => ({ value: tw.id, label: t(`timeWindows.${tw.id}`) }))}
           onChange={(v) => onChange({ timeWindow: v as CohortFilters["timeWindow"] })}
         />
 
@@ -102,35 +113,19 @@ export function ContextStep({ draft, onChange, onSubmit }: ContextStepProps) {
               ]}
               onChange={(v) => onChange({ funnelStage: (v || null) as CohortFilters["funnelStage"] })}
             />
-            <Field
-              label={t("finder.age")}
-              value={draft.minAge ? `${draft.minAge}-${draft.maxAge}` : ""}
-              options={[
-                { value: "", label: t("finder.all") },
-                // PHASE 31 item 1: "25-44" was a typo overlapping with
-                // the very next band — an age band list must be a
-                // partition (each age belongs to exactly one band), and
-                // 25-44/35-44 both covered ages 35-44 while nothing
-                // covered 25-34 at all. Corrected to the evidently
-                // intended 18-24/25-34/35-44/45-54 sequence. This is a
-                // wizard-only UI options list (not part of the DB
-                // schema or the benchmark's own age methodology — see
-                // lib/benchmark/spendBands.ts and the engine's actual
-                // age-range handling, both untouched by this fix).
-                { value: "18-24", label: "18–24" },
-                { value: "25-34", label: "25–34" },
-                { value: "35-44", label: "35–44" },
-                { value: "45-54", label: "45–54" },
-              ]}
-              onChange={(v) => {
-                if (!v) {
-                  onChange({ minAge: null, maxAge: null });
-                  return;
-                }
-                const [min, max] = v.split("-").map(Number);
-                onChange({ minAge: min, maxAge: max });
-              }}
-            />
+            {/* PHASE 39.1 (§2): Age was removed from this panel — Home
+                let a user pick minAge/maxAge here, but BenchmarkExplorer
+                .tsx (app/benchmark/BenchmarkExplorer.tsx) has no age
+                concept anywhere in its own Draft or query building, so
+                there was no honest prefill target for it (unlike
+                Audience/Funnel/Spend/Duration/Time Window, all real
+                fields there). A control that looks like it works and
+                then silently gets dropped is worse than no control at
+                all. minAge/maxAge remain real, unchanged fields on
+                CohortFilters (lib/types.ts) and wherever the benchmark
+                engine itself already supports age filtering outside
+                Home — only this Home panel drops the input, and only
+                until Home -> Benchmark gets real end-to-end age support. */}
             <Field
               label={t("finder.spendRange")}
               value={draft.spendBand ?? ""}

@@ -18,13 +18,20 @@ interface DiscoveryWizardProps {
 
 // PHASE 39 (§7/§8): only 4 dimensions are required to reach a result —
 // Platform, Objective, Vertical, Country — matching the real /benchmark
-// page, where Audience/Funnel/Age/Spend/Duration are all optional
-// filters (see BenchmarkExplorer.tsx's own draft, none of them
+// page, where Audience/Funnel/Spend/Duration/Time Window are all
+// optional filters (see BenchmarkExplorer.tsx's own draft, none of them
 // required there either). Everything past Country now lives in ONE
 // combined "refine" screen (ContextStep) instead of a forced extra
 // full-screen Audience step — audienceStrategy moved into `context`
 // alongside the other already-optional advanced fields, no
 // methodological dimension removed, only no longer gating submission.
+//
+// PHASE 39.1 (§2): Age is deliberately NOT offered in ContextStep any
+// more — /benchmark has no end-to-end support for it (no prefill
+// target, no Draft field), so exposing it in Home would silently drop
+// the selection. minAge/maxAge stay real fields on CohortFilters below;
+// only Home's UI for setting them was removed. See ContextStep.tsx's
+// own comment for the full reasoning.
 interface WizardDraft {
   platformUiId: string | null;
   objectiveUiKey: string | null;

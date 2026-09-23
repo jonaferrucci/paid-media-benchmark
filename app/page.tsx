@@ -66,11 +66,18 @@ import { useTranslation } from "@/lib/i18n/LanguageContext";
 // prefillFunnelStage/prefillSpendBand/prefillDurationBand, which
 // BenchmarkExplorer.tsx already reads (added for the campaign-detail
 // "Comparar con benchmark" activation in Phase 32) — still one prefill
-// mechanism, no second one. Age and Time Window have no prefill target
-// on /benchmark today (BenchmarkExplorer.tsx has no
-// prefillMinAge/MaxAge/TimeWindow param); adding one is out of this
-// phase's file scope (would touch app/benchmark/BenchmarkExplorer.tsx)
-// and is reported as a deferred issue rather than silently left broken.
+// mechanism, no second one.
+//
+// PHASE 39.1 (§1/§2): closed the two remaining gaps Phase 39's own
+// report flagged. Time Window now forwards as prefillTimeWindow, read
+// by BenchmarkExplorer.tsx and validated there against the values
+// actually implemented end-to-end (see SUPPORTED_PREFILL_TIME_WINDOWS
+// in that file) — still one prefill mechanism. Age has NO equivalent
+// fix: BenchmarkExplorer.tsx has no minAge/maxAge concept anywhere in
+// its Draft/query, so there is no honest way to prefill it — instead
+// the Age control was removed from Home's "Afinar benchmark" panel
+// entirely (see ContextStep.tsx) rather than leave a control that looks
+// like it works and silently doesn't.
 function cohortFiltersToPrefillQuery(filters: Partial<CohortFilters>): string {
   const params = new URLSearchParams();
   if (filters.platform) params.set("prefillPlatform", filters.platform);
@@ -81,6 +88,7 @@ function cohortFiltersToPrefillQuery(filters: Partial<CohortFilters>): string {
   if (filters.funnelStage) params.set("prefillFunnelStage", filters.funnelStage);
   if (filters.spendBand) params.set("prefillSpendBand", filters.spendBand);
   if (filters.durationBand) params.set("prefillDurationBand", filters.durationBand);
+  if (filters.timeWindow) params.set("prefillTimeWindow", filters.timeWindow);
   return params.toString();
 }
 
