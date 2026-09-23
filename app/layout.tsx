@@ -23,7 +23,7 @@ const mono = IBM_Plex_Mono({
 
 export const metadata: Metadata = {
   title: "Cucurucho — Benchmarks de Paid Media",
-  description: "Plataforma de descubrimiento de benchmarks de paid media para planners y media buyers",
+  description: "Benchmarking y planificación de medios digitales para paid media: comparar resultados de campaña contra el mercado y armar un plan de medios.",
 };
 
 export default function RootLayout({

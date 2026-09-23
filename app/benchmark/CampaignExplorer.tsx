@@ -7,7 +7,7 @@ import type { ContributionTaxonomies } from "@/lib/contribute/taxonomies";
 import { runBenchmarkQueryBatch, type BenchmarkFormInput, type BenchmarkResponse } from "./actions";
 import { Select } from "./Select";
 import { ComparisonDetail, LABEL_STYLE, LABEL_ICON } from "./ComparisonDetail";
-import { classifyPerformance, formatMetricValue, formatPercentDiff, computePercentDiff, isContextualPosition } from "@/lib/comparison/classify";
+import { classifyPerformance, formatMetricValue, formatPercentDiff, computePercentDiff, isContextualPosition, resolveClassificationLabelKey } from "@/lib/comparison/classify";
 import { computeCampaignAggregate, type CampaignMetricSummary } from "@/lib/comparison/campaign";
 import { DiagnosticSection } from "./DiagnosticSection";
 import { SaveComparisonButton } from "@/app/comparisons/SaveComparisonButton";
@@ -383,7 +383,7 @@ function CampaignRow({
           {status === "success" && classification !== null && (
             <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold ${LABEL_STYLE[classification]}`}>
               {ClassIcon && <ClassIcon size={11} aria-hidden="true" />}
-              {t(`benchmarkLive.labels.${classification}`)}
+              {t(`benchmarkLive.labels.${resolveClassificationLabelKey(response.benchmarkDirection, classification)}`)}
             </span>
           )}
           {status !== "success" && (
@@ -420,10 +420,16 @@ function CampaignRow({
 // text generation, no causal claims, no recommendations (Phase 7 item
 // 11). Only lists metrics; never assigns a score.
 function CampaignInsight({ results, t }: { results: CampaignResultRow[]; t: (key: string, vars?: Record<string, string | number>) => string }) {
+  // Phase 38: grouped by the RESOLVED (direction-aware) label key, not
+  // the raw classification — two metrics can share a classification
+  // enum value (e.g. "muy_competitivo") while meaning opposite real
+  // positions (well below vs. well above the median) depending on
+  // each metric's own benchmarkDirection, so grouping by classification
+  // alone could silently merge metrics under the wrong label.
   const groups = new Map<string, string[]>();
   for (const r of results) {
     if (r.status !== "success" || r.classification === null) continue;
-    const key = r.classification;
+    const key = resolveClassificationLabelKey(r.response.benchmarkDirection, r.classification);
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key)!.push(r.metric.toUpperCase());
   }
@@ -431,9 +437,9 @@ function CampaignInsight({ results, t }: { results: CampaignResultRow[]; t: (key
 
   return (
     <div className="mt-4 space-y-1 text-sm text-ink-700">
-      {Array.from(groups.entries()).map(([classification, metrics]) => (
-        <p key={classification}>
-          <span className="font-semibold">{metrics.join(", ")}</span>: {t(`benchmarkLive.labels.${classification}`).toLowerCase()}
+      {Array.from(groups.entries()).map(([labelKey, metrics]) => (
+        <p key={labelKey}>
+          <span className="font-semibold">{metrics.join(", ")}</span>: {t(`benchmarkLive.labels.${labelKey}`).toLowerCase()}
         </p>
       ))}
     </div>

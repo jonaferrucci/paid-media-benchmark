@@ -3,6 +3,10 @@
 // these always produce the same "observations" — so switching a filter
 // and switching it back returns to the same mock numbers, which is
 // important for a believable prototype.
+//
+// Phase 38 note: fully disconnected from production since Phase 29 —
+// see lib/mock/benchmarks.ts's Phase 38 header comment for why this
+// file is still kept on disk rather than deleted.
 
 function hashString(input: string): number {
   let hash = 2166136261;

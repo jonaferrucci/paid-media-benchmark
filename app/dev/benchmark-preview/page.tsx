@@ -2,16 +2,18 @@ import { notFound } from "next/navigation";
 import { getBenchmark } from "@/lib/benchmark/engine";
 import type { BenchmarkQuery } from "@/lib/benchmark/types";
 
-// Dev-only integration example (Phase 4 item 29): proves the real
-// engine end-to-end without touching the Phase 1.5 mock-data UI. Not
-// linked from any navigation. Gated behind an explicit env flag so it
-// can never accidentally run in production if this route is left
-// deployed — visiting it without the flag set shows a plain notice
-// instead of querying the database.
+// Dev-only integration example (originally Phase 4 item 29): a minimal
+// manual smoke check that calls the real benchmark engine directly,
+// bypassing the app's own /benchmark UI. Not linked from any
+// navigation. Gated behind an explicit env flag so it can never
+// accidentally run in production if this route is left deployed —
+// visiting it without the flag set shows a plain notice instead of
+// querying the database.
 //
-// This does NOT replace lib/mock/benchmarks.ts as the frontend's data
-// source. That remains the active provider for the public experience
-// until a later phase deliberately switches specific components over.
+// Phase 38 note: lib/mock/benchmarks.ts (mentioned in this route's
+// original comment) has not been the frontend's data source since
+// Phase 29 — /benchmark and the homepage are both engine-backed today.
+// This route remains a standalone dev convenience, not a fallback.
 export default async function BenchmarkPreviewPage() {
   // Phase 9 §13 — unconditional production guard, deliberately placed
   // before the ENABLE_BENCHMARK_ENGINE_PREVIEW check (not instead of

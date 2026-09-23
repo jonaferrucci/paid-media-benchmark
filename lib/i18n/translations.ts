@@ -2,13 +2,6 @@
 // English is secondary. Every visible UI string in the planner-first
 // experience should be pulled from here via useTranslation()'s t()
 // function rather than hardcoded in components.
-//
-// Known limitation (Phase 1.3): components moved into "detailed
-// analysis" (trend/distribution/comparison charts, inherited from the
-// earlier analytics-first prototype) still contain some hardcoded
-// English strings. These are lower priority now that they are no
-// longer part of the primary planner path — flagged in the phase
-// report rather than silently left unaddressed.
 
 export type Locale = "es" | "en";
 
@@ -16,7 +9,6 @@ const es = {
   app: {
     name: "Cucurucho",
     tagline: "Benchmarks globales para decisiones de medios",
-    mockData: "Datos de prueba",
   },
   auth: {
     login: "Iniciar sesión",
@@ -371,11 +363,22 @@ const es = {
     sampleSizeProminent: "Benchmark basado en {n} campañas comparables",
     cohortContext: "Comparado con campañas de",
     yourResultMarker: "Tu resultado",
+    // Phase 38: descriptive, non-evaluative short labels — each names
+    // the real quartile position relative to the median for that
+    // metric's own direction, never "mejor"/"peor" or a competitive
+    // judgment. Keyed exactly like `insight.*` below (resolved via the
+    // same lower_/higher_ prefix, lib/comparison/classify.ts's
+    // resolveClassificationLabelKey) so the short label and the long
+    // insight sentence always describe the same real position.
     labels: {
-      muy_competitivo: "Muy competitivo",
-      competitivo: "Competitivo",
-      por_debajo_del_benchmark: "Por debajo del benchmark",
-      requiere_atencion: "Requiere atención",
+      lower_muy_competitivo: "Muy por debajo de la mediana",
+      lower_competitivo: "Por debajo de la mediana",
+      lower_por_debajo_del_benchmark: "Por encima de la mediana",
+      lower_requiere_atencion: "Muy por encima de la mediana",
+      higher_muy_competitivo: "Muy por encima de la mediana",
+      higher_competitivo: "Por encima de la mediana",
+      higher_por_debajo_del_benchmark: "Por debajo de la mediana",
+      higher_requiere_atencion: "Muy por debajo de la mediana",
       por_debajo_del_rango: "Por debajo del rango",
       dentro_del_rango: "Dentro del rango",
       por_encima_del_rango: "Por encima del rango",
@@ -915,6 +918,19 @@ const es = {
     // moved into the mobile navigation sheet.
     preferences: "Preferencias",
   },
+  // Phase 38: app/not-found.tsx and app/error.tsx copy.
+  notFoundPage: {
+    title: "No encontramos esta página",
+    description: "El enlace puede estar roto o la página pudo haberse movido.",
+    homeCta: "Volver al inicio",
+    benchmarkCta: "Ir al benchmark",
+  },
+  errorBoundary: {
+    title: "Algo salió mal",
+    description: "Tuvimos un problema inesperado. Podés intentar de nuevo o volver al inicio.",
+    retryCta: "Reintentar",
+    homeCta: "Volver al inicio",
+  },
   mediaPlanner: {
     title: "Planificador de medios",
     subtitle: "Elegí oportunidades de medios, compará su contexto comercial y de audiencia, y armá un escenario de presupuesto.",
@@ -1211,22 +1227,22 @@ const es = {
     notice: "Esta sección está definida en la documentación del producto pero todavía no forma parte del prototipo actual.",
     planned: "Planificado",
   },
+  // Phase 38: platformsTitle/platformsDesc, comparisonsTitle/
+  // comparisonsDesc, contributeTitle/contributeDesc, and phase7/phase4
+  // were removed here — orphaned leftovers from when /platforms,
+  // /comparisons, and /contribute were themselves PlaceholderPage
+  // stubs, before each got its real implementation in a later phase.
+  // Nothing renders them any more (only verticals/audiences/trends
+  // still use PlaceholderPage); removing them also retires the
+  // internal "dataset" wording they contained from owner-facing copy.
   stubPages: {
-    platformsTitle: "Plataformas",
-    platformsDesc: "Comparar la cobertura de benchmarks y la disponibilidad de métricas entre Meta Ads, Google Ads, TikTok Ads, Mercado Libre Ads, Pinterest Ads y DSP / Programático.",
     verticalsTitle: "Verticales",
     verticalsDesc: "Explorar la cobertura de benchmarks por vertical controlada.",
     audiencesTitle: "Audiencias",
     audiencesDesc: "Explorar la cobertura de benchmarks por Estrategia de Audiencia y Etapa del Funnel.",
     trendsTitle: "Tendencias",
     trendsDesc: "Evolución histórica de los benchmarks a través de ventanas de tiempo y años.",
-    comparisonsTitle: "Mis comparaciones",
-    comparisonsDesc: "Tus datasets enviados comparados contra cohortes de benchmark relevantes.",
-    contributeTitle: "Aportar datos",
-    contributeDesc: "Enviar un dataset de performance para fortalecer la cobertura de benchmarks.",
     phase6: "Fase 6 — Datos reales del dashboard",
-    phase7: "Fase 7 — Comparación personalizada (requiere autenticación)",
-    phase4: "Fase 4 — Envío manual (requiere autenticación)",
   },
   interpretation: {
     lowerBetterBelow:
@@ -1348,7 +1364,6 @@ const en: typeof es = {
   app: {
     name: "Cucurucho",
     tagline: "Global benchmarks for media decisions",
-    mockData: "Mock data",
   },
   auth: {
     login: "Log in",
@@ -1633,10 +1648,14 @@ const en: typeof es = {
     cohortContext: "Compared against campaigns from",
     yourResultMarker: "Your result",
     labels: {
-      muy_competitivo: "Highly competitive",
-      competitivo: "Competitive",
-      por_debajo_del_benchmark: "Below benchmark",
-      requiere_atencion: "Needs attention",
+      lower_muy_competitivo: "Well below the median",
+      lower_competitivo: "Below the median",
+      lower_por_debajo_del_benchmark: "Above the median",
+      lower_requiere_atencion: "Well above the median",
+      higher_muy_competitivo: "Well above the median",
+      higher_competitivo: "Above the median",
+      higher_por_debajo_del_benchmark: "Below the median",
+      higher_requiere_atencion: "Well below the median",
       por_debajo_del_rango: "Below range",
       dentro_del_rango: "Within range",
       por_encima_del_rango: "Above range",
@@ -2104,6 +2123,18 @@ const en: typeof es = {
     railLabel: "Main navigation",
     preferences: "Preferences",
   },
+  notFoundPage: {
+    title: "We couldn't find this page",
+    description: "The link may be broken, or the page may have moved.",
+    homeCta: "Back to home",
+    benchmarkCta: "Go to benchmark",
+  },
+  errorBoundary: {
+    title: "Something went wrong",
+    description: "We ran into an unexpected problem. You can try again or go back to home.",
+    retryCta: "Try again",
+    homeCta: "Back to home",
+  },
   mediaPlanner: {
     title: "Media Planner",
     subtitle: "Choose media opportunities, compare their commercial and audience context, and build a budget scenario.",
@@ -2398,21 +2429,13 @@ const en: typeof es = {
     planned: "Planned",
   },
   stubPages: {
-    platformsTitle: "Platforms",
-    platformsDesc: "Compare benchmark coverage and metric availability across Meta Ads, Google Ads, TikTok Ads, Mercado Libre Ads, Pinterest Ads and DSP / Programmatic.",
     verticalsTitle: "Verticals",
     verticalsDesc: "Browse benchmark coverage by controlled vertical taxonomy.",
     audiencesTitle: "Audiences",
     audiencesDesc: "Browse benchmark coverage by Audience Strategy and Funnel Stage.",
     trendsTitle: "Trends",
     trendsDesc: "Historical benchmark evolution across time windows and years.",
-    comparisonsTitle: "My Comparisons",
-    comparisonsDesc: "Your submitted datasets compared against relevant benchmark cohorts.",
-    contributeTitle: "Contribute Data",
-    contributeDesc: "Submit a performance dataset to strengthen benchmark coverage.",
     phase6: "Phase 6 — Real Dashboard Data",
-    phase7: "Phase 7 — Personalized Comparison (requires authentication)",
-    phase4: "Phase 4 — Manual Submission (requires authentication)",
   },
   interpretation: {
     lowerBetterBelow:

@@ -58,10 +58,6 @@ export function AppHeader({ onSearchClick }: AppHeaderProps) {
         </button>
 
         <div className="ml-auto flex items-center gap-1.5 sm:gap-2.5">
-          <span className="hidden rounded-full border border-reference/30 bg-reference-soft px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-reference lg:inline-block">
-            {t("app.mockData")}
-          </span>
-
           <div className="hidden items-center gap-1 rounded-full border border-line bg-canvas p-0.5 text-xs font-medium sm:flex">
             <button
               onClick={() => setLocale("es")}

@@ -1,3 +1,20 @@
+// Phase 38 (release-candidate cleanup) note: this file is the Phase 1
+// prototype's fabricated-number generator. It was already fully
+// disconnected from production by Phase 29 (see app/page.tsx's PHASE
+// 29 comment) — no route, layout, or production component reaches it.
+// Its last remaining consumers in this repo (GlobalInsights, MiniTrend,
+// FeaturedModules, ExploreMarket, MetricTrendChart,
+// VerticalAudienceMatrix, VerticalComparisonChart,
+// AudienceComparisonChart, DistributionChart) were themselves
+// completely orphaned — imported by nothing outside their own mutual
+// cluster — and were deleted in Phase 38. This file (and
+// lib/mock/random.ts) is intentionally left in place, unlike those
+// components, because scripts/test-phase30-home-discovery-taxonomy.mts
+// asserts it still exists on disk (a Phase 30 "verify unreachability,
+// don't delete" regression) — deleting it would break a passing test
+// for no product benefit. lib/mock/taxonomies.ts is a different,
+// still-actively-used file (real static reference vocabulary, not a
+// number generator) and is untouched.
 import {
   CohortFilters,
   CohortStep,

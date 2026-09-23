@@ -76,6 +76,31 @@ export function isContextualPosition(label: PerformanceLabel | ContextualPositio
 }
 
 /**
+ * Phase 38 (release-candidate copy polish): resolves the i18n key for
+ * the SHORT classification label shown as a pill/badge — copy only,
+ * zero effect on classifyPerformance's thresholds or math. The
+ * previous short labels ("Muy competitivo"/"Requiere atención") named
+ * a direction-blind evaluative judgment; a metric's actual quartile
+ * position relative to the median differs depending on
+ * benchmarkDirection (e.g. "muy_competitivo" means "well below the
+ * median" for a lower_is_better metric like CPA, but "well above the
+ * median" for a higher_is_better metric like ROAS). This mirrors the
+ * exact same direction-prefixing getInsightKey already uses for the
+ * long insight sentence, just applied to the short label too, so both
+ * pieces of copy describe the same real statistical position. Never
+ * called for a ContextualPosition (Reach/Frequency) — those already
+ * have purely positional labels with no direction to consider.
+ */
+export function resolveClassificationLabelKey(
+  direction: BenchmarkDirection,
+  classification: PerformanceLabel | ContextualPosition
+): string {
+  if (isContextualPosition(classification)) return classification;
+  const prefix = direction === "lower_is_better" ? "lower" : "higher";
+  return `${prefix}_${classification}`;
+}
+
+/**
  * Where the user's marker should sit on a 0-100 track that represents
  * the P25-P75 band as a fixed, always-legible middle portion (30%-70%
  * of the track, matching the range-bar component). Values outside

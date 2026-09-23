@@ -9,6 +9,7 @@ import {
   formatPercentDiff,
   getInsightKey,
   isContextualPosition,
+  resolveClassificationLabelKey,
 } from "@/lib/comparison/classify";
 import type { BenchmarkResponse } from "./actions";
 
@@ -118,7 +119,7 @@ export function ComparisonDetail({
             <p className="text-[11px] font-medium uppercase tracking-wide text-ink-500">{t("benchmarkLive.classificationLabel")}</p>
             <span className={`mt-0.5 inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold ${LABEL_STYLE[classification]}`}>
               <Icon size={12} aria-hidden="true" />
-              {t(`benchmarkLive.labels.${classification}`)}
+              {t(`benchmarkLive.labels.${resolveClassificationLabelKey(response.benchmarkDirection, classification)}`)}
             </span>
           </div>
         </div>
