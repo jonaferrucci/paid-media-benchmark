@@ -2,9 +2,8 @@
 
 import { getMetricBenchmark, suggestCohortRelaxation } from "@/lib/benchmark/engine";
 import type { BenchmarkQuery, BenchmarkResult } from "@/lib/benchmark/types";
-import type { RelaxableDimension } from "@/lib/benchmark/cohortRules";
-import { deriveBenchmarkStatus, type CohortQueryStatus } from "@/lib/benchmark/resultStatus";
 import { buildQuery, type BenchmarkFormInput } from "@/lib/benchmark/buildQuery";
+import { toResponse, requestedCohort, type BenchmarkResponse, type BenchmarkStatus } from "@/lib/benchmark/responseShape";
 
 // -----------------------------------------------------------------------
 // Phase 5: the server-side bridge between the UI and the existing,
@@ -31,95 +30,22 @@ import { buildQuery, type BenchmarkFormInput } from "@/lib/benchmark/buildQuery"
 // unchanged.
 export type { BenchmarkFormInput };
 
-// HISTORICAL BENCHMARKS ARCHITECTURE: the 4 "real" derivable outcomes
-// now live in lib/benchmark/resultStatus.ts as CohortQueryStatus
-// (shared with the new per-period historical engine) — "error" is
-// added back here since it's specific to this transport layer's own
-// try/catch around the query (never something deriveBenchmarkStatus
-// itself returns). Same 5 string values as before this refactor.
-export type BenchmarkStatus = CohortQueryStatus | "error";
-
-export interface BenchmarkResponse {
-  metric: string;
-  value: number | null;
-  unit: string;
-  benchmarkDirection: "lower_is_better" | "higher_is_better" | "contextual";
-  statistics: {
-    p25: number | null;
-    median: number | null;
-    p75: number | null;
-    mean: number | null;
-  };
-  sampleSize: number;
-  cohortSampleSize: number;
-  cohort: {
-    requested: Record<string, unknown>;
-    applied: Record<string, unknown>;
-    relaxed: string[];
-  };
-  status: BenchmarkStatus;
-  message?: string;
-  relaxationSuggestion?: { dimension: RelaxableDimension; estimatedSampleSize: number } | null;
-}
-
-function requestedCohort(input: BenchmarkFormInput): Record<string, unknown> {
-  return {
-    platform: input.platform,
-    objective: input.objective,
-    vertical: input.vertical,
-    country: input.country,
-    audienceStrategy: input.audienceStrategy ?? null,
-    funnelStage: input.funnelStage ?? null,
-    businessModel: input.businessModel ?? null,
-    spendBand: input.spendBand ?? null,
-    durationBand: input.durationBand ?? null,
-    timeWindow: input.timeWindow ?? "last_12_months",
-  };
-}
-
-function toResponse(input: BenchmarkFormInput, result: BenchmarkResult): BenchmarkResponse {
-  // HISTORICAL BENCHMARKS ARCHITECTURE: this precedence (Reach
-  // methodology block distinguishable from a merely-small cohort >
-  // success > no_data > insufficient_sample) is now the ONE shared
-  // implementation in lib/benchmark/resultStatus.ts — pure extraction,
-  // same conditions, same order, same outcomes as before this refactor.
-  // Reused identically by the new per-period historical engine so the
-  // two paths can never silently disagree on what "no data" means.
-  const status: BenchmarkStatus = deriveBenchmarkStatus({
-    metricKey: input.metric,
-    spendBand: input.spendBand,
-    durationBand: input.durationBand,
-    relaxedDimensions: input.relaxedDimensions,
-    sufficientData: result.sufficientData,
-    cohortSampleSize: result.cohortSampleSize,
-  });
-
-  const message: string | undefined =
-    status === "methodology_block"
-      ? "reach_requires_scale_context"
-      : status === "no_data"
-        ? "no_matching_datasets"
-        : status === "insufficient_sample"
-          ? "sample_below_threshold"
-          : undefined;
-
-  return {
-    metric: result.metric,
-    value: result.value,
-    unit: result.unit,
-    benchmarkDirection: result.benchmarkDirection,
-    statistics: { p25: result.p25, median: result.value, p75: result.p75, mean: result.mean },
-    sampleSize: result.metricSampleSize,
-    cohortSampleSize: result.cohortSampleSize,
-    cohort: {
-      requested: requestedCohort(input),
-      applied: result.cohort as unknown as Record<string, unknown>,
-      relaxed: result.relaxedDimensions,
-    },
-    status,
-    message,
-  };
-}
+// CUCURUCHO INTELLIGENCE 2 (§10): BenchmarkStatus/BenchmarkResponse and
+// the toResponse()/requestedCohort() shaping functions now live in
+// lib/benchmark/responseShape.ts, for the exact same reason buildQuery
+// was extracted during Historical Benchmarks — toResponse is a plain,
+// synchronous function, and this file's top-level "use server"
+// directive means Next.js's Server Actions compiler would reject
+// exporting it directly (every exported binding from a "use server"
+// file must be an async function). Campaign Explorer's page.tsx (a
+// Server Component, not a "use server" file) needs this exact same
+// shaping so its own market-comparison rows can never drift from what
+// /benchmark itself would show for the same query — see that file's
+// own comment. Type-only re-exports below are erased at compile time
+// (never a runtime action reference), so every existing import of
+// BenchmarkResponse/BenchmarkStatus from "./actions" keeps working
+// unchanged.
+export type { BenchmarkStatus, BenchmarkResponse };
 
 /**
  * Runs one metric's benchmark through the existing engine and shapes

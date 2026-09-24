@@ -40,6 +40,28 @@ export interface DatasetRawSummary {
   raw: RawMetricInputs;
 }
 
+// CUCURUCHO INTELLIGENCE 2 (§7 — metric availability engine): the one,
+// explicit "which metrics can THIS campaign's own raw data produce"
+// function Campaign Explorer needs, named to match the spec's own
+// getAvailableCampaignMetrics(dataset). It does not reimplement
+// anything — calculateDerivedMetrics() already only ever sets a key
+// when every required raw input is present and its denominator is
+// valid (see safeDivide in lib/metrics/derive.ts), so a metric key is
+// already absent from its result whenever it's unavailable. This is a
+// thin, named wrapper around that existing behavior so callers have one
+// explicit, self-documenting entry point instead of re-deriving
+// Object.keys(calculateDerivedMetrics(raw)) inline at each call site.
+// "Unavailable" here is never the same thing as a zero or missing
+// benchmark value — a campaign simply not having, say, `conversions`
+// raw data means CPA/ROAS/ACOS/TACOS are unavailable FOR THIS CAMPAIGN,
+// which is a completely different fact from the market benchmark itself
+// having no_data or insufficient_sample for a metric the campaign DOES
+// have.
+export function getAvailableCampaignMetrics(raw: RawMetricInputs): DerivedMetricKey[] {
+  const derived = calculateDerivedMetrics(raw);
+  return (Object.keys(derived) as DerivedMetricKey[]).filter((key) => derived[key] !== undefined);
+}
+
 export interface MetricCoverageEntry {
   metric: DerivedMetricKey;
   campaignCount: number;

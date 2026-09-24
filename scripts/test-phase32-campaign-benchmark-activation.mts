@@ -93,10 +93,34 @@ assertTrue(
   pageSource.includes("calculateDerivedMetrics(raw)") && pageSource.includes("getMetricBenchmark("),
   "eligibility reuses the existing calculateDerivedMetrics + getMetricBenchmark logic, no new formula"
 );
+// CUCURUCHO INTELLIGENCE 2 (§11) UPDATE: this assertion originally
+// checked that a metric was only ever offered when BOTH (a) it's
+// /benchmark-compatible (SINGLE_METRIC_OPTIONS) AND (b) the market
+// cohort already had `entry.sufficientData`. Condition (b) was an
+// EXPLICITLY INSTRUCTED change in Intelligence 2's own §11 (every
+// candidate metric must show its own real status —
+// success/insufficient_sample/no_data/methodology_block — never be
+// silently dropped just because it isn't "success"): the old
+// `entry.sufficientData &&` gate is gone by design, not by accident, and
+// page.tsx no longer has an `entry` variable at all (the readiness loop
+// itself was replaced by the shared-cohort getBenchmarksForMetrics batch
+// — see the §10 assertion below). Condition (a), the
+// SINGLE_METRIC_OPTIONS gate, is still real and still enforced (never
+// weakened) — this replacement checks that gate directly, plus the new,
+// stronger invariant that every result from the batch becomes a row
+// regardless of status (no lingering sufficientData-only filter of any
+// kind reintroduced).
 assertTrue(
-  pageSource.includes("(SINGLE_METRIC_OPTIONS as readonly string[]).includes(entry.metric)") &&
-  pageSource.includes("entry.sufficientData"),
-  "a metric is only offered when it's both /benchmark-compatible AND the real market cohort already has sufficient data"
+  pageSource.includes("derivedKeys.filter((m) => (SINGLE_METRIC_OPTIONS as readonly string[]).includes(m))"),
+  "a metric is only ever a market-comparison candidate when it's both this campaign's own real derivable data AND /benchmark-compatible (SINGLE_METRIC_OPTIONS) — unchanged gate, still enforced"
+);
+assertTrue(
+  !/entry\.sufficientData/.test(pageSource) && !/if \(entry\.sufficientData/.test(pageSource),
+  "the old sufficientData-only gate is gone — every candidate metric's real status now reaches compareOptions, never silently dropped for being non-success"
+);
+assertTrue(
+  pageSource.includes("compareOptions.push({ metric: result.metric, status: response.status, classification, response, userValue });"),
+  "every candidate metric is pushed with its own real, independently-derived status — never filtered to success-only"
 );
 assertTrue(
   singleMetricOptionsSource.includes(
@@ -207,22 +231,30 @@ assertTrue(
 );
 
 // -----------------------------------------------------------------------
-// §12 Mobile: PHASE 35 (§8) restructured the multi-metric compare block
-// from a wrapped chip row into a "Resultados comparables" list (one row
-// per metric: label+value on the left, a "Comparar" button on the
-// right). The mobile-safety property this assertion originally checked
-// for — no fixed-width row that can overflow a narrow viewport — is now
-// achieved differently: each row's text side shrinks (min-w-0) and its
-// button side never does (shrink-0), rather than the row itself
-// wrapping. This assertion was updated to match that current, still
-// mobile-safe structure rather than the pre-Phase-35 markup.
+// §12 Mobile — CUCURUCHO INTELLIGENCE 2 UPDATE: PHASE 35 (§8)'s
+// min-w-0/shrink-0 label+button row no longer exists — Intelligence 2
+// (§9/§14) replaced it with MetricComparisonRow (extracted from
+// CampaignExplorer.tsx), an inline campaign-vs-market comparison row
+// with its own status pill/classification chip, plus a separate,
+// non-fixed-width "Ver benchmark completo" link underneath. This is a
+// real, explicitly instructed UI evolution (a richer inline comparison
+// per §9), not a mobile-safety regression — the mobile-safety PROPERTY
+// (no element forces horizontal overflow at narrow widths) still holds,
+// just via a different, still-real mechanism: MetricComparisonRow's own
+// content row uses flex-wrap (verified directly in its own source below,
+// not re-declared here) so it wraps rather than overflows, and the
+// per-row cross-link sits in its own `flex justify-end` block with no
+// fixed width of its own.
 // -----------------------------------------------------------------------
+const metricComparisonRowSource = readFileSync(new URL("../app/benchmark/MetricComparisonRow.tsx", import.meta.url), "utf8");
 assertTrue(
-  detailSource.includes('<div className="mt-2 divide-y divide-line">') &&
-  detailSource.includes('className="flex items-center justify-between gap-3 py-2 first:pt-0 last:pb-0"') &&
-  detailSource.includes('<div className="min-w-0">') &&
-  detailSource.includes('className="shrink-0 rounded-full bg-primary px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90"'),
-  "the comparable-results rows keep the label/value side shrinkable (min-w-0) and the Comparar button non-shrinking (shrink-0), so no row forces horizontal overflow at narrow widths"
+  metricComparisonRowSource.includes("flex flex-1 flex-wrap items-center gap-x-3 gap-y-1"),
+  "MetricComparisonRow's own content row wraps (flex-wrap) rather than forcing a fixed width that could overflow a narrow viewport"
+);
+assertTrue(
+  detailSource.includes("<MetricComparisonRow") &&
+  detailSource.includes('<div className="flex justify-end pt-1">'),
+  "ContributionDetail renders each comparable metric through MetricComparisonRow, plus a separate, non-fixed-width cross-link row underneath — never a re-implemented, independently-maintained row"
 );
 
 // -----------------------------------------------------------------------

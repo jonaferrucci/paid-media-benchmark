@@ -121,26 +121,50 @@ assertTrue(
 
 // -----------------------------------------------------------------------
 // §8/§10 Valid status: "Resultados comparables" shows the campaign's own
-// real, already-computed value (formatMetricValue reuse, real per-metric
-// unit — never a hardcoded guess) with a per-metric compare CTA — and an
+// real, already-computed value with a per-metric compare CTA — and an
 // honest empty state (never a fake primary CTA) when a valid campaign
 // has zero real compareOptions.
+//
+// CUCURUCHO INTELLIGENCE 2 UPDATE: the value-formatting checks below
+// used to look for `import { formatMetricValue } ...` and
+// `formatMetricValue(option.userValue, option.unit)` directly inside
+// ContributionDetail.tsx. Intelligence 2 (§9/§14) moved that formatting
+// call into MetricComparisonRow.tsx (extracted from CampaignExplorer.tsx
+// so both real-campaign and manual-entry comparisons render through the
+// exact same row — see that file's own comment), which
+// ContributionDetail.tsx now renders instead of formatting values
+// itself. The underlying claim this assertion protects — "one canonical
+// formatter, never a second one written for this section" — still
+// holds; it's just enforced by checking where that one formatter now
+// actually lives, plus confirming ContributionDetail.tsx itself no
+// longer has a competing formatMetricValue import/call of its own.
 // -----------------------------------------------------------------------
+const metricComparisonRowSourceP35 = readFileSync(new URL("../app/benchmark/MetricComparisonRow.tsx", import.meta.url), "utf8");
 assertTrue(
-  detailSource.includes('import { formatMetricValue } from "@/lib/comparison/classify";'),
-  "the comparable-results value formatting reuses the one existing canonical formatter — never a second one written for this section"
+  metricComparisonRowSourceP35.includes('import { classifyPerformance, formatMetricValue, formatPercentDiff, computePercentDiff, isContextualPosition, resolveClassificationLabelKey } from "@/lib/comparison/classify";') &&
+  metricComparisonRowSourceP35.includes("formatMetricValue(userValue, response.unit)"),
+  "the one canonical formatter still does all comparable-results value formatting — now inside MetricComparisonRow.tsx, the single row component both ContributionDetail.tsx and CampaignExplorer.tsx render through"
 );
 assertTrue(
-  detailSource.includes("formatMetricValue(option.userValue, option.unit)"),
-  "each comparable-metric row formats its value using the real per-metric unit carried through from the engine"
+  !detailSource.includes("from \"@/lib/comparison/classify\""),
+  "ContributionDetail.tsx no longer imports/re-implements value formatting itself — it renders MetricComparisonRow instead of a second, independently-maintained formatter"
 );
 assertTrue(
   detailSource.includes("benchmarkActivation.compareOptions.length === 0") && detailSource.includes('t("contributions.benchmarkReadinessNone")'),
   "a valid campaign with zero real compareOptions gets the same honest \"nothing ready yet\" copy instead of a misleading primary CTA"
 );
+// CUCURUCHO INTELLIGENCE 2 UPDATE: `unit: result.unit`/`unit:
+// reachResult.unit` were the old readiness-loop's own field names.
+// page.tsx now threads the full BenchmarkResponse (via the shared
+// toResponse() shaping) through to each row instead of picking out a
+// bare `unit` field — the unit is still read from the SAME
+// already-executing getMetricBenchmark/getBenchmarksForMetrics calls
+// (never a new query), it's just carried inside `response.unit` now
+// (consumed by MetricComparisonRow, verified above) rather than a
+// separately-destructured field on this page.
 assertTrue(
-  pageSource.includes("unit: result.unit") && pageSource.includes("unit: reachResult.unit"),
-  "unit is threaded through from the SAME already-executing getMetricBenchmark calls — no new query added for this display"
+  pageSource.includes("const response = toResponse(input, result);") && pageSource.includes("const reachResponse = toResponse(reachInput, reachResult);"),
+  "unit (and every other display field) is threaded through the same already-executing engine calls via the shared toResponse() shaping — no new query added for this display"
 );
 
 // -----------------------------------------------------------------------
@@ -234,9 +258,17 @@ assertTrue(
   workspaceSource.includes('className="mt-2 flex flex-wrap gap-2"'),
   "the zero-data state's two CTAs sit in a flex-wrap row"
 );
+// CUCURUCHO INTELLIGENCE 2 UPDATE: the min-w-0/shrink-0 label+button row
+// this assertion checked no longer exists in ContributionDetail.tsx —
+// Intelligence 2 (§9/§14) replaced it with MetricComparisonRow (see
+// scripts/test-phase32-campaign-benchmark-activation.mts's own §12
+// Mobile update for the full explanation and the verification that
+// MetricComparisonRow's content row uses flex-wrap instead). Re-checked
+// here too since this phase is also the one that originally introduced
+// the row this replaces.
 assertTrue(
-  detailSource.includes('className="min-w-0"') && detailSource.includes('className="shrink-0 rounded-full bg-primary px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90"'),
-  "each comparable-results row shrinks its text side and never shrinks its button side, so it can't force horizontal overflow at 320px"
+  detailSource.includes("<MetricComparisonRow") && !detailSource.includes('className="min-w-0"'),
+  "the comparable-results rows now render through MetricComparisonRow (flex-wrap content, verified in test-phase32) rather than the old min-w-0/shrink-0 label+button row"
 );
 
 // -----------------------------------------------------------------------

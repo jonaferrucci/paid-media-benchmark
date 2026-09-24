@@ -10,9 +10,14 @@ import { useState } from "react";
 import { useTranslation } from "@/lib/i18n/LanguageContext";
 import type { RawMetricInputs } from "@/lib/metrics/derive";
 import { DERIVED_METRIC_LABELS, type DerivedMetricKey } from "@/lib/contribute/coverage";
-// PHASE 35 (§8): the one existing, canonical value formatter — never a
-// second one written for this new "Resultados comparables" section.
-import { formatMetricValue } from "@/lib/comparison/classify";
+// CUCURUCHO INTELLIGENCE 2 (§9/§14): "Resultados comparables" now
+// renders each metric through the SAME MetricComparisonRow component
+// CampaignExplorer.tsx's own multi-metric compare tool uses (extracted
+// from it, zero behavior change there — see that file's own comment) —
+// this is the one place value formatting (formatMetricValue) and
+// classification (classifyPerformance) happen for a metric row, not a
+// second, independently-maintained copy in this file.
+import { MetricComparisonRow, type CampaignResultRow } from "@/app/benchmark/MetricComparisonRow";
 import { deleteContributionAction } from "../actions";
 
 const STATUS_STYLE: Record<string, string> = {
@@ -37,26 +42,21 @@ const RAW_FIELD_LABEL_KEYS: Partial<Record<keyof RawMetricInputs, string>> = {
   total_revenue: "contribute.field.totalRevenue",
 };
 
-export interface BenchmarkReadinessEntry {
-  metric: DerivedMetricKey;
-  sufficientData: boolean;
-  cohortSampleSize: number;
-  // PHASE 35 (§8): the real unit_type this same engine call already
-  // read — carried through so this component never needs its own
-  // per-metric unit guess.
-  unit: string;
-}
-
-// PHASE 32 (§2/§3/§4): the campaign → benchmark activation. `context`
-// mirrors exactly the cohort fields the campaign itself already has
-// (never invented) and reuses the Phase 30 Home->/benchmark prefill
-// param naming; `compareOptions` is the campaign's own real,
-// already-eligible metrics (see page.tsx — never a fabricated one) with
-// the value Cucurucho already knows, so the user never re-types it.
-export interface BenchmarkCompareOption {
-  metric: DerivedMetricKey | "reach";
-  userValue: number;
-  unit: string;
+// CUCURUCHO INTELLIGENCE 2 (§9/§10/§11): the campaign -> benchmark
+// activation. `context` mirrors exactly the cohort fields the campaign
+// itself already has (never invented) and reuses the Phase 30
+// Home->/benchmark prefill param naming; `compareOptions` is now every
+// one of the campaign's own real, /benchmark-acceptable metrics (see
+// page.tsx), each carrying its own real status (success/
+// insufficient_sample/no_data/methodology_block — never silently
+// dropped just because it isn't "success", the way the pre-Intelligence-2
+// `sufficientData &&` filter used to) plus the full BenchmarkResponse so
+// this component can render the SAME inline comparison (median, P25/P75,
+// classification) that CampaignExplorer.tsx's own compare tool already
+// shows, without opening /benchmark. spendBand/durationBand remain
+// optional — only Reach's own row ever carries them, for the cross-link
+// below.
+export interface BenchmarkCompareOption extends CampaignResultRow {
   spendBand?: string;
   durationBand?: string;
 }
@@ -73,11 +73,6 @@ export interface BenchmarkActivation {
   };
   compareOptions: BenchmarkCompareOption[];
 }
-
-const METRIC_LABELS_WITH_REACH: Record<DerivedMetricKey | "reach", string> = {
-  ...DERIVED_METRIC_LABELS,
-  reach: "Reach",
-};
 
 // Builds the exact same /benchmark?prefill... URL shape the Home
 // discovery flow and the import-done screen already use (Phase 26/28/
@@ -126,12 +121,11 @@ export interface ContributionDetailDataset {
 }
 
 export function ContributionDetail({
-  dataset, raw, derivedKeys, readiness, benchmarkActivation,
+  dataset, raw, derivedKeys, benchmarkActivation,
 }: {
   dataset: ContributionDetailDataset;
   raw: RawMetricInputs;
   derivedKeys: DerivedMetricKey[];
-  readiness: BenchmarkReadinessEntry[];
   benchmarkActivation: BenchmarkActivation;
 }) {
   const { t } = useTranslation();
@@ -149,6 +143,10 @@ export function ContributionDetail({
   // button+aria-expanded+chevron pattern app/benchmark/CampaignExplorer.tsx's
   // MetricRow already uses, never a new UI dependency.
   const [detailsOpen, setDetailsOpen] = useState(false);
+  // CUCURUCHO INTELLIGENCE 2 (§14): which comparable-metric row (if any)
+  // is expanded — same single-open-at-a-time pattern CampaignExplorer.tsx
+  // already uses for its own MetricComparisonRow list.
+  const [expandedMetric, setExpandedMetric] = useState<string | null>(null);
 
   const importedEntries = (Object.keys(raw) as (keyof RawMetricInputs)[]).filter((k) => k !== "ad_spend" && raw[k] !== undefined);
 
@@ -235,24 +233,45 @@ export function ContributionDetail({
                   </a>
                 </>
               ) : (
-                // §8: one row per comparable metric — real label, real
-                // already-computed value (formatMetricValue + the
-                // engine's own real unit_type, never a second
-                // formatter or a hardcoded unit guess), and the same
-                // per-metric Comparar action the old chip row linked to.
-                <div className="mt-2 divide-y divide-line">
+                // CUCURUCHO INTELLIGENCE 2 (§9/§11/§14): one row per
+                // comparable metric, reusing the SAME MetricComparisonRow
+                // CampaignExplorer.tsx's own compare tool already renders
+                // — real value, real market median/P25/P75, real
+                // classification, and (for a success row) an expandable
+                // detail, all inline — so the owner doesn't have to open
+                // /benchmark just to see where their own number sits.
+                // Every real status (success/insufficient_sample/no_data/
+                // methodology_block) gets its own row now — never
+                // silently dropped just because it isn't "success", the
+                // way this list used to work before Intelligence 2.
+                //
+                // §15: "Ver benchmark completo" is preserved as an
+                // explicit, separate per-row link (same prefill mechanism
+                // as before, completely unchanged — see buildBenchmarkHref)
+                // for whatever the inline row doesn't cover: Historical
+                // Benchmarks, and relaxing cohort dimensions oneself.
+                // Never rendered twice, never replacing BenchmarkExplorer.
+                <div className="mt-2 space-y-2">
                   {benchmarkActivation.compareOptions.map((option) => (
-                    <div key={option.metric} className="flex items-center justify-between gap-3 py-2 first:pt-0 last:pb-0">
-                      <div className="min-w-0">
-                        <p className="text-xs font-semibold text-ink-900">{METRIC_LABELS_WITH_REACH[option.metric]}</p>
-                        <p className="tabular text-sm text-ink-700">{formatMetricValue(option.userValue, option.unit)}</p>
+                    <div key={option.metric}>
+                      <MetricComparisonRow
+                        row={option}
+                        t={t}
+                        expanded={expandedMetric === option.metric}
+                        onToggle={() => setExpandedMetric(expandedMetric === option.metric ? null : option.metric)}
+                        platformLabel={dataset.platformLabel}
+                        objectiveLabel={dataset.objectiveLabel}
+                        verticalLabel={dataset.verticalLabel}
+                        countryLabel={dataset.countryLabel}
+                      />
+                      <div className="flex justify-end pt-1">
+                        <a
+                          href={buildBenchmarkHref(benchmarkActivation.context, option)}
+                          className="text-xs font-medium text-ink-500 hover:text-primary hover:underline"
+                        >
+                          {t("contributions.compareBenchmarkCta")}
+                        </a>
                       </div>
-                      <a
-                        href={buildBenchmarkHref(benchmarkActivation.context, option)}
-                        className="shrink-0 rounded-full bg-primary px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90"
-                      >
-                        {t("contributions.compareBenchmarkCta")}
-                      </a>
                     </div>
                   ))}
                 </div>
@@ -351,37 +370,18 @@ export function ContributionDetail({
                   </div>
                 )}
 
-                {/* §6: own-data-ready vs. market-sample-insufficient — an
-                    explicit, never-conflated distinction. */}
-                {derivedKeys.length > 0 && (
-                  <>
-                    <p className="mt-3 text-xs font-semibold uppercase tracking-wide text-ink-500">{t("contributions.benchmarkReadinessTitle")}</p>
-                    {readiness.length === 0 ? (
-                      <p className="mt-1.5 text-sm text-ink-500">{t("contributions.benchmarkReadinessNone")}</p>
-                    ) : (
-                      <ul className="mt-1.5 space-y-1.5 text-sm text-ink-700">
-                        {readiness.map((entry) => (
-                          <li key={entry.metric}>
-                            {entry.sufficientData
-                              ? t("contributions.benchmarkReadinessAvailable", { metric: DERIVED_METRIC_LABELS[entry.metric] })
-                              : (
-                                // §6: the two DIFFERENT problems, both stated
-                                // explicitly — never conflated into one vague
-                                // "no data" message. This campaign's own data
-                                // already supports the metric (it's in
-                                // derivedKeys); what's missing is a large
-                                // enough market cohort to compare against.
-                                <>
-                                  {t("contributions.benchmarkReadinessOwnDataOk", { metric: DERIVED_METRIC_LABELS[entry.metric] })}{" "}
-                                  {t("contributions.benchmarkReadinessCohortInsufficient", { metric: DERIVED_METRIC_LABELS[entry.metric] })}
-                                </>
-                              )}
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </>
-                )}
+                {/* CUCURUCHO INTELLIGENCE 2: the separate "Comparación
+                    contra el mercado" prose list that used to live here
+                    (readiness.map(...), gated on entry.sufficientData) is
+                    now fully superseded by "Resultados comparables" above
+                    — that section already shows every one of these same
+                    metrics with its own real, more precise status
+                    (success/insufficient_sample/no_data/methodology_block,
+                    not just a boolean), so restating it here in vaguer
+                    prose would only say the same thing twice. Nothing is
+                    dropped: every derived, benchmark-eligible metric's
+                    real state is still shown, just once, where it's
+                    already accurate. */}
               </div>
             )}
           </div>

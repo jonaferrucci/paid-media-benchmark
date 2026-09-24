@@ -69,6 +69,19 @@ import { readFileSync } from "node:fs";
 const engineSource = readFileSync(new URL("../../lib/benchmark/engine.ts", import.meta.url), "utf8");
 const actionsSource = readFileSync(new URL("../../app/benchmark/actions.ts", import.meta.url), "utf8");
 const typesSource = readFileSync(new URL("../../lib/benchmark/types.ts", import.meta.url), "utf8");
+// CUCURUCHO INTELLIGENCE 2 (§10): toResponse()/BenchmarkResponse used to
+// be defined directly inside app/benchmark/actions.ts; they now live in
+// lib/benchmark/responseShape.ts (extracted for the exact same reason
+// buildQuery.ts was extracted during Historical Benchmarks — a plain,
+// synchronous function/type cannot be exported from a "use server"
+// file — see that file's own header comment), so Campaign Explorer's
+// page.tsx can reuse the identical BenchmarkResult -> BenchmarkResponse
+// shaping. actions.ts now only imports and calls it. The two assertions
+// below that used to check this shaping's source text directly inside
+// actionsSource now check responseShapeSource instead — same real
+// invariants, same precision, just pointed at where the code actually
+// lives now.
+const responseShapeSource = readFileSync(new URL("../../lib/benchmark/responseShape.ts", import.meta.url), "utf8");
 
 type AssertTrue = (cond: boolean, label: string) => void;
 
@@ -131,9 +144,14 @@ export function assertActionsCoreInvariants(assertTrue: AssertTrue): void {
   assertTrue(/result = await getMetricBenchmark\(query, input\.metric\)/.test(actionsSource), "actions.ts: runBenchmarkQuery still calls the single shared getMetricBenchmark(query, metric) — no parallel/duplicated query path");
 
   // Status derivation is the one shared implementation, not a second,
-  // hand-inlined copy of the Reach/sufficient/no-data precedence.
-  assertTrue(/const status: BenchmarkStatus = deriveBenchmarkStatus\(\{/.test(actionsSource), "actions.ts: toResponse still derives status via the shared deriveBenchmarkStatus (lib/benchmark/resultStatus.ts), not a re-inlined copy of the precedence rule");
-  assertTrue(!/reachScaleContextRelaxed/.test(actionsSource), "actions.ts: no second, hand-inlined Reach-methodology-block predicate exists here (that logic lives only in engine.ts/resultStatus.ts)");
+  // hand-inlined copy of the Reach/sufficient/no-data precedence — now
+  // verified in lib/benchmark/responseShape.ts, where toResponse lives
+  // (see this file's own header comment on the CUCURUCHO INTELLIGENCE 2
+  // extraction), plus confirming actions.ts still imports and uses that
+  // one shared function rather than a local copy.
+  assertTrue(/const status: BenchmarkStatus = deriveBenchmarkStatus\(\{/.test(responseShapeSource), "responseShape.ts: toResponse still derives status via the shared deriveBenchmarkStatus (lib/benchmark/resultStatus.ts), not a re-inlined copy of the precedence rule");
+  assertTrue(!/reachScaleContextRelaxed/.test(responseShapeSource) && !/reachScaleContextRelaxed/.test(actionsSource), "actions.ts/responseShape.ts: no second, hand-inlined Reach-methodology-block predicate exists here (that logic lives only in engine.ts/resultStatus.ts)");
+  assertTrue(/import \{ toResponse, requestedCohort, type BenchmarkResponse, type BenchmarkStatus \} from "@\/lib\/benchmark\/responseShape"/.test(actionsSource), "actions.ts: still imports the one shared toResponse/requestedCohort/BenchmarkResponse/BenchmarkStatus from responseShape.ts, never a local re-declaration");
 
   // A failed query is still logged server-side only and returned as a
   // generic error — no raw exception detail reaches the client.
@@ -141,8 +159,8 @@ export function assertActionsCoreInvariants(assertTrue: AssertTrue): void {
   assertTrue(/status: "error"/.test(actionsSource) && !/message:\s*err\b/.test(actionsSource) && !/message:\s*String\(err\)/.test(actionsSource) && !/message:\s*err\.message/.test(actionsSource), "actions.ts: a failed query still returns a generic 'error' status with no raw exception message/detail exposed to the client");
 
   // The BenchmarkResponse contract (every field the UI reads) is still
-  // declared, unshrunk.
+  // declared, unshrunk — now in responseShape.ts (see above).
   for (const field of ["value", "unit", "benchmarkDirection", "statistics", "sampleSize", "cohortSampleSize", "cohort", "status", "message", "relaxationSuggestion"]) {
-    assertTrue(new RegExp(`\\b${field}\\??:`).test(actionsSource), `actions.ts: BenchmarkResponse still declares its '${field}' field`);
+    assertTrue(new RegExp(`\\b${field}\\??:`).test(responseShapeSource), `responseShape.ts: BenchmarkResponse still declares its '${field}' field`);
   }
 }

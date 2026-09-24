@@ -230,26 +230,41 @@ assertTrue(
 );
 
 // -----------------------------------------------------------------------
-// §8 CAMPAIGN -> BENCHMARK — eligibility still gated on the SAME real
-// mechanism (SINGLE_METRIC_OPTIONS + readiness.sufficientData), never a
-// second/parallel eligibility path added for the new metrics.
+// §8 CAMPAIGN -> BENCHMARK — eligibility.
+//
+// CUCURUCHO INTELLIGENCE 2 UPDATE: the three assertions below originally
+// checked (1) a combined SINGLE_METRIC_OPTIONS + entry.sufficientData
+// gate, (2) a `derivedKeys.map(async metric => getMetricBenchmark(...))`
+// per-metric readiness loop, and (3) an exact `compareOptions.push({
+// metric: entry.metric, ... })` literal. All three are stale for the
+// same, single, explicitly-instructed reason: Intelligence 2's own §10
+// replaced that per-metric loop (which re-ran the full eligible-dataset
+// join query once per metric, even though every one of those queries
+// shared the identical cohort) with ONE shared-cohort batch call
+// (getBenchmarksForMetrics), and §11 removed the sufficientData-only
+// filter so every metric's real status reaches the UI. There is no more
+// `entry` variable, no more per-metric getMetricBenchmark loop for the
+// derived metrics, and no more sufficientData gate — by design, verified
+// already in scripts/test-phase32-campaign-benchmark-activation.mts's
+// own §4/§5 assertions and in lib/benchmark/engine.ts's own comment on
+// getBenchmarksForMetrics. The SINGLE_METRIC_OPTIONS gate itself (the
+// real, still-enforced half of the old combined check) is verified
+// there too. These three are replaced with real invariants that the NEW
+// mechanism is what's actually in place, and that Reach — the one
+// metric excluded from the shared batch, per getBenchmarksForMetrics's
+// own refusal — still gets its own dedicated getMetricBenchmark call.
 // -----------------------------------------------------------------------
 assertTrue(
-  contributionPageSource.includes("(SINGLE_METRIC_OPTIONS as readonly string[]).includes(entry.metric)") &&
-  contributionPageSource.includes("entry.sufficientData"),
-  "compareOptions eligibility is still exactly one gate: /benchmark-acceptable AND sufficient real cohort data — unchanged by this phase"
+  contributionPageSource.includes("getBenchmarksForMetrics(query, candidateMetrics)"),
+  "compareOptions for every derived, /benchmark-acceptable metric now comes from ONE shared-cohort batch call, not a per-metric loop (§10 query optimization)"
 );
 assertTrue(
-  contributionPageSource.includes("derivedKeys.map(async (metric) => {") &&
-  contributionPageSource.includes("const result = await getMetricBenchmark(query, metric);"),
-  "readiness is still computed for every one of this campaign's own derivable metrics (not a hardcoded subset) — the new metrics are automatically included, never a parallel loop"
+  contributionPageSource.includes('await getMetricBenchmark(reachQuery, "reach")'),
+  "Reach still gets its own dedicated getMetricBenchmark call (its query depends on spendBand/durationBand, which the shared batch deliberately never applies to it)"
 );
 assertTrue(
-  // PHASE 35 (§8) additionally threads the real `unit` through this same
-  // push call (for "Resultados comparables" formatting) — the assertion
-  // below matches that current line rather than the pre-Phase-35 one.
-  contributionPageSource.includes("compareOptions.push({ metric: entry.metric, userValue: Math.round(value * 100) / 100, unit: entry.unit });"),
-  "a newly-eligible compareOption still carries this campaign's own real, already-computed value — prefillMetric/prefillUserValue need no new code path (buildBenchmarkHref already forwards both for any option)"
+  !contributionPageSource.includes("derivedKeys.map(async (metric) => {"),
+  "the old per-derived-metric getMetricBenchmark loop is gone, replaced by the shared-cohort batch — not a parallel/duplicated mechanism left behind"
 );
 assertTrue(
   contributionDetailSource.includes('params.set("prefillMetric", option.metric);') && contributionDetailSource.includes('params.set("prefillUserValue", String(option.userValue));'),

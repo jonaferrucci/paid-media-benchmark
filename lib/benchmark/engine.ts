@@ -281,10 +281,23 @@ async function computeMetricBenchmarkCore(
   // value (or null) instead, since it needs the same metric's meta
   // across every period and resolving it once up front is cheaper than
   // up to N lazy fetches inside the loop.
-  metricMeta?: MetricRowMeta | null
+  metricMeta?: MetricRowMeta | null,
+  // CUCURUCHO INTELLIGENCE 2 (§10 — Campaign Explorer query strategy):
+  // undefined (the default, and the ONLY value every existing caller —
+  // getMetricBenchmark, getHistoricalBenchmark — ever passes) means
+  // "resolve relaxed/window/datasetIds exactly as before this change,
+  // with zero behavior difference." getBenchmarksForMetrics below is the
+  // one and only caller that ever supplies this, having already resolved
+  // relaxed/window/datasetIds ONCE for a whole batch of metrics that
+  // share the exact same cohort — since every one of those fields is
+  // fully determined by `query` alone (never by metricKey), reusing them
+  // across metrics is safe: it changes nothing about what each metric's
+  // result would have been, it only avoids re-running the identical
+  // eligible-dataset join query N times in a row for the same cohort.
+  precomputedCohort?: { relaxed: Set<RelaxableDimension>; window: { startDate: string; endDate: string }; datasetIds: string[] }
 ): Promise<BenchmarkResult> {
-  const relaxed = new Set(query.relaxedDimensions ?? []);
-  const window = resolveTimeWindow(query.timeWindow);
+  const relaxed = precomputedCohort?.relaxed ?? new Set(query.relaxedDimensions ?? []);
+  const window = precomputedCohort?.window ?? resolveTimeWindow(query.timeWindow);
 
   // Reach requires Spend Range + Duration Band for any DIRECT benchmark.
   // If either is missing OR has been explicitly relaxed away (Phase 4.1
@@ -294,29 +307,35 @@ async function computeMetricBenchmarkCore(
   // datasets, Reach without scale context is not comparable. Applied
   // per-period here exactly like the live single query (§8 of the
   // Historical Benchmarks spec: "Reach debe conservar sus requisitos
-  // metodológicos especiales").
+  // metodológicos especiales"), and per-metric here exactly like before
+  // this extraction even when a precomputedCohort is supplied — this
+  // check depends only on metricKey/query, never on the dataset id list
+  // itself, so a Reach block still returns cohortSampleSize 0 (never the
+  // shared batch's own dataset count) exactly as it always has.
   const reachScaleContextRelaxed = relaxed.has("spend_range") || relaxed.has("duration_band");
   if (metricKey === "reach" && (!query.spendBand || !query.durationBand || reachScaleContextRelaxed)) {
     return emptyResult(metricKey, query, relaxed, window, 0);
   }
 
-  const datasetIds = await fetchEligibleDatasetIds({
-    platform: query.platform,
-    objective: query.objective,
-    vertical: query.vertical,
-    country: query.country,
-    windowStart: window.startDate,
-    windowEnd: window.endDate,
-    businessModel: query.businessModel,
-    audienceStrategy: query.audienceStrategy,
-    funnelStage: query.funnelStage,
-    minAge: query.minAge,
-    maxAge: query.maxAge,
-    genderTargeting: query.genderTargeting,
-    spendBand: query.spendBand,
-    durationBand: query.durationBand,
-    relaxed,
-  });
+  const datasetIds =
+    precomputedCohort?.datasetIds ??
+    (await fetchEligibleDatasetIds({
+      platform: query.platform,
+      objective: query.objective,
+      vertical: query.vertical,
+      country: query.country,
+      windowStart: window.startDate,
+      windowEnd: window.endDate,
+      businessModel: query.businessModel,
+      audienceStrategy: query.audienceStrategy,
+      funnelStage: query.funnelStage,
+      minAge: query.minAge,
+      maxAge: query.maxAge,
+      genderTargeting: query.genderTargeting,
+      spendBand: query.spendBand,
+      durationBand: query.durationBand,
+      relaxed,
+    }));
 
   const cohortSampleSize = datasetIds.length;
   const groups = await fetchMetricValueGroups(datasetIds, metricKey);
@@ -356,6 +375,68 @@ export async function getMetricBenchmark(query: BenchmarkQuery, metricKey: strin
   // ONLY if the success branch is reached, exactly matching this
   // function's behavior/query count from before the extraction above.
   return computeMetricBenchmarkCore(query, metricKey, minimumSampleSize);
+}
+
+// CUCURUCHO INTELLIGENCE 2 (§10 — Campaign Explorer query strategy).
+//
+// The existing getBenchmark(query, metricKeys) below already batches N
+// metrics for the same cohort, but it does so with Promise.all over
+// getMetricBenchmark — meaning it (and every other existing caller that
+// loops getMetricBenchmark per metric, e.g. app/account/contributions/
+// [id]/page.tsx's per-campaign "Resultados comparables" readiness check)
+// re-runs fetchEligibleDatasetIds's full platform/objective/vertical/
+// country(+optional dimensions) join query once PER metric, even though
+// that query's result depends only on `query` — never on which metric is
+// being asked about. For a campaign with 8-10 comparable metrics that is
+// 8-10 physically identical cohort joins for one page load.
+//
+// getBenchmarksForMetrics resolves relaxed/window/datasetIds exactly
+// ONCE for the whole list of metricKeys, then reuses
+// computeMetricBenchmarkCore's exact same per-metric tail (fetch that
+// metric's own dataset_metric_values, resolve its variant, compute
+// distribution, build the result) for each one — so every metric's
+// RESULT is identical to what calling getMetricBenchmark(query, metric)
+// for it individually would have returned; only the number of
+// eligible-dataset queries changes (1 instead of N). getMetricBenchmark
+// and getHistoricalBenchmark are completely untouched — neither passes
+// precomputedCohort, so neither changes behavior or query count.
+//
+// Reach is deliberately NOT a valid metricKey for this function: its
+// query additionally depends on spendBand/durationBand, which change
+// which datasets are eligible — sharing this batch's datasetIds with
+// Reach would silently apply the wrong (unfiltered) cohort to it. A
+// caller that also needs Reach must still call getMetricBenchmark for
+// it separately, exactly as before this change (see
+// app/account/contributions/[id]/page.tsx, which does exactly this).
+export async function getBenchmarksForMetrics(query: BenchmarkQuery, metricKeys: string[]): Promise<BenchmarkResult[]> {
+  if (metricKeys.some((m) => m === "reach")) {
+    throw new Error("getBenchmarksForMetrics: reach requires its own spendBand/durationBand-scoped query — call getMetricBenchmark for it separately.");
+  }
+  if (metricKeys.length === 0) return [];
+
+  const minimumSampleSize = await getMinimumSampleSize();
+  const relaxed = new Set(query.relaxedDimensions ?? []);
+  const window = resolveTimeWindow(query.timeWindow);
+  const datasetIds = await fetchEligibleDatasetIds({
+    platform: query.platform,
+    objective: query.objective,
+    vertical: query.vertical,
+    country: query.country,
+    windowStart: window.startDate,
+    windowEnd: window.endDate,
+    businessModel: query.businessModel,
+    audienceStrategy: query.audienceStrategy,
+    funnelStage: query.funnelStage,
+    minAge: query.minAge,
+    maxAge: query.maxAge,
+    genderTargeting: query.genderTargeting,
+    spendBand: query.spendBand,
+    durationBand: query.durationBand,
+    relaxed,
+  });
+  const precomputedCohort = { relaxed, window, datasetIds };
+
+  return Promise.all(metricKeys.map((metricKey) => computeMetricBenchmarkCore(query, metricKey, minimumSampleSize, undefined, precomputedCohort)));
 }
 
 function emptyResult(
