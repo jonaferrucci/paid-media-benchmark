@@ -10,8 +10,8 @@ import { useTranslation } from "@/lib/i18n/LanguageContext";
 import type { GovernanceQueue } from "@/lib/media/governanceQueries";
 import { reviewRateCardAction, reviewSnapshotAction, reviewPlatformAction } from "@/lib/media/governanceActions";
 import { REVIEW_METRIC_LABEL_KEYS } from "@/lib/contribute/reviewMetricLabels";
-import type { PendingContributionsQueue } from "@/lib/contribute/reviewQueries";
-import { reviewContributionAction } from "@/lib/contribute/reviewActions";
+import type { PendingContributionsQueue, PendingContributionRow } from "@/lib/contribute/reviewQueries";
+import { reviewContributionAction, approveSupersedingContributionAction } from "@/lib/contribute/reviewActions";
 
 type RowState = "idle" | "saving" | "error";
 
@@ -73,6 +73,80 @@ function ReviewRow({
   );
 }
 
+// CUCURUCHO DATA INTEGRITY 1 (§16/§17): a minimal, self-contained
+// variant of ReviewRow above for the one new case that component was
+// never built for — a pending contribution whose observation_fingerprint
+// already matches an existing valid one. Every other queue on this page
+// (rate cards, snapshots, platforms) and every contribution WITHOUT a
+// match keep using the plain ReviewRow, completely unchanged — this is
+// deliberately not a redesign of the review flow, just the specific,
+// minimal affordance §17 requires: never a silently plain "Approve"
+// button for this one case, always a visible choice between replacing
+// the existing observation and approving this one independently anyway
+// (a fingerprint match is advisory, not a hard block — see the audit
+// report's Case E on why a false positive must stay possible to
+// override).
+function SupersedeCandidateRow({
+  contribution,
+  candidateStartDate,
+  candidateEndDate,
+}: {
+  contribution: PendingContributionRow;
+  candidateStartDate: string;
+  candidateEndDate: string;
+}) {
+  const { t } = useTranslation();
+  const [state, setState] = useState<RowState>("idle");
+  const [done, setDone] = useState(false);
+
+  if (done) return null;
+
+  async function handle(action: () => Promise<{ ok: boolean }>) {
+    setState("saving");
+    const result = await action();
+    if (result.ok) setDone(true);
+    else setState("error");
+  }
+
+  return (
+    <div className="rounded-xl border border-line bg-canvas px-3 py-2.5">
+      <p className="text-sm font-medium text-ink-800">
+        {contribution.campaignName ?? t("contributions.unnamedCampaign")} · {contribution.platformLabel} · {contribution.objectiveLabel}
+      </p>
+      <p className="text-xs text-ink-500">
+        {contribution.verticalLabel} · {contribution.countryLabel} · {contribution.startDate} — {contribution.endDate} · {contribution.currency}
+      </p>
+      <p className="mt-1.5 rounded-lg bg-vanilla-soft px-2 py-1 text-[11px] font-medium text-vanilla">
+        {t("curation.supersedeCandidateNote", { start: candidateStartDate, end: candidateEndDate })}
+      </p>
+      {state === "error" && <p className="mt-1 text-xs text-caution">{t("curation.actionError")}</p>}
+      <div className="mt-2 flex flex-wrap gap-2">
+        <button
+          onClick={() => handle(() => approveSupersedingContributionAction(contribution.id, contribution.supersedeCandidateId!))}
+          disabled={state === "saving"}
+          className="inline-flex items-center gap-1 rounded-full bg-pistachio-soft px-3 py-1.5 text-xs font-semibold text-pistachio disabled:opacity-50"
+        >
+          <Check size={12} aria-hidden="true" /> {t("curation.supersedeAction")}
+        </button>
+        <button
+          onClick={() => handle(() => reviewContributionAction(contribution.id, "valid"))}
+          disabled={state === "saving"}
+          className="inline-flex items-center gap-1 rounded-full border border-line px-3 py-1.5 text-xs font-medium text-ink-700 disabled:opacity-50"
+        >
+          {t("curation.approveIndependentAction")}
+        </button>
+        <button
+          onClick={() => handle(() => reviewContributionAction(contribution.id, "excluded"))}
+          disabled={state === "saving"}
+          className="inline-flex items-center gap-1 rounded-full bg-destructive-soft px-3 py-1.5 text-xs font-semibold text-destructive disabled:opacity-50"
+        >
+          <X size={12} aria-hidden="true" /> {t("curation.reject")}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function Section({ title, count, empty, children }: { title: string; count: number; empty: string; children: React.ReactNode }) {
   return (
     <section className="mt-4 rounded-2xl border border-line bg-surface p-5 shadow-sm">
@@ -125,6 +199,20 @@ export function CurationView({ queue, contributions }: { queue: GovernanceQueue;
             empty={t("curation.contributionsEmpty")}
           >
             {contributions.rows.map((c) => {
+              // CUCURUCHO DATA INTEGRITY 1 (§16/§17): the one branch
+              // point this phase adds — every other contribution keeps
+              // rendering through the exact same, unchanged ReviewRow
+              // below.
+              if (c.supersedeCandidateId && c.supersedeCandidateStartDate && c.supersedeCandidateEndDate) {
+                return (
+                  <SupersedeCandidateRow
+                    key={c.id}
+                    contribution={c}
+                    candidateStartDate={c.supersedeCandidateStartDate}
+                    candidateEndDate={c.supersedeCandidateEndDate}
+                  />
+                );
+              }
               const metricsLabel = c.availableMetrics.length > 0
                 ? c.availableMetrics.map((k) => t(REVIEW_METRIC_LABEL_KEYS[k]!)).join(", ")
                 : t("contributions.noMetricsImported");

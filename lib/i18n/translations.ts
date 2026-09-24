@@ -131,6 +131,10 @@ const es = {
       flagged: "Marcado para revisión",
       excluded: "No incluida en benchmarks",
       deleted: "Eliminado",
+      // CUCURUCHO DATA INTEGRITY 1 (migration 0020): a curator confirmed
+      // a newer version of this campaña replaces it — the row itself is
+      // never deleted, just no longer counted in benchmarks.
+      superseded: "Reemplazada por una versión más reciente",
     },
     // PHASE 28 (§7/§15): the import-success fact, always shown
     // separately from the benchmark-eligibility pill above — never
@@ -217,6 +221,12 @@ const es = {
     // excluded.
     excludedBenchmarkExplanation: "Esta campaña permanece guardada en tu cuenta, pero no participa de los benchmarks agregados.",
     exploreBenchmarkCta: "Explorar benchmarks",
+    // CUCURUCHO DATA INTEGRITY 1 (§20): shown only for
+    // validation_status === "superseded" — the campaign stays saved and
+    // visible (never deleted), it simply no longer counts in benchmarks
+    // because a newer version of the same observation replaced it.
+    supersededBenchmarkExplanation: "Esta campaña fue reemplazada por una versión más reciente y ya no participa de los benchmarks agregados.",
+    viewReplacementCta: "Ver la versión vigente",
   },
   // PHASE 26: the signed-in home workspace — "Continuar", "Aportar",
   // "Comparar", "Explorar", "Planificar" only (§16); never "administrar"/
@@ -910,6 +920,14 @@ const es = {
     reject: "Rechazar",
     deactivate: "No publicar",
     actionError: "No pudimos guardar esta decisión. Probá de nuevo.",
+    // CUCURUCHO DATA INTEGRITY 1 (§16/§17): shown only when a pending
+    // contribution's fingerprint already matches a valid one — never a
+    // hard block, since a match is advisory (see the audit report's
+    // Case E on coincidental collisions), always an explicit choice
+    // instead of a silent plain "Aprobar".
+    supersedeCandidateNote: "Parece una actualización de una campaña ya aprobada ({start} — {end}).",
+    supersedeAction: "Reemplazar campaña existente",
+    approveIndependentAction: "Aprobar como independiente",
     catalogImport: {
       entryCta: "Importar catálogo de medios",
       title: "Importar catálogo de medios",
@@ -1541,6 +1559,7 @@ const en: typeof es = {
       flagged: "Flagged for review",
       excluded: "Not included in benchmarks",
       deleted: "Deleted",
+      superseded: "Replaced by a newer version",
     },
     // PHASE 28 (§7/§15): the import-success fact, always shown
     // separately from the benchmark-eligibility pill above.
@@ -1596,6 +1615,8 @@ const en: typeof es = {
     pendingBenchmarkExplanation: "Your campaign was imported successfully and is pending review for inclusion in benchmarks.",
     excludedBenchmarkExplanation: "This campaign stays saved in your account, but it does not participate in aggregate benchmarks.",
     exploreBenchmarkCta: "Explore benchmarks",
+    supersededBenchmarkExplanation: "This campaign was replaced by a newer version and no longer participates in aggregate benchmarks.",
+    viewReplacementCta: "View the current version",
   },
   workspace: {
     emptyTitle: "How Cucurucho works",
@@ -2170,6 +2191,9 @@ const en: typeof es = {
     reject: "Reject",
     deactivate: "Keep unpublished",
     actionError: "We couldn't save this decision. Try again.",
+    supersedeCandidateNote: "This looks like an update to an already-approved campaign ({start} — {end}).",
+    supersedeAction: "Replace existing campaign",
+    approveIndependentAction: "Approve as independent",
     catalogImport: {
       entryCta: "Import media catalog",
       title: "Import media catalog",

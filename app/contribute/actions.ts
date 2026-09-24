@@ -93,6 +93,15 @@ export async function submitContributionAction(
       original_currency: payload.currency.toUpperCase(),
       data_source: "manual",
       validation_status: "pending",
+      // CUCURUCHO DATA INTEGRITY 1 (§2/§14): the manual single-entry
+      // wizard never collects a campaign name (ContributionPayload has
+      // no such field), so this is explicitly null rather than an
+      // implicit default — the fingerprint helper would resolve to
+      // null here too, but writing it out loud makes the "manual
+      // contributions never get a fingerprint" rule visible at the one
+      // real write site, not just inside a helper's comment. See the
+      // approved design's explicit "no weak placeholder token" rule.
+      observation_fingerprint: null,
     })
     .select("id")
     .single();

@@ -59,6 +59,9 @@ const STATUS_STYLE: Record<string, string> = {
   flagged: "bg-caution-soft text-caution",
   excluded: "bg-surface2 text-ink-400",
   deleted: "bg-surface2 text-ink-400",
+  // CUCURUCHO DATA INTEGRITY 1 (migration 0020) — same neutral pill
+  // treatment as ContributionDetail.tsx's own STATUS_STYLE.
+  superseded: "bg-surface2 text-ink-400",
 };
 
 const RAW_METRIC_KEYS = new Set<keyof RawMetricInputs>([

@@ -41,7 +41,13 @@
 
 export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
 
-export type ValidationStatus = "pending" | "valid" | "flagged" | "excluded" | "deleted";
+// CUCURUCHO DATA INTEGRITY 1 (migration 0020): "superseded" added —
+// a curator-approved replacement exists for this row (see
+// supersedes_dataset_id/superseded_by_dataset_id below). The benchmark
+// engine's eligibility filter (.eq("validation_status", "valid")) is an
+// ALLOWLIST, so this new value is excluded automatically, with no
+// engine change required.
+export type ValidationStatus = "pending" | "valid" | "flagged" | "excluded" | "deleted" | "superseded";
 export type DataSourceType = "manual" | "csv" | "api" | "admin_import" | "other";
 export type BenchmarkDirection = "lower_is_better" | "higher_is_better" | "contextual";
 export type MetricValueKind = "base" | "derived";
@@ -732,6 +738,15 @@ export interface Database {
           // owner (see that migration's tightened owner policies).
           reviewed_by: string | null;
           reviewed_at: string | null;
+          // CUCURUCHO DATA INTEGRITY 1 (migration 0020) — observation
+          // identity. All nullable/backfill-safe; written only by
+          // application code (fingerprint) or the
+          // fn_approve_superseding_contribution RPC (the two link
+          // columns) — never a plain client UPDATE (no UPDATE grant
+          // exists on this table at all, per migration 0019).
+          observation_fingerprint: string | null;
+          supersedes_dataset_id: string | null;
+          superseded_by_dataset_id: string | null;
         };
         Insert: {
           id?: string;
@@ -763,6 +778,9 @@ export interface Database {
           import_batch_id?: string | null;
           reviewed_by?: string | null;
           reviewed_at?: string | null;
+          observation_fingerprint?: string | null;
+          supersedes_dataset_id?: string | null;
+          superseded_by_dataset_id?: string | null;
         };
         Update: {
           id?: string;
@@ -794,6 +812,9 @@ export interface Database {
           import_batch_id?: string | null;
           reviewed_by?: string | null;
           reviewed_at?: string | null;
+          observation_fingerprint?: string | null;
+          supersedes_dataset_id?: string | null;
+          superseded_by_dataset_id?: string | null;
         };
         Relationships: [
           {
@@ -1198,6 +1219,28 @@ export interface Database {
       fn_review_contribution: {
         Args: { p_dataset_id: string; p_decision: Extract<ValidationStatus, "valid" | "excluded"> };
         Returns: { id: string; validation_status: ValidationStatus; reviewed_by: string | null; reviewed_at: string | null }[];
+      };
+      // CUCURUCHO DATA INTEGRITY 1 (migration 0020) — the ONLY path
+      // from pending to valid-as-a-replacement. Additive to
+      // fn_review_contribution above, never a substitute for it.
+      fn_approve_superseding_contribution: {
+        Args: { p_new_dataset_id: string; p_old_dataset_id: string };
+        Returns: {
+          new_dataset_id: string;
+          old_dataset_id: string;
+          new_status: ValidationStatus;
+          old_status: ValidationStatus;
+          reviewed_by: string | null;
+          reviewed_at: string | null;
+        }[];
+      };
+      // CUCURUCHO DATA INTEGRITY 1 (migration 0020) — read-side lookup
+      // a curator uses to learn whether a pending row's fingerprint
+      // already matches a valid one. Never returns owner identity,
+      // campaign name, or metric values.
+      fn_find_supersede_candidate: {
+        Args: { p_dataset_id: string };
+        Returns: { candidate_dataset_id: string; candidate_start_date: string; candidate_end_date: string }[];
       };
     };
     Enums: Record<string, never>;

@@ -26,6 +26,10 @@ const STATUS_STYLE: Record<string, string> = {
   flagged: "bg-caution-soft text-caution",
   excluded: "bg-surface2 text-ink-400",
   deleted: "bg-surface2 text-ink-400",
+  // CUCURUCHO DATA INTEGRITY 1 (migration 0020) — same neutral treatment
+  // as excluded/deleted: never alarming, this is a normal, expected
+  // outcome of submitting a corrected re-export, not a rejection.
+  superseded: "bg-surface2 text-ink-400",
 };
 
 // Reuses the exact same field-label keys app/contribute/ContributeLanding.tsx
@@ -112,6 +116,9 @@ export interface ContributionDetailDataset {
   // manually-entered campaign that has none of them.
   campaignName: string | null;
   campaignTypeLabel: string | null;
+  // CUCURUCHO DATA INTEGRITY 1 (§20): set only when a curator approved
+  // a newer version of this same observation as its replacement.
+  supersededByDatasetId: string | null;
   sourceFilename: string | null;
   exportProfileLabelKey: string | null;
   platformLabel: string;
@@ -291,6 +298,24 @@ export function ContributionDetail({
               >
                 {t("contributions.exploreBenchmarkCta")}
               </a>
+            </div>
+          )}
+          {/* CUCURUCHO DATA INTEGRITY 1 (§20): a superseded contribution
+              gets its own honest explanation — never deleted, never
+              rendered as a plain "excluded" campaign, and linking
+              straight to the replacement when the owner can see it
+              (same RLS as this page itself — no new access granted). */}
+          {dataset.validationStatus === "superseded" && (
+            <div className="mt-4 rounded-2xl border border-line bg-surface p-4">
+              <p className="text-sm text-ink-700">{t("contributions.supersededBenchmarkExplanation")}</p>
+              {dataset.supersededByDatasetId && (
+                <Link
+                  href={`/account/contributions/${dataset.supersededByDatasetId}`}
+                  className="mt-2 inline-block text-xs font-medium text-ink-500 hover:text-primary hover:underline"
+                >
+                  {t("contributions.viewReplacementCta")}
+                </Link>
+              )}
             </div>
           )}
 

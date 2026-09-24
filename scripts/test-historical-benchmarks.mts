@@ -457,10 +457,20 @@ assertEqual(buildQuery({ ...minimalInput, timeWindow: "custom" }).timeWindow.kin
 // comparison feature itself) was touched — a saved comparison's
 // historical view, if ever added, would recompute on demand from the
 // SAME stored query shape, never a new stored column/table.
+//
+// CUCURUCHO DATA INTEGRITY 1: the pinned "latest migration" filename
+// below was updated from 0019 to 0020 — a real, separate, explicitly
+// authorized later task (contribution observation identity/supersede)
+// legitimately added supabase/migrations/0020_observation_identity.sql.
+// This does not weaken what this assertion actually protects: Historical
+// Benchmarks/Saved Comparisons themselves still required zero schema
+// change (0020 was authored by unrelated, later work, never by this
+// feature), and the check still fails loudly if any FUTURE undocumented
+// migration appears beyond the one now-legitimate addition pinned here.
 // -----------------------------------------------------------------------
 assertTrue(migrationFiles.length > 0, "0019_contribution_validation.sql (the pre-existing latest migration) is still readable");
 const migrationFileNames = readdirSync(new URL("../supabase/migrations/", import.meta.url)).filter((f) => /^\d{4}_/.test(f)).sort();
-assertEqual(migrationFileNames.at(-1), "0019_contribution_validation.sql", "no new migration file was added by this feature — latest is still 0019_contribution_validation.sql");
+assertEqual(migrationFileNames.at(-1), "0020_observation_identity.sql", "no undocumented new migration file was added beyond the one this task's own comment accounts for");
 assertTrue(!/from ["']@\/lib\/mock\//.test(newFilesCombined), "no new/changed file imports mock data (lib/mock/*)");
 
 // -----------------------------------------------------------------------

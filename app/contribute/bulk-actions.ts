@@ -4,6 +4,12 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { calculateDerivedMetrics, type RawMetricInputs } from "@/lib/metrics/derive";
 import type { NormalizedRow } from "@/lib/import/types";
 import { resolveCampaignType } from "@/lib/contribute/campaignType";
+// CUCURUCHO DATA INTEGRITY 1: every bulk-import row that carries a real
+// campaign_name gets a deterministic observation_fingerprint computed
+// here — never in SQL (migration 0020). See that helper's own comment
+// for the full design (owner-scoped, excludes metric values, null
+// whenever campaign_name is missing).
+import { buildObservationFingerprint } from "@/lib/contribute/observationFingerprint";
 
 // Phase 16 bulk-import persistence. Reuses the exact same canonical
 // path as the single-entry contribution flow (app/contribute/
@@ -161,6 +167,19 @@ export async function bulkSubmitContributionsAction(
     const resolvedTypeKey = resolveCampaignType(row.platform!, row.campaignType);
     const campaignTypeId = resolvedTypeKey ? campaignTypeIds.get(`${platformId}|${resolvedTypeKey}`) ?? null : null;
 
+    // CUCURUCHO DATA INTEGRITY 1 (§14/§15): computed from the same
+    // resolved values this row is about to persist — null whenever
+    // row.campaignName is missing/empty, never a weak placeholder.
+    const observationFingerprint = buildObservationFingerprint({
+      ownerId: user.id,
+      platformId,
+      campaignName: row.campaignName,
+      startDate: row.startDate!,
+      endDate: row.endDate!,
+      currency: row.currency,
+      campaignTypeId,
+    });
+
     const { data: dataset, error: datasetError } = await supabase
       .from("performance_datasets")
       .insert({
@@ -168,6 +187,7 @@ export async function bulkSubmitContributionsAction(
         platform_id: platformId,
         campaign_type_id: campaignTypeId,
         campaign_name: row.campaignName,
+        observation_fingerprint: observationFingerprint,
         import_batch_id: batchId,
         objective_id: objectiveId,
         vertical_id: verticalId,

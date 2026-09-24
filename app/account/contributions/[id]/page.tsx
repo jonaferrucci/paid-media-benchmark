@@ -43,6 +43,11 @@ interface DetailRow {
   verticals: { internal_key: string; display_label: string } | null;
   countries: { iso_code: string; display_label: string } | null;
   campaign_types: { display_label: string } | null;
+  // CUCURUCHO DATA INTEGRITY 1 (§20, migration 0020): only ever set
+  // when a curator approved a newer version of this same observation as
+  // its replacement. Owner-only visibility, same RLS ("owners read own
+  // datasets") as every other field on this page — no policy change.
+  superseded_by_dataset_id: string | null;
   // PHASE 32 (§3): the campaign's own real audience/funnel/business-
   // model context, when it has one — all nullable FKs on
   // performance_datasets (migration 0004/0008), read-only here, never
@@ -60,7 +65,7 @@ export default async function ContributionDetailPage({ params }: { params: { id:
   const { data, error } = await supabase
     .from("performance_datasets")
     .select(
-      `id, start_date, end_date, validation_status, created_at, data_source, original_currency, campaign_name, duration_days,
+      `id, start_date, end_date, validation_status, created_at, data_source, original_currency, campaign_name, duration_days, superseded_by_dataset_id,
        platforms(internal_key, display_label),
        objectives(internal_key, display_label),
        verticals(internal_key, display_label),
@@ -268,6 +273,7 @@ export default async function ContributionDetailPage({ params }: { params: { id:
         dataSource: dataset.data_source,
         currency: dataset.original_currency,
         campaignName: dataset.campaign_name,
+        supersededByDatasetId: dataset.superseded_by_dataset_id,
         campaignTypeLabel: dataset.campaign_types?.display_label ?? null,
         sourceFilename: dataset.import_batches?.source_filename ?? null,
         exportProfileLabelKey,

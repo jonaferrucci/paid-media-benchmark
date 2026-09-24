@@ -345,10 +345,17 @@ assertTrue(
 // latest migration on disk must still be 0019 (the last one that
 // existed before Phase 34 started) — a real, sequence-based check
 // rather than trusting a comment.
+//
+// CUCURUCHO DATA INTEGRITY 1: pinned value updated from 0019 to 0020 —
+// a separate, later, explicitly authorized task legitimately added
+// supabase/migrations/0020_observation_identity.sql. Phase 34 itself
+// still added no migration of its own (0020 postdates and is unrelated
+// to this phase's own metric-coverage work); this still fails loudly if
+// any further undocumented migration appears.
 // -----------------------------------------------------------------------
 const migrationFiles = readdirSync(new URL("../supabase/migrations/", import.meta.url));
 const latestMigration = migrationFiles.filter((f) => /^\d{4}_/.test(f)).sort().at(-1);
-assertTrue(latestMigration === "0019_contribution_validation.sql", `no new migration file was added by this phase — latest is still 0019_contribution_validation.sql (found: ${latestMigration})`);
+assertTrue(latestMigration === "0020_observation_identity.sql", `no undocumented new migration file was added beyond the one this task's own comment accounts for (found: ${latestMigration})`);
 
 // -----------------------------------------------------------------------
 // §16 no mock data anywhere in the touched files.

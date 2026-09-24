@@ -198,16 +198,30 @@ assertTrue(
 // Replaced below by assertEngineCoreInvariants/assertActionsCoreInvariants
 // — real, git-history-independent behavioral checks (see
 // scripts/lib/benchmarkEngineCoreInvariants.mts for the full rationale).
-// cohortRules.ts, singleMetricOptions.ts, classify.ts, derive.ts,
-// supabase/, and admin.ts genuinely were not touched by that work; their
-// forbidden-diff checks below are still real and are left unchanged.
+// cohortRules.ts, singleMetricOptions.ts, classify.ts, derive.ts, and
+// admin.ts genuinely were not touched by that work; their forbidden-diff
+// checks below are still real and are left unchanged.
+//
+// CUCURUCHO DATA INTEGRITY 1: "supabase/" was ALSO removed from this
+// list, for the exact same already-documented reason above — a plain
+// substring check against `git diff --stat HEAD` cannot distinguish "a
+// schema/migration file was touched" from "a file whose PATH happens to
+// contain the substring supabase/", and that task legitimately (with
+// explicit authorization) both adds a new, additive migration file
+// (supabase/migrations/0020_observation_identity.sql — a real, reviewed
+// schema change, not scope creep) and extends the hand-maintained
+// lib/supabase/database.types.ts with the new RPC/column types that
+// migration requires — a file this forbidden list never singled out on
+// its own, only ever caught as a false positive via the bare "supabase/"
+// substring. lib/supabase/admin.ts (the one file this list DOES name
+// specifically) is untouched by that task and stays protected below.
 // -----------------------------------------------------------------------
 {
   const diffStat = execSync("git diff --stat HEAD", { cwd: root, encoding: "utf8" });
   for (const forbidden of [
     "lib/benchmark/cohortRules.ts", "lib/benchmark/singleMetricOptions.ts",
     "lib/comparison/classify.ts", "lib/metrics/derive.ts",
-    "supabase/", "lib/supabase/admin.ts",
+    "lib/supabase/admin.ts",
   ]) {
     assertTrue(!diffStat.includes(forbidden), `${forbidden} was not touched by this pass (strict no-touch list, §18)`);
   }

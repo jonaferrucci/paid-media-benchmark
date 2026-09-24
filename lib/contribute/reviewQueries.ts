@@ -45,6 +45,17 @@ export interface PendingContributionRow {
   dataSource: string;
   createdAt: string;
   availableMetrics: (keyof RawMetricInputs)[];
+  // CUCURUCHO DATA INTEGRITY 1 (§16/§17): when this row's
+  // observation_fingerprint matches an already-valid contribution
+  // (same owner — see fn_find_supersede_candidate, migration 0020),
+  // the curator gets these three fields instead of nothing, so the
+  // review UI can distinguish "possible update/supersede" from a
+  // normal approval. Null for the overwhelming majority of rows (no
+  // fingerprint, or no match) — this is never a blocking check, only
+  // an informative one; the curator can still approve independently.
+  supersedeCandidateId: string | null;
+  supersedeCandidateStartDate: string | null;
+  supersedeCandidateEndDate: string | null;
 }
 
 interface PendingRow {
@@ -87,7 +98,29 @@ export async function getPendingContributionsQueue(): Promise<{ hasError: boolea
     return { hasError: true, rows: [] };
   }
 
-  const rows = ((data as unknown as PendingRow[] | null) ?? []).map((row): PendingContributionRow => {
+  const pendingRows = (data as unknown as PendingRow[] | null) ?? [];
+
+  // CUCURUCHO DATA INTEGRITY 1 (§16/§17): fn_find_supersede_candidate
+  // (migration 0020) is the only way this query can learn whether a
+  // pending row's fingerprint already matches a valid one — curators
+  // have no RLS visibility into valid performance_datasets rows at all
+  // (0019's only curator SELECT policy is pending-scoped), so this
+  // cannot be answered by widening the select above. Only rows that
+  // could possibly have a fingerprint (campaign_name present) are
+  // checked — a manual/nameless row can never match, so it never gets
+  // a wasted round trip. Still one Promise.all, never sequential.
+  const candidateChecks = await Promise.all(
+    pendingRows
+      .filter((row) => !!row.campaign_name)
+      .map(async (row) => {
+        const { data: candidateRows } = await supabase.rpc("fn_find_supersede_candidate", { p_dataset_id: row.id });
+        const candidate = (candidateRows as { candidate_dataset_id: string; candidate_start_date: string; candidate_end_date: string }[] | null)?.[0];
+        return { pendingId: row.id, candidate: candidate ?? null };
+      })
+  );
+  const candidateByPendingId = new Map(candidateChecks.map((c) => [c.pendingId, c.candidate]));
+
+  const rows = pendingRows.map((row): PendingContributionRow => {
     const availableMetrics: (keyof RawMetricInputs)[] = [];
     for (const value of row.dataset_metric_values ?? []) {
       const key = value.metrics?.internal_key;
@@ -108,6 +141,9 @@ export async function getPendingContributionsQueue(): Promise<{ hasError: boolea
       dataSource: row.data_source,
       createdAt: row.created_at,
       availableMetrics,
+      supersedeCandidateId: candidateByPendingId.get(row.id)?.candidate_dataset_id ?? null,
+      supersedeCandidateStartDate: candidateByPendingId.get(row.id)?.candidate_start_date ?? null,
+      supersedeCandidateEndDate: candidateByPendingId.get(row.id)?.candidate_end_date ?? null,
     };
   });
 
