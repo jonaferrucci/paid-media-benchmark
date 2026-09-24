@@ -31,6 +31,7 @@ import { formatHistoricalPeriodLabel } from "../lib/benchmark/historicalLabels";
 import { deriveBenchmarkStatus, isReachMethodologyBlock } from "../lib/benchmark/resultStatus";
 import { computeChange, trendEligibility } from "../lib/media/trend";
 import { buildQuery, type BenchmarkFormInput } from "../lib/benchmark/buildQuery";
+import { assertEngineCoreInvariants, assertActionsCoreInvariants } from "./lib/benchmarkEngineCoreInvariants.mts";
 
 // NOTE: app/benchmark/actions.ts and lib/benchmark/engine.ts
 // (getHistoricalBenchmark/computeMetricBenchmarkCore) are NOT imported
@@ -114,6 +115,22 @@ assertEqual((getHistoricalBenchmarkBody.match(/computeDistribution\(/g) ?? []).l
 assertEqual((getHistoricalBenchmarkBody.match(/flagOutliers\(/g) ?? []).length, 0, "getHistoricalBenchmark never calls flagOutliers directly, same reasoning as above");
 
 // -----------------------------------------------------------------------
+// §1b CURRENT BENCHMARK INVARIANCE (FINAL REGRESSION HARDENING §9) — the
+// live single-query path (getMetricBenchmark/runBenchmarkQuery) must not
+// have acquired any period metadata, historical statuses, historical
+// defaults, or historical query mutation just because it now shares
+// computeMetricBenchmarkCore/buildQuery with the historical loop. Reuses
+// the same shared, real invariant checks the 5 legacy regression scripts
+// now call in place of their obsolete git-diff assertions (see
+// scripts/lib/benchmarkEngineCoreInvariants.mts).
+// -----------------------------------------------------------------------
+assertEngineCoreInvariants(assertTrue);
+assertActionsCoreInvariants(assertTrue);
+assertTrue(/export async function getMetricBenchmark\(query: BenchmarkQuery, metricKey: string\): Promise<BenchmarkResult>/.test(engineSource), "getMetricBenchmark's signature has not grown a periods/granularity/historical parameter of any kind");
+assertTrue(!/getMetricBenchmark\(query: BenchmarkQuery, metricKey: string, period/.test(engineSource), "getMetricBenchmark was not silently given an extra historical-only parameter");
+assertTrue(!/periodKey|periodStart|periodEnd/.test(computeCoreBody), "computeMetricBenchmarkCore's own body carries no period metadata — periods are a getHistoricalBenchmark-only concept layered on top, never mixed into the shared core");
+
+// -----------------------------------------------------------------------
 // §2 PERIOD GENERATION — real execution against a fixed `now`, so this
 // is deterministic regardless of when the suite runs.
 // -----------------------------------------------------------------------
@@ -147,6 +164,75 @@ for (let i = 1; i < quarters.length; i++) {
   const dayAfterPrevEnd = new Date(prevEnd.getTime() + 24 * 60 * 60 * 1000);
   assertTrue(dayAfterPrevEnd.getTime() === thisStart.getTime(), `quarter period ${i} starts exactly one day after period ${i - 1} ends (contiguous, no overlap, no gap in the boundaries themselves)`);
 }
+
+// -----------------------------------------------------------------------
+// §2b FINAL REGRESSION HARDENING — explicit full-calendar-year boundary
+// literals, year rollover (both granularities), current-partial-period
+// honesty (already covered above for Q3/September; here for a DIFFERENT
+// `now` to rule out a fixture-specific coincidence), and UTC-safety.
+// -----------------------------------------------------------------------
+const NOW_IN_Q4_2026 = new Date(Date.UTC(2026, 11, 15)); // 2026-12-15, inside Q4 2026
+const quartersOf2026 = generateHistoricalPeriods("quarter", 4, NOW_IN_Q4_2026);
+assertEqual(quartersOf2026.map((p) => p.periodKey).join(","), "2026-Q1,2026-Q2,2026-Q3,2026-Q4", "the last 4 quarters ending in Q4 2026 are exactly Q1-Q4 2026");
+assertEqual(quartersOf2026[0].start, "2026-01-01", "Q1 2026 starts 2026-01-01");
+assertEqual(quartersOf2026[0].end, "2026-03-31", "Q1 2026 ends 2026-03-31");
+assertEqual(quartersOf2026[1].start, "2026-04-01", "Q2 2026 starts 2026-04-01");
+assertEqual(quartersOf2026[1].end, "2026-06-30", "Q2 2026 ends 2026-06-30");
+assertEqual(quartersOf2026[2].start, "2026-07-01", "Q3 2026 starts 2026-07-01");
+assertEqual(quartersOf2026[2].end, "2026-09-30", "Q3 2026 ends 2026-09-30");
+assertEqual(quartersOf2026[3].start, "2026-10-01", "Q4 2026 (in-progress) starts 2026-10-01");
+assertEqual(quartersOf2026[3].end, "2026-12-31", "Q4 2026 (in-progress) ends 2026-12-31 even though `now` (2026-12-15) is before that — the partial current quarter is never shortened");
+
+// Year rollover, quarterly: the earliest of these 4 quarters (2026-Q1)
+// is still generated correctly even though it isn't the calendar-current
+// year — confirmed above (2026-Q1 present). Year rollover CROSSING the
+// boundary within the generated set is exercised by the original
+// FIXED_NOW (2025-Q4 -> 2026-Q1, asserted earlier); this covers the
+// case where a request lands exactly ON a year boundary quarter.
+assertEqual(generateHistoricalPeriods("quarter", 1, new Date(Date.UTC(2027, 0, 1)))[0].periodKey, "2027-Q1", "a `now` of exactly 2027-01-01 resolves to 2027-Q1, not 2026-Q4 (no off-by-one at a year boundary)");
+
+// Year rollover, monthly: December -> January across a year boundary.
+const monthsAcrossYearBoundary = generateHistoricalPeriods("month", 3, new Date(Date.UTC(2026, 1, 10))); // 2026-02-10
+assertEqual(monthsAcrossYearBoundary.map((p) => p.periodKey).join(","), "2025-12,2026-01,2026-02", "monthly periods correctly roll over from 2025-12 to 2026-01 to 2026-02, spanning a year boundary");
+assertEqual(monthsAcrossYearBoundary[0].end, "2025-12-31", "December's own end boundary is unaffected by the year rollover");
+assertEqual(monthsAcrossYearBoundary[1].start, "2026-01-01", "January's start boundary is unaffected by the year rollover");
+
+// UTC-safety: `now` set to a time that is past UTC midnight on the 1st
+// of a month, but — in this sandbox's own local timezone
+// (America/Argentina, UTC-3, confirmed via
+// Intl.DateTimeFormat().resolvedOptions().timeZone) — still the
+// PREVIOUS calendar day/month. If generateHistoricalPeriods used local
+// date getters (getFullYear/getMonth) anywhere instead of the UTC ones
+// it actually uses throughout, this would misclassify `now` as
+// belonging to the previous month, exactly the class of bug found and
+// fixed in lib/benchmark/historicalLabels.ts's month-label formatter
+// (see §3 below). 2026-01-01T02:00:00Z is 2025-12-31 23:00 local time
+// in America/Argentina.
+const utcBoundaryNow = new Date("2026-01-01T02:00:00Z");
+assertEqual(generateHistoricalPeriods("month", 1, utcBoundaryNow)[0].periodKey, "2026-01", "generateHistoricalPeriods resolves `now` by its UTC calendar date, not the local sandbox timezone's — 02:00 UTC on Jan 1st is correctly January, even though it is still Dec 31st in America/Argentina local time");
+assertEqual(generateHistoricalPeriods("quarter", 1, utcBoundaryNow)[0].periodKey, "2026-Q1", "the same UTC-safety holds for quarterly generation");
+
+// -----------------------------------------------------------------------
+// §2c CROSS-BOUNDARY CAMPAIGN ASSIGNMENT — a hypothetical dataset with
+// start_date=2026-06-20/end_date=2026-07-15 (crossing the Q2/Q3 2026
+// boundary) must be assigned to the period containing its START_DATE
+// only (Q2), never prorated/split across Q2 and Q3. This replicates, in
+// plain JS, the EXACT predicate engine.ts's fetchEligibleDatasetIds
+// actually runs (.gte("start_date", windowStart).lte("start_date",
+// windowEnd) — verified unchanged in §1 above) against the REAL period
+// boundaries generateHistoricalPeriods produces — not a live DB row, but
+// the same ISO-date lexicographic comparison Postgres performs for a
+// `date` column, applied to the same boundary values the engine would
+// actually receive as `windowStart`/`windowEnd` for each period.
+// -----------------------------------------------------------------------
+function isWithinPeriod(datasetStartDate: string, period: { start: string; end: string }): boolean {
+  return datasetStartDate >= period.start && datasetStartDate <= period.end;
+}
+const crossBoundaryDatasetStartDate = "2026-06-20"; // end_date 2026-07-15 is irrelevant to assignment
+const q2_2026 = quartersOf2026[1]; // 2026-04-01..2026-06-30
+const q3_2026 = quartersOf2026[2]; // 2026-07-01..2026-09-30
+assertTrue(isWithinPeriod(crossBoundaryDatasetStartDate, q2_2026), "a dataset with start_date=2026-06-20 (end_date=2026-07-15, crossing into Q3) falls within Q2 2026's [start_date] window");
+assertTrue(!isWithinPeriod(crossBoundaryDatasetStartDate, q3_2026), "the SAME dataset does NOT fall within Q3 2026's window — it is assigned to exactly one period (Q2), never both, never prorated");
 
 // -----------------------------------------------------------------------
 // §3 LABEL FORMATTING — real execution, both locales, both shapes, and
@@ -215,6 +301,51 @@ assertTrue(/eligibility === "trend"/.test(historicalSectionSource), "HistoricalB
 assertTrue(/trendEligibility\(successPeriods\.length\)/.test(historicalSectionSource), "the eligibility check counts only status==='success' periods, never gap/insufficient/no_data/error periods toward the 3-point minimum");
 
 // -----------------------------------------------------------------------
+// §5b DELTA ADJACENCY (FINAL REGRESSION HARDENING §7) — a real bug was
+// found and fixed here: HistoricalBenchmarkSection used to only ever
+// look at the literal last two array slots and give up entirely (no
+// delta at all) the instant either wasn't "success", even when an
+// earlier chronologically-adjacent success/success pair existed. Fixed
+// to scan backward for the MOST RECENT adjacent success/success pair.
+// Reimplements that exact backward-scan algorithm here (component JSX
+// itself can't be executed without jsdom, per this project's existing
+// convention — see the file header of every other scripts/test-*.mts)
+// against synthetic period arrays covering every case §7 calls out.
+// -----------------------------------------------------------------------
+type FakePeriod = { status: "success" | "insufficient_sample" | "no_data" | "methodology_block" | "error"; median: number | null };
+function computeDeltaLikeComponent(periods: FakePeriod[]): { percent: number | null; increased: boolean } | null {
+  for (let i = periods.length - 1; i >= 1; i--) {
+    const current = periods[i];
+    const previous = periods[i - 1];
+    if (current.status === "success" && previous.status === "success" && current.median !== null && previous.median !== null) {
+      const change = computeChange(previous.median, current.median);
+      return { percent: change.percent, increased: change.absolute >= 0 };
+    }
+  }
+  return null;
+}
+assertEqual(
+  computeDeltaLikeComponent([{ status: "success", median: 3 }, { status: "no_data", median: null }, { status: "success", median: 4 }]),
+  null,
+  "§7's own example — Q1 success / Q2 no_data / Q3 success — never produces a delta: Q2/Q3 aren't adjacent-success (Q2 is no_data), and Q1/Q2 aren't either (Q2 is no_data) — there is no eligible adjacent pair at all"
+);
+{
+  const found = computeDeltaLikeComponent([{ status: "success", median: 3 }, { status: "success", median: 3.5 }, { status: "no_data", median: null }, { status: "no_data", median: null }]);
+  assertTrue(found !== null && found.increased === true, "Q1 success / Q2 success / Q3 no_data / Q4 no_data DOES produce a delta — from the most recent eligible adjacent pair (Q1->Q2) — this is the real bug the old tail-only check missed (it stopped at Q4/Q3 and reported no delta at all)");
+}
+assertEqual(
+  computeDeltaLikeComponent([{ status: "no_data", median: null }, { status: "insufficient_sample", median: null }, { status: "methodology_block", median: null }]),
+  null,
+  "when NO adjacent pair anywhere in the period list is success/success, there is no delta at all — never falls back to a non-adjacent or partially-comparable pair"
+);
+{
+  const tailPair = computeDeltaLikeComponent([{ status: "no_data", median: null }, { status: "success", median: 2 }, { status: "success", median: 2.2 }]);
+  assertTrue(tailPair !== null && tailPair.percent !== null && Math.abs(tailPair.percent - 10) < 0.01, "the ordinary/common case — the two most recent periods ARE the adjacent success pair — still works exactly as before (baseline behavior preserved)");
+}
+assertTrue(/for \(let i = periods\.length - 1; i >= 1; i--\)/.test(historicalSectionSource), "HistoricalBenchmarkSection's actual delta code now scans backward for the most recent adjacent success pair, matching the algorithm verified above");
+assertTrue(!/const last = periods\[periods\.length - 1\];\s*\n\s*const prev = periods\[periods\.length - 2\];/.test(historicalSectionSource), "the old tail-only ('last two array slots, no backward search') delta logic is gone");
+
+// -----------------------------------------------------------------------
 // §6 NO INTERPOLATION, EVER — structural checks across every new file:
 // no fill-gap/interpolate/average-across-periods helper exists anywhere,
 // and the chart explicitly breaks its line at any non-success period
@@ -253,6 +384,10 @@ const fullInput: BenchmarkFormInput = {
   relaxedDimensions: ["gender"],
 };
 const builtQuery = buildQuery(fullInput);
+assertEqual(builtQuery.platform, "meta", "buildQuery forwards platform (protected dimension)");
+assertEqual(builtQuery.objective, "conversions", "buildQuery forwards objective (protected dimension)");
+assertEqual(builtQuery.vertical, "ecommerce", "buildQuery forwards vertical (protected dimension)");
+assertEqual(builtQuery.country, "AR", "buildQuery forwards country (protected dimension)");
 assertEqual(builtQuery.audienceStrategy, "broad", "buildQuery forwards audienceStrategy");
 assertEqual(builtQuery.funnelStage, "mid", "buildQuery forwards funnelStage");
 assertEqual(builtQuery.businessModel, "b2c", "buildQuery forwards businessModel");
@@ -273,6 +408,23 @@ assertTrue(/const query = buildQuery\(input\)/.test(historicalActionsSource), "r
 assertTrue(!/platform:\s*input\.platform/.test(historicalActionsSource), "historicalActions.ts does not hand-copy any BenchmarkFormInput -> BenchmarkQuery field mapping of its own (that logic lives only in buildQuery)");
 assertTrue(/const periodQuery: BenchmarkQuery = \{[\s\S]*?\.\.\.query,[\s\S]*?timeWindow: \{ kind: "custom"/.test(engineSource), "getHistoricalBenchmark builds each period's query by spreading the FULL incoming query ({ ...query }) and overriding only timeWindow — every optional filter buildQuery mapped rides along unchanged for every period");
 assertTrue(/Never applies cohort relaxation per period/i.test(engineSource), "getHistoricalBenchmark's own docs confirm it never applies a NEW relaxation per period (only relaxations already explicit on the incoming query are honored) — periods stay comparable per §8");
+
+// -----------------------------------------------------------------------
+// §7b HISTORICAL QUERY INVARIANTS (FINAL REGRESSION HARDENING §8) — the
+// metric itself never changes across periods: getHistoricalBenchmark
+// takes `metricKey` as a single, separate function parameter (never part
+// of BenchmarkQuery, never read from `query.metric` — BenchmarkQuery has
+// no such field) and passes that same binding into every iteration's
+// computeMetricBenchmarkCore call. Combined with the spread-query check
+// above (which already covers platform/objective/vertical/country/
+// audienceStrategy/funnelStage/businessModel/spendBand/durationBand/
+// relaxedDimensions all riding along via `{ ...query }`), this confirms
+// every one of the 12 fields §8 lists is preserved identically across
+// every historical period, with ONLY timeWindow replaced per period.
+// -----------------------------------------------------------------------
+assertTrue(/for \(const period of periods\) \{/.test(getHistoricalBenchmarkBody), "getHistoricalBenchmark loops over the given periods with a single, unmodified `metricKey` in scope for the whole loop");
+assertTrue(!/metricKey\s*=/.test(getHistoricalBenchmarkBody.replace(/metricKey: string/, "")), "metricKey is never reassigned anywhere inside getHistoricalBenchmark — the exact same metric is queried for every period");
+assertTrue((getHistoricalBenchmarkBody.match(/computeMetricBenchmarkCore\(periodQuery, metricKey,/g) ?? []).length === 1, "computeMetricBenchmarkCore is called with (periodQuery, metricKey, ...) at exactly one call site inside the loop — one metric, one code path, every period");
 
 // -----------------------------------------------------------------------
 // §8 DIRECT-ENTRY TIME WINDOW BEHAVIOR IS UNCHANGED — toTimeWindowInput
@@ -392,6 +544,18 @@ assertTrue(/if \(nextOpen && !loaded && !loading\)/.test(historicalSectionSource
 assertTrue(!/useEffect/.test(historicalSectionSource), "no useEffect auto-triggers the historical query on mount or on prop change — it is opened by explicit user action only");
 
 // -----------------------------------------------------------------------
+// §14b HISTORICAL UI SAFETY (FINAL REGRESSION HARDENING §10) — closing
+// the section must not discard an already-loaded result (so reopening
+// doesn't needlessly refetch), and the handler's only unconditional
+// action is updating the open/closed flag itself.
+// -----------------------------------------------------------------------
+const handleToggleBody = historicalSectionSource.match(/async function handleToggle\(nextOpen: boolean\) \{[\s\S]*?\n  \}/)?.[0] ?? "";
+assertTrue(handleToggleBody.length > 0, "handleToggle's function body was matched");
+assertTrue(/setOpen\(nextOpen\);/.test(handleToggleBody), "handleToggle always updates the open/closed flag");
+assertTrue(!/setData\(null\)/.test(handleToggleBody) && !/setLoaded\(false\)/.test(handleToggleBody), "handleToggle never clears the loaded data/result when closing (nextOpen=false) — an already-fetched result survives a close, so reopening does not needlessly refetch");
+assertTrue(/function handleRetry\(\)/.test(historicalSectionSource) && /setLoaded\(false\);\s*\n\s*setData\(null\);/.test(historicalSectionSource), "the ONLY place loaded/data are ever reset is the explicit user-initiated retry action — never an ordinary close");
+
+// -----------------------------------------------------------------------
 // §15 CANONICAL LIVE-DATA REGRESSION — EXPLICIT, HONEST DISCLOSURE.
 //
 // This suite cannot execute the canonical "CPM median=3.85,
@@ -401,7 +565,7 @@ assertTrue(!/useEffect/.test(historicalSectionSource), "no useEffect auto-trigge
 // same limitation already documented for scripts/e2e-fixture-test.mts.
 // Printed as a visible, non-silent notice rather than a fabricated pass.
 // -----------------------------------------------------------------------
-console.log("NOTE: the canonical CPM median=3.85/sampleSize=15 live-data regression (and any real per-period sample-size check) could not be executed in this sandbox — no live Supabase/Postgres connection is reachable here. Structural review of getHistoricalBenchmark (see §1 above) confirms it reuses the exact same query path that produces that canonical result for the live single-query case.");
+console.log("NOTE: the canonical CPM median=3.85/sampleSize=15 live-data regression (scripts/e2e-fixture-test.mts, and any real per-period sample-size check) could not be executed in this sandbox. Actually attempted via `npx tsx scripts/e2e-fixture-test.mts` (Final Regression Hardening pass) — it fails immediately at import time: lib/supabase/admin.ts imports the 'server-only' package, which throws unconditionally outside a Next.js server webpack bundle (pre-existing, unrelated to and unchanged by Historical Benchmarks). Separately, this sandbox has no PostgREST binary installed (only a stopped local Postgres 16 cluster), so even past that import there would be nothing at NEXT_PUBLIC_SUPABASE_URL to connect to. This matches CUCURUCHO_HANDOFF.md's own documented, pre-existing tooling gap for the Fixture E2E suite. No fixture file, expected value, or new infrastructure was touched. Structural review of getHistoricalBenchmark (see §1 above) confirms it reuses the exact same query path that produces that canonical result for the live single-query case.");
 
 console.log(`test-historical-benchmarks: ${passed} passed, ${failed} failed.`);
 if (failed > 0) process.exit(1);

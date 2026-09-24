@@ -123,18 +123,40 @@ export function HistoricalBenchmarkSection({ input }: { input: BenchmarkFormInpu
   });
   if (currentSegment.length > 0) lineSegments.push(currentSegment.join(" "));
 
-  // Descriptive median delta (§9) — only between the two most recent
-  // CONSECUTIVE periods when BOTH are comparable (status "success").
-  // computeChange is the exact same period-over-period primitive
-  // already used for media intelligence snapshots (lib/media/trend.ts)
-  // — never a new formula, and never framed as "mejoró"/"empeoró".
+  // Descriptive median delta (§9) — only between the two chronologically
+  // CONSECUTIVE periods MOST RECENT in time that are BOTH comparable
+  // (status "success"). computeChange is the exact same period-over-
+  // period primitive already used for media intelligence snapshots
+  // (lib/media/trend.ts) — never a new formula, and never framed as
+  // "mejoró"/"empeoró".
+  //
+  // FINAL REGRESSION HARDENING FIX: this used to only ever look at the
+  // literal last two array slots (periods[length-1]/[length-2]) and give
+  // up entirely — showing NO delta — the instant either of those two
+  // wasn't "success", even when an earlier adjacent success/success pair
+  // existed. Example: Q1 success, Q2 no_data, Q3 success — the old code
+  // correctly refused to compare Q2->Q3 (Q2 isn't success), but it also
+  // never considered Q1 at all. Per §7's own example that's the right
+  // call there (Q1/Q2 aren't a success/success pair either), but with a
+  // 4th period — Q1 success, Q2 success, Q3 no_data, Q4 no_data — the
+  // old code stopped at Q4 (not success) and showed no delta, even
+  // though Q1->Q2 is a real, chronologically adjacent, fully comparable
+  // pair. Now it scans backward from the most recent period for the
+  // LATEST adjacent pair that is success/success — since
+  // generateHistoricalPeriods always produces gapless, chronologically
+  // contiguous boundaries (verified in scripts/test-historical-
+  // benchmarks.mts), adjacent array indices are exactly "chronologically
+  // consecutive periods", so this never bridges over a real calendar gap
+  // — it only ever widens which adjacent PAIR (not which non-adjacent
+  // periods) is eligible.
   let delta: { percent: number | null; increased: boolean } | null = null;
-  if (periods.length >= 2) {
-    const last = periods[periods.length - 1];
-    const prev = periods[periods.length - 2];
-    if (last.status === "success" && prev.status === "success" && last.median !== null && prev.median !== null) {
-      const change = computeChange(prev.median, last.median);
+  for (let i = periods.length - 1; i >= 1; i--) {
+    const current = periods[i];
+    const previous = periods[i - 1];
+    if (current.status === "success" && previous.status === "success" && current.median !== null && previous.median !== null) {
+      const change = computeChange(previous.median, current.median);
       delta = { percent: change.percent, increased: change.absolute >= 0 };
+      break;
     }
   }
 

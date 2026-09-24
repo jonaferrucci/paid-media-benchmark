@@ -21,6 +21,7 @@
 
 import { readFileSync } from "node:fs";
 import { execSync } from "node:child_process";
+import { assertEngineCoreInvariants, assertActionsCoreInvariants } from "./lib/benchmarkEngineCoreInvariants.mts";
 
 let passed = 0;
 let failed = 0;
@@ -185,17 +186,34 @@ assertTrue(
 // ENGINE: no benchmark engine/methodology file was touched by this
 // pass, and the result screen's own math/classification helpers are
 // still delegated, not re-derived.
+//
+// HISTORICAL BENCHMARKS — FINAL REGRESSION HARDENING:
+// lib/benchmark/engine.ts and app/benchmark/actions.ts were removed
+// from this forbidden list. `git diff --stat HEAD` is a working-tree-
+// vs-HEAD check — it only ever proves "no uncommitted edit exists in
+// this file right now", and cannot see past a commit boundary. Once
+// Historical Benchmarks' own (spec-authorized, reviewed) extension of
+// both files was committed, these two entries became permanently
+// vacuous rather than actually protecting anything going forward.
+// Replaced below by assertEngineCoreInvariants/assertActionsCoreInvariants
+// — real, git-history-independent behavioral checks (see
+// scripts/lib/benchmarkEngineCoreInvariants.mts for the full rationale).
+// cohortRules.ts, singleMetricOptions.ts, classify.ts, derive.ts,
+// supabase/, and admin.ts genuinely were not touched by that work; their
+// forbidden-diff checks below are still real and are left unchanged.
 // -----------------------------------------------------------------------
 {
   const diffStat = execSync("git diff --stat HEAD", { cwd: root, encoding: "utf8" });
   for (const forbidden of [
-    "lib/benchmark/engine.ts", "lib/benchmark/cohortRules.ts", "lib/benchmark/singleMetricOptions.ts",
-    "lib/comparison/classify.ts", "lib/metrics/derive.ts", "app/benchmark/actions.ts",
+    "lib/benchmark/cohortRules.ts", "lib/benchmark/singleMetricOptions.ts",
+    "lib/comparison/classify.ts", "lib/metrics/derive.ts",
     "supabase/", "lib/supabase/admin.ts",
   ]) {
     assertTrue(!diffStat.includes(forbidden), `${forbidden} was not touched by this pass (strict no-touch list, §18)`);
   }
 }
+assertEngineCoreInvariants(assertTrue);
+assertActionsCoreInvariants(assertTrue);
 assertTrue(
   comparisonDetailSource.includes("classifyPerformance(userValue, stats, response.benchmarkDirection)") &&
   comparisonDetailSource.includes("computeMarkerPosition(userValue, stats)") &&

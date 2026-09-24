@@ -12,6 +12,7 @@ import { readFileSync, existsSync } from "node:fs";
 import { execSync } from "node:child_process";
 import { classifyPerformance, resolveClassificationLabelKey, isContextualPosition } from "../lib/comparison/classify";
 import { NAV_GROUP_STRUCTURE, navGroupStructureFor } from "../components/dashboard/DashboardSidebar";
+import { assertEngineCoreInvariants } from "./lib/benchmarkEngineCoreInvariants.mts";
 
 let passed = 0;
 let failed = 0;
@@ -251,9 +252,18 @@ assertTrue(read("supabase/migrations/0019_contribution_validation.sql").includes
 
 // ---------------------------------------------------------------------
 // §25: protected files — zero uncommitted changes.
+//
+// HISTORICAL BENCHMARKS — FINAL REGRESSION HARDENING: lib/benchmark/
+// engine.ts was removed from this list. A git-diff-vs-working-tree check
+// only ever proves "no uncommitted edit exists right now" — it cannot
+// see past a commit boundary, so once Historical Benchmarks' own
+// (spec-authorized, reviewed) extension of engine.ts was committed, this
+// line became permanently vacuous. Replaced below by
+// assertEngineCoreInvariants — real, git-history-independent behavioral
+// checks (see scripts/lib/benchmarkEngineCoreInvariants.mts). The other
+// entries here genuinely were not touched by that work.
 // ---------------------------------------------------------------------
 const PROTECTED_FILES = [
-  "lib/benchmark/engine.ts",
   "lib/planning/budget.ts",
   "lib/planning/comparability.ts",
   "lib/supabase/admin.ts",
@@ -267,6 +277,7 @@ for (const rel of PROTECTED_FILES) {
   }
   assertEqual(diffStat, "", `${rel} has zero uncommitted changes (protected logic untouched)`);
 }
+assertEngineCoreInvariants(assertTrue);
 
 console.log(`test-phase38-release-candidate: ${passed} passed, ${failed} failed.`);
 if (failed > 0) process.exit(1);
