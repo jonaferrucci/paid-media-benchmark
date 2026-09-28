@@ -3,8 +3,15 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { computeDistribution, flagOutliers } from "./stats";
 import { classifyDurationBand, classifySpendBand, normalizedMonthlySpend } from "./spendBands";
 import { resolveTimeWindow } from "./timeWindow";
-import { DEFAULT_MINIMUM_SAMPLE_SIZE, RELAXATION_ORDER, type CohortDimensions, type RelaxableDimension } from "./cohortRules";
+import { RELAXATION_ORDER, type CohortDimensions, type RelaxableDimension } from "./cohortRules";
 import { deriveBenchmarkStatus, type CohortQueryStatus } from "./resultStatus";
+// CUCURUCHO INTELLIGENCE 4 (Coverage Map V1): resolveVariantGroup/
+// MetricValueGroup and getMinimumSampleSize were pure-extracted, with
+// zero behavior change, into their own shared modules so
+// lib/benchmark/coverage.ts can reuse the exact same rules instead of
+// duplicating them. See those files' own header comments.
+import { resolveVariantGroup, type MetricValueGroup } from "./metricVariants";
+import { getMinimumSampleSize } from "./minimumSampleSize";
 import type { HistoricalPeriodBounds } from "./historicalPeriods";
 import type {
   BenchmarkQuery,
@@ -36,18 +43,6 @@ import type {
 // dataset_metric_values directly from here, stop -- that breaks the
 // privacy boundary this file exists to enforce.
 // -----------------------------------------------------------------------
-
-async function getMinimumSampleSize(): Promise<number> {
-  const supabase = createAdminClient();
-  const { data } = await supabase
-    .from("benchmark_settings")
-    .select("setting_value")
-    .eq("setting_key", "minimum_sample_size")
-    .eq("active", true)
-    .maybeSingle();
-  const value = data?.setting_value as { default?: number } | null;
-  return value?.default ?? DEFAULT_MINIMUM_SAMPLE_SIZE;
-}
 
 interface EligibleDatasetsParams {
   platform: string;
@@ -191,11 +186,6 @@ async function filterByScaleBands(
   return kept;
 }
 
-interface MetricValueGroup {
-  variantId: string | null;
-  values: number[];
-}
-
 async function fetchMetricValueGroups(datasetIds: string[], metricInternalKey: string): Promise<MetricValueGroup[]> {
   if (datasetIds.length === 0) return [];
   const supabase = createAdminClient();
@@ -222,11 +212,6 @@ async function fetchMetricValueGroups(datasetIds: string[], metricInternalKey: s
     variantId: key === "__null__" ? null : key,
     values,
   }));
-}
-
-function resolveVariantGroup(groups: MetricValueGroup[]): MetricValueGroup | null {
-  if (groups.length === 0) return null;
-  return groups.reduce((largest, g) => (g.values.length > largest.values.length ? g : largest));
 }
 
 function buildCohortDescriptor(query: BenchmarkQuery, relaxed: Set<RelaxableDimension>): CohortDescriptor {

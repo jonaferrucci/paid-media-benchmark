@@ -469,6 +469,38 @@ const es = {
       contextual_encima: "Tu {metric} se encuentra por encima del rango típico para campañas comparables de {platform} orientadas a {objective} en {vertical}, {country}. Esta métrica depende fuertemente de la inversión y duración de la campaña, por lo que no se evalúa como positiva o negativa.",
     },
   },
+  // CUCURUCHO INTELLIGENCE 4 — COVERAGE MAP V1. A deliberately separate
+  // namespace from workspace.coverageTitle/coverageSubtitle above (an
+  // unrelated, pre-existing Home widget — "what you can calculate with
+  // your own campaigns" — not this feature). Status labels here are the
+  // locked, coverage-specific public vocabulary (never the exact same
+  // wording as benchmarkLive.statusShort, which describes a single
+  // live query result to its own owner, not this feature's own public
+  // per-cell coverage fact) — CTAs, by contrast, DO reuse
+  // benchmarkLive.getBenchmark / nav.contributeData verbatim, since
+  // those two actions are semantically identical to what Coverage's
+  // own cells link to.
+  coverageMap: {
+    title: "Cobertura de datos",
+    subtitle: "Dónde Cucurucho ya tiene datos validados suficientes para calcular un benchmark.",
+    selectPrompt: "Elegí Plataforma, Objetivo y País para ver la cobertura por Vertical y Métrica.",
+    loading: "Calculando cobertura…",
+    errorTitle: "No pudimos calcular la cobertura",
+    errorBody: "Ocurrió un error inesperado. Probá de nuevo en unos minutos.",
+    retryCta: "Reintentar",
+    taxonomyErrorTitle: "No pudimos cargar las opciones de cobertura",
+    taxonomyErrorBody: "Intentá nuevamente en unos segundos. Si el problema continúa, volvé a intentarlo más tarde.",
+    verticalColumnHeader: "Vertical",
+    status: {
+      success: "Disponible",
+      insufficient_sample: "Muestra limitada",
+      no_data: "Sin datos",
+      methodology_block: "Requiere contexto",
+    },
+    methodologyBlockHint: "Requiere Rango de Inversión y Duración de campaña, que Cobertura no evalúa por Vertical — consultalo directamente en Benchmark.",
+    mobileStatusLabel: "Estado",
+    exploreCoverageCta: "Explorar cobertura de datos",
+  },
   media: {
     catalogTitle: "Medios",
     catalogSubtitle: "Explorá los medios y plataformas disponibles para benchmarking.",
@@ -1822,6 +1854,27 @@ const en: typeof es = {
       contextual_debajo: "Your {metric} is below the typical range for comparable {platform} campaigns targeting {objective} in {vertical}, {country}. This metric depends heavily on campaign spend and duration, so it isn't scored as positive or negative.",
       contextual_encima: "Your {metric} is above the typical range for comparable {platform} campaigns targeting {objective} in {vertical}, {country}. This metric depends heavily on campaign spend and duration, so it isn't scored as positive or negative.",
     },
+  },
+  coverageMap: {
+    title: "Data coverage",
+    subtitle: "Where Cucurucho already has enough validated data to calculate a benchmark.",
+    selectPrompt: "Choose Platform, Objective and Country to see coverage by Vertical and Metric.",
+    loading: "Calculating coverage…",
+    errorTitle: "We couldn't calculate coverage",
+    errorBody: "Something unexpected happened. Try again in a few minutes.",
+    retryCta: "Retry",
+    taxonomyErrorTitle: "We couldn't load coverage options",
+    taxonomyErrorBody: "Try again in a few seconds. If the problem continues, try again later.",
+    verticalColumnHeader: "Vertical",
+    status: {
+      success: "Available",
+      insufficient_sample: "Limited sample",
+      no_data: "No data",
+      methodology_block: "Requires context",
+    },
+    methodologyBlockHint: "Requires Spend Range and campaign Duration, which Coverage doesn't evaluate per Vertical — check it directly in Benchmark.",
+    mobileStatusLabel: "Status",
+    exploreCoverageCta: "Explore data coverage",
   },
   media: {
     catalogTitle: "Media",

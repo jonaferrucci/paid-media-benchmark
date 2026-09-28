@@ -82,6 +82,20 @@ const typesSource = readFileSync(new URL("../../lib/benchmark/types.ts", import.
 // invariants, same precision, just pointed at where the code actually
 // lives now.
 const responseShapeSource = readFileSync(new URL("../../lib/benchmark/responseShape.ts", import.meta.url), "utf8");
+// CUCURUCHO INTELLIGENCE 4 (Coverage Map V1): getMinimumSampleSize used
+// to be defined directly inside lib/benchmark/engine.ts; it is now a
+// pure, behavior-preserving extraction into lib/benchmark/
+// minimumSampleSize.ts (see that file's own header comment) — for the
+// exact same reason resolveVariantGroup/MetricValueGroup were extracted
+// into lib/benchmark/metricVariants.ts — so lib/benchmark/coverage.ts can
+// reuse the identical live-settings lookup instead of duplicating it or
+// hardcoding DEFAULT_MINIMUM_SAMPLE_SIZE as if it were the only source of
+// truth. The two assertions below that used to check this lookup's
+// source text directly inside engineSource now check
+// minimumSampleSizeSource instead — same real invariants, same
+// precision, just pointed at where the code actually lives now (the same
+// pattern already applied above for toResponse/responseShapeSource).
+const minimumSampleSizeSource = readFileSync(new URL("../../lib/benchmark/minimumSampleSize.ts", import.meta.url), "utf8");
 
 type AssertTrue = (cond: boolean, label: string) => void;
 
@@ -101,8 +115,15 @@ export function assertEngineCoreInvariants(assertTrue: AssertTrue): void {
 
   // Minimum sample size: same settings lookup, same fallback constant,
   // same "fewer than minimumSampleSize real values -> insufficient" rule.
-  assertTrue(/eq\("setting_key", "minimum_sample_size"\)/.test(engineSource), "engine.ts: getMinimumSampleSize still reads benchmark_settings.minimum_sample_size");
-  assertTrue(/value\?\.default \?\? DEFAULT_MINIMUM_SAMPLE_SIZE/.test(engineSource), "engine.ts: still falls back to the unchanged DEFAULT_MINIMUM_SAMPLE_SIZE constant (lib/benchmark/cohortRules.ts) when no override is configured");
+  // CUCURUCHO INTELLIGENCE 4: this lookup now lives in
+  // lib/benchmark/minimumSampleSize.ts (pure extraction, see this file's
+  // own header comment) — checked there instead of in engineSource,
+  // plus a new assertion confirming engine.ts still imports and uses
+  // that exact shared function rather than a re-inlined copy.
+  assertTrue(/eq\("setting_key", "minimum_sample_size"\)/.test(minimumSampleSizeSource), "minimumSampleSize.ts: getMinimumSampleSize still reads benchmark_settings.minimum_sample_size");
+  assertTrue(/value\?\.default \?\? DEFAULT_MINIMUM_SAMPLE_SIZE/.test(minimumSampleSizeSource), "minimumSampleSize.ts: still falls back to the unchanged DEFAULT_MINIMUM_SAMPLE_SIZE constant (lib/benchmark/cohortRules.ts) when no override is configured");
+  assertTrue(/import \{ getMinimumSampleSize \} from "\.\/minimumSampleSize"/.test(engineSource), "engine.ts: still imports the single shared getMinimumSampleSize (lib/benchmark/minimumSampleSize.ts) rather than a re-inlined copy");
+  assertTrue(!/async function getMinimumSampleSize/.test(engineSource), "engine.ts: no longer defines its own private getMinimumSampleSize — extracted, not duplicated");
   assertTrue(/chosen\.values\.length < minimumSampleSize/.test(engineSource), "engine.ts: the sufficientData decision is still exactly 'fewer than minimumSampleSize real metric values -> insufficient' — no different threshold, no estimate");
 
   // Reach methodology block: unconditional hard stop, never a

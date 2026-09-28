@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { AlertCircle, ShieldAlert, Info } from "lucide-react";
 import { AppHeader } from "@/components/dashboard/AppHeader";
@@ -413,6 +414,14 @@ export function BenchmarkExplorer({ taxonomies }: { taxonomies: ContributionTaxo
           <div>
             <h1 className="font-display text-xl font-semibold text-ink-900">{t("benchmarkLive.title")}</h1>
             <p className="mt-1 text-sm text-ink-600">{t("benchmarkLive.subtitle")}</p>
+            {/* CUCURUCHO INTELLIGENCE 4 (Coverage Map V1): a small,
+                discoverable link to the new /coverage route — no sidebar
+                item added in this phase, no redesign of this header,
+                just one additional text link alongside the existing
+                title/subtitle. */}
+            <Link href="/coverage" className="mt-2 inline-block text-xs font-medium text-primary hover:underline">
+              {t("coverageMap.exploreCoverageCta")}
+            </Link>
           </div>
 
           <div className="flex gap-2 rounded-full bg-surface2 p-1">
