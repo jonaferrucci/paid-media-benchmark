@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { AlertTriangle, ArrowRight } from "lucide-react";
 import { AppHeader } from "@/components/dashboard/AppHeader";
 import { DashboardSidebar } from "@/components/dashboard/DashboardSidebar";
@@ -12,6 +13,7 @@ import { DERIVED_METRIC_LABELS, type DerivedMetricKey } from "@/lib/contribute/c
 import { flagSuspectedDuplicates } from "@/lib/contribute/dataQuality";
 import { EXPORT_PROFILE_LABEL_KEYS, type ExportProfileId } from "@/lib/import/platformExports";
 import { computeImportBatchStatus, IMPORT_BATCH_STATUS_STYLE, tallyRealCampaignCountByBatch, resolveBatchDisplayCount } from "@/lib/contribute/importBatchStatus";
+import { MIN_COMPARISON_CAMPAIGNS, MAX_COMPARISON_CAMPAIGNS } from "@/lib/benchmark/campaignComparison";
 
 interface ContributionRow {
   id: string;
@@ -81,7 +83,28 @@ function rawInputsFor(row: ContributionRow): RawMetricInputs {
 
 export function ContributionsList({ datasets, batches = [] }: { datasets: ContributionRow[]; batches?: ImportBatchRow[] }) {
   const { t } = useTranslation();
+  const router = useRouter();
   const [searchOpen, setSearchOpen] = useState(false);
+  // CUCURUCHO INTELLIGENCE 3 — Multi-Campaign Comparison selection.
+  // Client-side state only, purely UI convenience: the real 2-5
+  // enforcement happens again server-side in
+  // app/account/contributions/compare/page.tsx (lib/benchmark/
+  // campaignComparison.ts's parseComparisonIds), since a client-side
+  // cap never trusted on its own — a user could hand-edit the URL.
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  function toggleSelected(id: string, checked: boolean) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (checked) {
+        if (next.size >= MAX_COMPARISON_CAMPAIGNS) return prev; // sixth campaign cannot be selected
+        next.add(id);
+      } else {
+        next.delete(id);
+      }
+      return next;
+    });
+  }
 
   // PHASE 26 (§17): internal-only diagnostic — a small, honest "revisar"
   // note, never a user-facing score. Computed client-side over the same
@@ -128,6 +151,26 @@ export function ContributionsList({ datasets, batches = [] }: { datasets: Contri
               {t("nav.contributeData")}
             </Link>
           </div>
+
+          {/* CUCURUCHO INTELLIGENCE 3: selection counter + CTA. Only
+              shown once there's something to compare (2+ campaigns
+              exist) — an account with 0-1 campaigns has nothing to
+              select against. */}
+          {datasets.length >= MIN_COMPARISON_CAMPAIGNS && (
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-line bg-surface px-3 py-2.5">
+              <p className="text-xs text-ink-600">
+                {t("contributions.compare.selectedCount", { n: selectedIds.size, max: MAX_COMPARISON_CAMPAIGNS })}
+              </p>
+              <button
+                type="button"
+                disabled={selectedIds.size < MIN_COMPARISON_CAMPAIGNS}
+                onClick={() => router.push(`/account/contributions/compare?ids=${Array.from(selectedIds).join(",")}`)}
+                className="rounded-full bg-primary px-4 py-2 text-xs font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-40"
+              >
+                {t("contributions.compare.compareSelectedCta")}
+              </button>
+            </div>
+          )}
 
           {/* PHASE 25 (§7): compact import history — one line per real
               upload, never a giant table. Example: "Meta Ads / Hudson
@@ -181,11 +224,28 @@ export function ContributionsList({ datasets, batches = [] }: { datasets: Contri
             <div className="mt-6 space-y-2">
               {datasets.map((d) => {
                 const derivedMetrics = Object.keys(calculateDerivedMetrics(rawInputsFor(d))) as DerivedMetricKey[];
+                const isSelected = selectedIds.has(d.id);
+                const selectionDisabled = !isSelected && selectedIds.size >= MAX_COMPARISON_CAMPAIGNS;
                 return (
+                  <div key={d.id} className="flex items-start gap-2">
+                    {datasets.length >= MIN_COMPARISON_CAMPAIGNS && (
+                      <label
+                        className="mt-4 flex h-5 w-5 shrink-0 items-center justify-center"
+                        title={selectionDisabled ? t("contributions.compare.maxReached") : undefined}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          disabled={selectionDisabled}
+                          onChange={(e) => toggleSelected(d.id, e.target.checked)}
+                          aria-label={t("contributions.compare.selectForComparison")}
+                          className="h-4 w-4 rounded border-line disabled:opacity-40"
+                        />
+                      </label>
+                    )}
                   <Link
-                    key={d.id}
                     href={`/account/contributions/${d.id}`}
-                    className="block rounded-2xl border border-line bg-surface p-3.5 shadow-sm transition-colors hover:border-primary/40"
+                    className="block flex-1 rounded-2xl border border-line bg-surface p-3.5 shadow-sm transition-colors hover:border-primary/40"
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
@@ -245,6 +305,7 @@ export function ContributionsList({ datasets, batches = [] }: { datasets: Contri
                       {t("contributions.viewCampaignCta")} <ArrowRight size={11} aria-hidden="true" />
                     </p>
                   </Link>
+                  </div>
                 );
               })}
             </div>

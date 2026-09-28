@@ -51,9 +51,20 @@ assertTrue(
   contributionsListSource.includes('{d.campaign_name ?? t("contributions.unnamedCampaign")}'),
   "the campaign card's title is still the real campaign name, falling back to the neutral placeholder — never fabricated"
 );
+// CUCURUCHO INTELLIGENCE 3 (Multi-Campaign Comparison): this literal
+// class string went stale not because the density fix was reverted, but
+// because that later, explicitly-instructed feature added an optional
+// selection checkbox as a sibling to the LEFT of this same Link (see
+// ContributionsList.tsx's own comment on toggleSelected/selectedIds).
+// The Link is no longer the sole element in its row, so it now needs
+// flex-1 to fill the remaining width beside the checkbox — a pure
+// layout consequence of a real, later product decision, not a
+// reversion. The actual invariant this assertion protects — p-3.5
+// padding (not p-4), rounded-2xl, border-line, bg-surface, shadow-sm —
+// is completely unchanged; only "block" became "block flex-1".
 assertTrue(
-  contributionsListSource.includes('className="block rounded-2xl border border-line bg-surface p-3.5 shadow-sm'),
-  "card padding was reduced from p-4 to p-3.5 — a modest density improvement, not a redesign"
+  contributionsListSource.includes('className="block flex-1 rounded-2xl border border-line bg-surface p-3.5 shadow-sm'),
+  "card padding is still p-3.5 (not the old p-4) — the Phase 27 density improvement is intact; the class string also now carries flex-1 because Intelligence 3 added a sibling selection checkbox to the row"
 );
 assertTrue(
   contributionsListSource.includes('<div className="mt-6 space-y-2">'),
