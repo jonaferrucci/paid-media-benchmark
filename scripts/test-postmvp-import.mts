@@ -146,7 +146,24 @@ assertEqual(NAV_GROUP_STRUCTURE[0].groupKey, "nav.groupExplore", "first group is
 assertEqual(NAV_GROUP_STRUCTURE[0].items.map((i) => i.href), ["/", "/benchmark", "/platforms"], "Explorar has exactly Inicio/Benchmark/Medios — Verticals and Audiences are no longer permanent sidebar items");
 assertEqual(NAV_GROUP_STRUCTURE[0].items.find((i) => i.href === "/platforms")?.labelKey, "nav.media", "the /platforms sidebar item uses the user-facing 'Medios' label key, not the internal 'platforms' one");
 assertEqual(NAV_GROUP_STRUCTURE[1].groupKey, "nav.groupWork", "second group is Trabajar");
-assertEqual(NAV_GROUP_STRUCTURE[1].items.map((i) => i.href), ["/planner", "/comparisons", "/contribute"], "Trabajar has Planificador/Mis comparaciones/Aportar datos");
+// CUCURUCHO INTELLIGENCE 3.1 (§1 — navigation polish): this literal
+// array went stale not because Trabajar's shape reverted, but because
+// that later, explicitly-instructed task added "Mis campañas"
+// (/account/contributions) between Planificador and Mis comparaciones
+// — the one previously-undiscoverable route where campaign selection
+// and Multi-Campaign Comparison actually live. Planificador/Mis
+// comparaciones/Aportar datos keep their exact same hrefs and relative
+// order; only a new fourth item was inserted.
+assertEqual(
+  NAV_GROUP_STRUCTURE[1].items.map((i) => i.href),
+  ["/planner", "/account/contributions", "/comparisons", "/contribute"],
+  "Trabajar has Planificador/Mis campañas/Mis comparaciones/Aportar datos"
+);
+assertEqual(
+  NAV_GROUP_STRUCTURE[1].items.find((i) => i.href === "/account/contributions")?.labelKey,
+  "auth.myContributions",
+  "the new 'Mis campañas' sidebar item reuses the existing auth.myContributions label key — the same 'Mis campañas'/'My campaigns' text already used everywhere else this route is linked from, never a second independently-maintained label"
+);
 assertEqual(NAV_GROUP_STRUCTURE[2].groupKey, "nav.groupAdmin", "third group is Administrar");
 assertEqual(NAV_GROUP_STRUCTURE[2].items.map((i) => i.href), ["/curation"], "Administrar has only Curación");
 

@@ -10,6 +10,7 @@ import {
   Sparkles,
   Bookmark,
   Compass,
+  Megaphone,
   ShieldCheck,
   X,
   Pin,
@@ -61,6 +62,16 @@ export const NAV_GROUP_STRUCTURE: { groupKey: string; items: { href: string; lab
     groupKey: "nav.groupWork",
     items: [
       { href: "/planner", labelKey: "nav.planner", icon: Compass },
+      // CUCURUCHO INTELLIGENCE 3.1 (§1 — navigation polish): "Mis
+      // campañas" makes /account/contributions (where campaign
+      // selection + Multi-Campaign Comparison actually live) reachable
+      // from the primary sidebar for the first time. Reuses the
+      // existing auth.myContributions translation key — the exact same
+      // "Mis campañas" / "My campaigns" label already used everywhere
+      // else this route is linked from (AccountMenu, /account) — rather
+      // than introducing a second, independently-maintained label for
+      // the same destination.
+      { href: "/account/contributions", labelKey: "auth.myContributions", icon: Megaphone },
       { href: "/comparisons", labelKey: "nav.myComparisons", icon: Bookmark },
       { href: "/contribute", labelKey: "nav.contributeData", icon: Upload },
     ],
@@ -91,7 +102,16 @@ function useNavGroups(isCurator: boolean): NavGroup[] {
   }));
 }
 
-function isItemActive(pathname: string, href: string): boolean {
+// CUCURUCHO INTELLIGENCE 3.1 (§1 — navigation polish): exported for the
+// same reason navGroupStructureFor already is — a plain, DB-free,
+// translation-free function is directly unit-testable, which is what
+// lets scripts/test-navigation-polish.mts verify "Mis campañas" gets a
+// clear active state on /account/contributions AND on its child routes
+// (/account/contributions/[id], /account/contributions/compare)
+// without needing a rendered DOM or a router mock. No behavior change —
+// this is the exact same function every NavLink already called before
+// this task.
+export function isItemActive(pathname: string, href: string): boolean {
   if (href === "/") return pathname === "/";
   return pathname === href || pathname.startsWith(`${href}/`);
 }

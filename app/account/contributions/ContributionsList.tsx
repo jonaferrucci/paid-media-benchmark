@@ -172,50 +172,13 @@ export function ContributionsList({ datasets, batches = [] }: { datasets: Contri
             </div>
           )}
 
-          {/* PHASE 25 (§7): compact import history — one line per real
-              upload, never a giant table. Example: "Meta Ads / Hudson
-              Campaign Report / 18 Sep 2026 / 3 campaigns imported."
-              Hidden entirely for an account with no bulk imports yet
-              (manual single-entry contributions never create a batch,
-              per migration 0018's own comment). */}
-          {batches.length > 0 && (
-            <div className="mt-6">
-              <h2 className="text-xs font-semibold uppercase tracking-wide text-ink-500">{t("contributions.importHistoryTitle")}</h2>
-              <div className="mt-2 space-y-1.5">
-                {batches.map((b) => {
-                  // PHASE 28: stored success_count is primary now that
-                  // it's correctly finalized; the real tally is only a
-                  // defensive fallback (see importBatchStatus.ts).
-                  const displayCount = resolveBatchDisplayCount(b.success_count, realCampaignCountByBatch.get(b.id));
-                  const status = computeImportBatchStatus({ ...b, success_count: displayCount });
-                  const profileLabel = b.export_profile && EXPORT_PROFILE_LABEL_KEYS[b.export_profile as ExportProfileId]
-                    ? t(EXPORT_PROFILE_LABEL_KEYS[b.export_profile as ExportProfileId])
-                    : null;
-                  return (
-                    <Link
-                      key={b.id}
-                      href={`/account/contributions/imports/${b.id}`}
-                      className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-line bg-surface px-3 py-2 text-xs transition-colors hover:border-primary/40"
-                    >
-                      <p className="text-ink-700">
-                        {b.platforms?.display_label ?? t("contributions.unknownPlatform")}
-                        {" · "}
-                        {b.source_filename ?? profileLabel ?? t("contributions.unknownSource")}
-                        {" · "}
-                        {new Date(b.created_at).toLocaleDateString()}
-                        {" · "}
-                        {t("contributions.importHistoryCampaignsImported", { n: displayCount })}
-                      </p>
-                      <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium ${IMPORT_BATCH_STATUS_STYLE[status]}`}>
-                        {t(`contributions.batchStatus.${status}`)}
-                      </span>
-                    </Link>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
+          {/* CUCURUCHO INTELLIGENCE 3.1 (§2 — workspace hierarchy): the
+              actual campaign list is the primary workflow on this page
+              (that's what a user comes here to select/compare/inspect),
+              so it now renders BEFORE import history rather than after
+              it. Import history (below) is secondary, administrative
+              information — its own markup, data, and query behavior are
+              completely unchanged, only its position moved. */}
           {datasets.length === 0 ? (
             <div className="mt-6 rounded-2xl border border-dashed border-line bg-surface p-8 text-center">
               <p className="text-sm text-ink-600">{t("contributions.empty")}</p>
@@ -308,6 +271,53 @@ export function ContributionsList({ datasets, batches = [] }: { datasets: Contri
                   </div>
                 );
               })}
+            </div>
+          )}
+
+          {/* PHASE 25 (§7): compact import history — one line per real
+              upload, never a giant table. Example: "Meta Ads / Hudson
+              Campaign Report / 18 Sep 2026 / 3 campaigns imported."
+              Hidden entirely for an account with no bulk imports yet
+              (manual single-entry contributions never create a batch,
+              per migration 0018's own comment). CUCURUCHO INTELLIGENCE
+              3.1 (§2): moved to AFTER the campaign list — secondary,
+              administrative information, never the primary workflow on
+              this page. Content/data/query behavior unchanged. */}
+          {batches.length > 0 && (
+            <div className="mt-8">
+              <h2 className="text-xs font-semibold uppercase tracking-wide text-ink-500">{t("contributions.importHistoryTitle")}</h2>
+              <div className="mt-2 space-y-1.5">
+                {batches.map((b) => {
+                  // PHASE 28: stored success_count is primary now that
+                  // it's correctly finalized; the real tally is only a
+                  // defensive fallback (see importBatchStatus.ts).
+                  const displayCount = resolveBatchDisplayCount(b.success_count, realCampaignCountByBatch.get(b.id));
+                  const status = computeImportBatchStatus({ ...b, success_count: displayCount });
+                  const profileLabel = b.export_profile && EXPORT_PROFILE_LABEL_KEYS[b.export_profile as ExportProfileId]
+                    ? t(EXPORT_PROFILE_LABEL_KEYS[b.export_profile as ExportProfileId])
+                    : null;
+                  return (
+                    <Link
+                      key={b.id}
+                      href={`/account/contributions/imports/${b.id}`}
+                      className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-line bg-surface px-3 py-2 text-xs transition-colors hover:border-primary/40"
+                    >
+                      <p className="text-ink-700">
+                        {b.platforms?.display_label ?? t("contributions.unknownPlatform")}
+                        {" · "}
+                        {b.source_filename ?? profileLabel ?? t("contributions.unknownSource")}
+                        {" · "}
+                        {new Date(b.created_at).toLocaleDateString()}
+                        {" · "}
+                        {t("contributions.importHistoryCampaignsImported", { n: displayCount })}
+                      </p>
+                      <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium ${IMPORT_BATCH_STATUS_STYLE[status]}`}>
+                        {t(`contributions.batchStatus.${status}`)}
+                      </span>
+                    </Link>
+                  );
+                })}
+              </div>
             </div>
           )}
         </main>
