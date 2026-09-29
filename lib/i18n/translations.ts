@@ -500,6 +500,13 @@ const es = {
     methodologyBlockHint: "Requiere Rango de Inversión y Duración de campaña, que Cobertura no evalúa por Vertical — consultalo directamente en Benchmark.",
     mobileStatusLabel: "Estado",
     exploreCoverageCta: "Explorar cobertura de datos",
+    // CUCURUCHO INTELLIGENCE 4.1 — COVERAGE MAP UX POLISH.
+    legendLabel: "Referencia",
+    metricsControlLabel: "Métricas visibles",
+    closeCellDetail: "Cerrar detalle",
+    allNoDataTitle: "Todavía no hay cobertura para esta combinación",
+    allNoDataBody: "No encontramos datos validados suficientes para mostrar cobertura de {platform} · {objective} · {country}.",
+    viewByVerticalCta: "Ver detalle por vertical",
   },
   media: {
     catalogTitle: "Medios",
@@ -1875,6 +1882,13 @@ const en: typeof es = {
     methodologyBlockHint: "Requires Spend Range and campaign Duration, which Coverage doesn't evaluate per Vertical — check it directly in Benchmark.",
     mobileStatusLabel: "Status",
     exploreCoverageCta: "Explore data coverage",
+    // CUCURUCHO INTELLIGENCE 4.1 — COVERAGE MAP UX POLISH.
+    legendLabel: "Legend",
+    metricsControlLabel: "Visible metrics",
+    closeCellDetail: "Close detail",
+    allNoDataTitle: "There isn't coverage for this combination yet",
+    allNoDataBody: "We couldn't find enough validated data to show coverage for {platform} · {objective} · {country}.",
+    viewByVerticalCta: "View detail by vertical",
   },
   media: {
     catalogTitle: "Media",

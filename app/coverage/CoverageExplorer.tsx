@@ -7,17 +7,48 @@ import { DashboardSidebar } from "@/components/dashboard/DashboardSidebar";
 import { SearchOverlay } from "@/components/dashboard/SearchOverlay";
 import { useTranslation } from "@/lib/i18n/LanguageContext";
 import { Select } from "@/app/benchmark/Select";
-import type { CoverageTaxonomies } from "@/lib/benchmark/coverage";
+import type { CoverageTaxonomies, CoverageTaxonomyOption } from "@/lib/benchmark/coverage";
 import { fetchCoverageGrid } from "./actions";
-import { CoverageGrid } from "./CoverageGrid";
+import { CoverageGrid, type CoverageCellData, type SelectedCoverageCellKey } from "./CoverageGrid";
+import { CoverageStatusLegend } from "./CoverageStatusLegend";
+import { CoverageMetricVisibilityControl } from "./CoverageMetricVisibilityControl";
+import { CoverageCellPanel } from "./CoverageCellPanel";
+import { CoverageEmptyState } from "./CoverageEmptyState";
 
-// CUCURUCHO INTELLIGENCE 4 — COVERAGE MAP V1.
+// CUCURUCHO INTELLIGENCE 4 — COVERAGE MAP V1 (CUCURUCHO INTELLIGENCE 4.1
+// — COVERAGE MAP UX POLISH added the metric-visibility control, status
+// legend, contextual cell panel, and all-no-data empty state below; see
+// each section's own comment).
 //
 // Platform + Objective + Country is a PRECONDITION (per the locked
 // spec) — the matrix only renders once all three are selected. Vertical
 // is never a precondition: it's the grid's own row axis, always the
 // full canonical taxonomy (never filtered down to "only verticals with
 // data" — an empty vertical must still appear, as a no_data row).
+
+// INTELLIGENCE 4.1 (§1): a NEUTRAL default visible-metric subset, never
+// an objective-derived one — this codebase has no canonical objective
+// <-> metric compatibility mapping anywhere (platform_metrics and
+// media_category_metrics are keyed by platform/media category, not by
+// objective; see supabase/migrations/0003_metrics.sql and
+// 0012_media_universe.sql). Per the spec's own explicit instruction
+// ("if no canonical compatibility mapping exists, use a neutral default
+// subset... and allow the user to change visible metrics"), these four
+// are simply the most broadly applicable across every objective (cost
+// per impression, click-through, cost per click, cost per acquisition)
+// — never a claim that they are "the right" metrics for any specific
+// objective. The user can add/remove any metric from Coverage's own
+// canonical universe via CoverageMetricVisibilityControl below, purely
+// as client-side presentation state — the full metric universe is
+// already present in every fetchCoverageGrid response (see
+// app/coverage/actions.ts), so toggling visibility never triggers a new
+// query.
+const DEFAULT_VISIBLE_METRIC_KEYS = ["cpm", "ctr", "cpc", "cpa"];
+
+function labelFor(options: CoverageTaxonomyOption[], value: string): string {
+  return options.find((o) => o.value === value)?.label ?? value;
+}
+
 export function CoverageExplorer({ taxonomies }: { taxonomies: CoverageTaxonomies }) {
   const { t } = useTranslation();
   const [searchOpen, setSearchOpen] = useState(false);
@@ -27,10 +58,20 @@ export function CoverageExplorer({ taxonomies }: { taxonomies: CoverageTaxonomie
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
   const [grid, setGrid] = useState<Awaited<ReturnType<typeof fetchCoverageGrid>> | null>(null);
+  const [visibleMetrics, setVisibleMetrics] = useState<Set<string>>(new Set(DEFAULT_VISIBLE_METRIC_KEYS));
+  const [selectedCell, setSelectedCell] = useState<CoverageCellData | null>(null);
+  // INTELLIGENCE 4.1 (§5): a user-driven override that reveals the
+  // normal matrix even when every cell is no_data. Reset to false any
+  // time the underlying selection/grid changes, so a stale override
+  // never carries over to a different, unrelated Platform+Objective+
+  // Country combination.
+  const [showMatrixOverride, setShowMatrixOverride] = useState(false);
 
   const ready = Boolean(platform && objective && country);
 
   async function loadGrid(nextPlatform: string, nextObjective: string, nextCountry: string) {
+    setSelectedCell(null);
+    setShowMatrixOverride(false);
     if (!nextPlatform || !nextObjective || !nextCountry) {
       setGrid(null);
       setError(false);
@@ -47,6 +88,15 @@ export function CoverageExplorer({ taxonomies }: { taxonomies: CoverageTaxonomie
       return;
     }
     setGrid(result);
+    // Re-derive visible metrics against THIS grid's own metric universe
+    // (defensive — Coverage's metric universe is expected to be stable
+    // across queries, but never assume the previous grid's set still
+    // applies). Anything from the neutral default that this grid
+    // actually returns stays visible; if none of the defaults are
+    // present (should not happen in practice), fall back to the full
+    // set so the matrix is never accidentally empty of columns.
+    const defaultsPresent = result.grid.metrics.filter((m) => DEFAULT_VISIBLE_METRIC_KEYS.includes(m));
+    setVisibleMetrics(new Set(defaultsPresent.length > 0 ? defaultsPresent : result.grid.metrics));
   }
 
   function handlePlatformChange(value: string) {
@@ -61,6 +111,32 @@ export function CoverageExplorer({ taxonomies }: { taxonomies: CoverageTaxonomie
     setCountry(value);
     loadGrid(platform, objective, value);
   }
+
+  function handleToggleMetric(metric: string) {
+    setVisibleMetrics((prev) => {
+      const next = new Set(prev);
+      if (next.has(metric)) {
+        // Never allow hiding the last visible metric — an empty matrix
+        // would communicate nothing at all.
+        if (next.size === 1) return prev;
+        next.delete(metric);
+      } else {
+        next.add(metric);
+      }
+      return next;
+    });
+  }
+
+  const platformLabel = labelFor(taxonomies.platforms, platform);
+  const objectiveLabel = labelFor(taxonomies.objectives, objective);
+  const countryLabel = labelFor(taxonomies.countries, country);
+
+  // INTELLIGENCE 4.1 (§5): computed from the FULL, unfiltered grid
+  // response (every metric in Coverage's canonical universe, every
+  // vertical) — never from the user's current visible-metric selection.
+  // Metric visibility is presentation-only and must never change
+  // whether this gate fires.
+  const allNoData = Boolean(grid && grid.ok && grid.grid.cells.length > 0 && grid.grid.cells.every((c) => c.status === "no_data"));
 
   return (
     <div className="min-h-screen bg-canvas">
@@ -120,14 +196,49 @@ export function CoverageExplorer({ taxonomies }: { taxonomies: CoverageTaxonomie
           )}
 
           {ready && !loading && !error && grid && grid.ok && (
-            <CoverageGrid
-              verticals={taxonomies.verticals}
-              metrics={grid.grid.metrics}
-              cells={grid.grid.cells}
-              platform={platform}
-              objective={objective}
-              country={country}
-            />
+            <>
+              {allNoData && !showMatrixOverride ? (
+                <CoverageEmptyState
+                  platformLabel={platformLabel}
+                  objectiveLabel={objectiveLabel}
+                  countryLabel={countryLabel}
+                  onViewMatrix={() => setShowMatrixOverride(true)}
+                />
+              ) : (
+                <div className="space-y-4">
+                  <div className="flex flex-col gap-3 rounded-2xl border border-line bg-surface p-4">
+                    <CoverageMetricVisibilityControl allMetrics={grid.grid.metrics} visibleMetrics={visibleMetrics} onToggle={handleToggleMetric} />
+                    <CoverageStatusLegend />
+                  </div>
+
+                  <CoverageGrid
+                    verticals={taxonomies.verticals}
+                    visibleMetrics={grid.grid.metrics.filter((m) => visibleMetrics.has(m))}
+                    cells={grid.grid.cells}
+                    selectedCell={selectedCell as SelectedCoverageCellKey | null}
+                    onSelectCell={setSelectedCell}
+                  />
+
+                  {selectedCell && (
+                    <CoverageCellPanel
+                      cell={{
+                        vertical: selectedCell.vertical,
+                        verticalLabel: labelFor(taxonomies.verticals, selectedCell.vertical),
+                        metric: selectedCell.metric,
+                        status: selectedCell.status,
+                      }}
+                      platform={platform}
+                      platformLabel={platformLabel}
+                      objective={objective}
+                      objectiveLabel={objectiveLabel}
+                      country={country}
+                      countryLabel={countryLabel}
+                      onClose={() => setSelectedCell(null)}
+                    />
+                  )}
+                </div>
+              )}
+            </>
           )}
         </main>
       </div>

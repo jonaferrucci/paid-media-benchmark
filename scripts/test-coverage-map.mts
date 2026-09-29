@@ -53,6 +53,14 @@ const actionsSource = readFileSync(new URL("../app/coverage/actions.ts", import.
 const pageSource = readFileSync(new URL("../app/coverage/page.tsx", import.meta.url), "utf8");
 const explorerSource = readFileSync(new URL("../app/coverage/CoverageExplorer.tsx", import.meta.url), "utf8");
 const gridSource = readFileSync(new URL("../app/coverage/CoverageGrid.tsx", import.meta.url), "utf8");
+// CUCURUCHO INTELLIGENCE 4.1 (Coverage Map UX Polish): the per-cell CTA
+// used to render inline inside every single cell in CoverageGrid.tsx —
+// it now renders ONCE, in this new dedicated panel, only for whichever
+// cell the user has selected (see that polish pass's own §3/§4). The
+// §12/§13 assertions below were repointed here accordingly; destination
+// behavior itself (AVAILABLE -> benchmark prefill, LIMITED/NONE ->
+// contribute) is unchanged, only WHERE that logic lives.
+const cellPanelSource = readFileSync(new URL("../app/coverage/CoverageCellPanel.tsx", import.meta.url), "utf8");
 const benchmarkExplorerSource = readFileSync(new URL("../app/benchmark/BenchmarkExplorer.tsx", import.meta.url), "utf8");
 const translationsSource = readFileSync(new URL("../lib/i18n/translations.ts", import.meta.url), "utf8");
 
@@ -221,26 +229,42 @@ assertTrue(
 for (const forbidden of ["sampleSize", "datasetId", "dataset_id", "ownerId", "owner_id", "campaignName", "campaign_name"]) {
   assertTrue(!gridSource.includes(forbidden), `app/coverage/CoverageGrid.tsx never renders "${forbidden}" — cells show status only`);
   assertTrue(!explorerSource.includes(forbidden), `app/coverage/CoverageExplorer.tsx never references "${forbidden}"`);
+  assertTrue(!cellPanelSource.includes(forbidden), `app/coverage/CoverageCellPanel.tsx never references "${forbidden}"`);
 }
 
 // -----------------------------------------------------------------------
 // §12/§13 CTA BEHAVIOR — AVAILABLE -> benchmark (reusing the EXISTING
 // prefill contract), LIMITED/NONE -> contribute (plain, no prefill).
+//
+// CUCURUCHO INTELLIGENCE 4.1 (Coverage Map UX Polish, §3/§4): this logic
+// used to be inline in every cell (CoverageGrid.tsx's old CellAction);
+// it was relocated, not removed, into the new CoverageCellPanel.tsx so
+// it renders once for the selected cell instead of once per cell — see
+// cellPanelSource's own definition above. Destination behavior is
+// byte-for-byte the same contract, just checked at its new location.
 // -----------------------------------------------------------------------
 assertTrue(
-  gridSource.includes('status === "success"') && gridSource.includes('href={buildBenchmarkHref('),
-  "an AVAILABLE (success) cell links to /benchmark via the shared prefill-URL builder"
+  !gridSource.includes('href="/contribute"') && !gridSource.includes("buildBenchmarkHref") && !gridSource.includes('t("nav.contributeData")') && !gridSource.includes('t("benchmarkLive.getBenchmark")'),
+  "CoverageGrid.tsx (the matrix itself) no longer renders any per-cell CTA text or link — the repeated 'Sin datos' / 'Aportar datos' noise this polish pass exists to remove is gone from every cell by construction"
 );
 assertTrue(
-  gridSource.includes('href="/contribute"'),
-  "a LIMITED (insufficient_sample) or NONE (no_data) cell links plainly to /contribute — no contextual prefill added to that route (per the locked spec's explicit 'no contribution prefill in V1')"
+  cellPanelSource.includes('cell.status === "success"') && cellPanelSource.includes('href={buildBenchmarkHref('),
+  "the contextual cell panel: an AVAILABLE (success) selection links to /benchmark via the shared prefill-URL builder"
+);
+assertTrue(
+  cellPanelSource.includes('href="/contribute"') && /cell\.status === "insufficient_sample" \|\| cell\.status === "no_data"/.test(cellPanelSource),
+  "the contextual cell panel: a LIMITED (insufficient_sample) or NONE (no_data) selection links plainly to /contribute — no contextual prefill added to that route (per the locked spec's explicit 'no contribution prefill in V1')"
+);
+assertTrue(
+  cellPanelSource.includes('{cell.status === "methodology_block" && <p className="text-xs text-ink-500">{t("coverageMap.methodologyBlockHint")}</p>}'),
+  "the contextual cell panel: a METHODOLOGY_BLOCK selection renders the explanation paragraph ONLY (no Link/href on that same line) — never an arbitrary contribution CTA"
 );
 for (const param of ["prefillPlatform", "prefillObjective", "prefillVertical", "prefillCountry", "prefillMetric"]) {
-  assertTrue(gridSource.includes(param), `Coverage's own AVAILABLE-cell link reuses the exact existing /benchmark prefill param "${param}"`);
+  assertTrue(cellPanelSource.includes(param), `Coverage's own AVAILABLE-cell link reuses the exact existing /benchmark prefill param "${param}"`);
   assertTrue(benchmarkExplorerSource.includes(`searchParams.get("${param}")`), `/benchmark itself still reads "${param}" from its existing, unmodified prefill contract`);
 }
 assertTrue(
-  !gridSource.includes("ContributeWizard") && !explorerSource.includes("ContributeWizard"),
+  !gridSource.includes("ContributeWizard") && !explorerSource.includes("ContributeWizard") && !cellPanelSource.includes("ContributeWizard"),
   "Coverage never touches ContributeWizard.tsx — the locked spec explicitly forbids adding contribution prefill in V1"
 );
 
