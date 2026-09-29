@@ -420,6 +420,18 @@ const es = {
     observationBelow: "Tu {metric} es {value}, un {absDiff}% por debajo de la mediana de mercado.",
     observationContextual: "Tu {metric} es {value}.",
     readingLabel: "Lectura del benchmark",
+    // CUCURUCHO INTELLIGENCE 5 — DETERMINISTIC INSIGHTS: full-sentence,
+    // descriptive readiness copy for the "Lectura del benchmark" slot
+    // when the current query's status isn't "success" — never evaluative,
+    // never a recommendation. Distinct from the much shorter
+    // benchmarkLive.statusShort.* pills (used elsewhere for compact
+    // badges) — these are the reading-length equivalent for the same
+    // three states.
+    readinessInsight: {
+      insufficient_sample: "Todavía no hay muestra suficiente para interpretar esta métrica.",
+      no_data: "Todavía no hay datos comparables para esta métrica.",
+      methodology_block: "Esta métrica requiere Rango de Inversión y Duración de campaña para poder compararse — no disponible con los filtros actuales.",
+    },
     unusualValueHint: "Este valor es muy distinto a lo habitual en esta cohorte — revisá que no sea un error de coma decimal.",
     unitHint: {
       currency: "Ingresá el valor en la misma moneda que tus campañas.",
@@ -1820,6 +1832,13 @@ const en: typeof es = {
     observationBelow: "Your {metric} is {value}, {absDiff}% below the market median.",
     observationContextual: "Your {metric} is {value}.",
     readingLabel: "Benchmark reading",
+    // CUCURUCHO INTELLIGENCE 5 — DETERMINISTIC INSIGHTS: see the ES
+    // block's comment above this same key for context.
+    readinessInsight: {
+      insufficient_sample: "There isn't enough sample yet to interpret this metric.",
+      no_data: "There isn't comparable data yet for this metric.",
+      methodology_block: "This metric requires Spend Range and Duration Band to be comparable — not available with the current filters.",
+    },
     unusualValueHint: "This value is very different from what's typical in this cohort — double check the decimal point.",
     unitHint: {
       currency: "Enter the value in the same currency as your campaigns.",

@@ -7,10 +7,18 @@ import {
   computePercentDiff,
   formatMetricValue,
   formatPercentDiff,
-  getInsightKey,
   isContextualPosition,
   resolveClassificationLabelKey,
 } from "@/lib/comparison/classify";
+// CUCURUCHO INTELLIGENCE 5 — DETERMINISTIC INSIGHTS: the "Observación"
+// and "Lectura del benchmark" paragraphs below used to be hand-assembled
+// JSX ternaries duplicating what getInsightKey already encoded. Both are
+// now produced by the pure lib/insights/deterministic.ts module instead
+// — same exact translation keys/copy as before (benchmarkLive.insight.*,
+// benchmarkLive.observationAbove/Below/Contextual), zero visible change,
+// just no longer a second, independently-maintained branch of
+// interpretation logic living inline in this component.
+import { deriveMarketPositionInsight, resolveObservationMessageKey } from "@/lib/insights/deterministic";
 import type { BenchmarkResponse } from "./actions";
 
 // MVP RELEASE FIX (#4): the percentile track's user-marker LABEL used
@@ -108,9 +116,26 @@ export function ComparisonDetail({
   const classification = classifyPerformance(userValue, stats, response.benchmarkDirection);
   const percentDiff = computePercentDiff(userValue, median);
   const markerPosition = computeMarkerPosition(userValue, stats);
-  const insightKey = getInsightKey(response.benchmarkDirection, classification);
   const contextual = isContextualPosition(classification);
   const Icon = LABEL_ICON[classification] ?? Circle;
+
+  // CUCURUCHO INTELLIGENCE 5 — DETERMINISTIC INSIGHTS: the deterministic
+  // module recomputes classification/percentDiff internally from the
+  // same raw stats (cheap, pure, and keeps the module fully
+  // self-contained/testable) — this is not a second, differently-derived
+  // result, just the one canonical computation called twice. Only
+  // messageKey/params come from here; platform/objective/vertical/country
+  // labels are presentational context, not aggregate facts, so they're
+  // merged in at render time exactly as before.
+  const marketPositionInsight = deriveMarketPositionInsight({
+    metricKey: response.metric,
+    benchmarkDirection: response.benchmarkDirection,
+    userValue,
+    p25,
+    median,
+    p75,
+  });
+  const observationMessageKey = resolveObservationMessageKey(contextual, percentDiff);
 
   return (
     <div aria-live="polite">
@@ -223,28 +248,22 @@ export function ComparisonDetail({
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-500">{t("benchmarkLive.observationLabel")}</p>
           <p className="mt-1 text-sm text-ink-700">
-            {contextual || percentDiff === null
-              ? t("benchmarkLive.observationContextual", {
-                  metric: response.metric.toUpperCase(),
-                  value: formatMetricValue(userValue, response.unit),
-                })
-              : t(percentDiff >= 0 ? "benchmarkLive.observationAbove" : "benchmarkLive.observationBelow", {
-                  metric: response.metric.toUpperCase(),
-                  value: formatMetricValue(userValue, response.unit),
-                  absDiff: Math.abs(percentDiff).toFixed(1).replace(".", ","),
-                })}
+            {t(observationMessageKey, {
+              metric: response.metric.toUpperCase(),
+              value: formatMetricValue(userValue, response.unit),
+              absDiff: percentDiff !== null ? Math.abs(percentDiff).toFixed(1).replace(".", ",") : "",
+            })}
           </p>
         </div>
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-500">{t("benchmarkLive.readingLabel")}</p>
           <p className="mt-1 text-sm leading-relaxed text-ink-700">
-            {t(`benchmarkLive.insight.${insightKey}`, {
-              metric: response.metric.toUpperCase(),
+            {t(marketPositionInsight.messageKey, {
+              ...marketPositionInsight.params,
               platform: platformLabel,
               objective: objectiveLabel,
               vertical: verticalLabel,
               country: countryLabel,
-              absDiff: percentDiff !== null ? Math.abs(percentDiff).toFixed(1).replace(".", ",") : "",
             })}
           </p>
         </div>
