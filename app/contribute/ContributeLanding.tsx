@@ -18,6 +18,15 @@ import { generateCsvTemplate, generateXlsxTemplate } from "@/lib/import/template
 import { REQUIRED_FIELDS, OPTIONAL_FIELDS, type CanonicalField, type DetectedMapping, type NormalizedRow, type RawTable, type RowIssue } from "@/lib/import/types";
 import { detectExportPlatform, findAdPlatformProfile, AD_PLATFORM_PROFILES, resolveMetaResultForRow, detectReportCurrency, classifyExportProfile, isVerifiedWithRealExport, type PlatformDetectionResult, type AdPlatformId, type RowResultResolution, type CurrencyDetectionResult } from "@/lib/import/platformExports";
 import { suggestObjectiveFromCampaignNames } from "@/lib/import/suggestions";
+// CAMPAIGN IMPORT INTELLIGENCE PHASE 1: pure, per-row objective
+// classification (DETECTED/SUGGESTED/UNKNOWN — never an LLM, never a
+// numeric score) and DERIVED/PRESENTATIONAL-ONLY funnel derivation.
+// Neither module touches Supabase or mutates a NormalizedRow itself —
+// this file gathers the evidence and decides what to do with the
+// result (see each module's own header comment for the full,
+// approved evidence-precedence design).
+import { classifyRowObjective, type ObjectiveClassificationResult, type ObjectiveEvidenceTier } from "@/lib/import/objectiveClassification";
+import { derive3StageFunnel, derive5StageEcommerceFunnel, type FunnelStage3Result, type EcommerceFunnelResult } from "@/lib/import/funnelClassification";
 // PHASE 25 (§9/§10): cross-import duplicate detection — a SEPARATE
 // check from detectDuplicates above (which only catches repeats WITHIN
 // this same file). buildRawSignature is a pure helper, safe to import
@@ -79,6 +88,7 @@ export function ContributeLanding({ taxonomies }: { taxonomies: ContributionTaxo
               t={t}
               userLoading={userLoading}
               signedIn={!!user}
+              taxonomies={taxonomies}
               onQuick={() => setMode("quick")}
               onUpload={() => setMode("upload")}
             />
@@ -93,11 +103,12 @@ export function ContributeLanding({ taxonomies }: { taxonomies: ContributionTaxo
 }
 
 function LandingChooser({
-  t, userLoading, signedIn, onQuick, onUpload,
+  t, userLoading, signedIn, taxonomies, onQuick, onUpload,
 }: {
   t: (key: string, vars?: Record<string, string | number>) => string;
   userLoading: boolean;
   signedIn: boolean;
+  taxonomies: ContributionTaxonomies;
   onQuick: () => void;
   onUpload: () => void;
 }) {
@@ -106,7 +117,21 @@ function LandingChooser({
     triggerDownload(blob, "cucurucho-plantilla.csv");
   }
   function downloadXlsx() {
-    const blob = new Blob([generateXlsxTemplate()], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+    // CAMPAIGN IMPORT INTELLIGENCE PHASE 1: the "Valores válidos" sheet
+    // is built ONLY from real, already-fetched taxonomy rows (this
+    // component already has them as a prop for the rest of the
+    // contribution flow) — never an invented or hardcoded list. See
+    // generateXlsxTemplate's own doc comment.
+    const validValues = [
+      { label: "Objetivo", values: taxonomies.objectives.map((o) => o.display_label) },
+      { label: "Vertical", values: taxonomies.verticals.map((v) => v.display_label) },
+      { label: "País", values: taxonomies.countries.map((c) => c.display_label) },
+      { label: "Plataforma", values: taxonomies.platforms.map((p) => p.display_label) },
+      { label: "Modelo de negocio", values: taxonomies.businessModels.map((b) => b.display_label) },
+      { label: "Audiencia", values: taxonomies.audienceStrategies.map((a) => a.display_label) },
+      { label: "Etapa del funnel", values: taxonomies.funnelStages.map((f) => f.display_label) },
+    ].filter((group) => group.values.length > 0);
+    const blob = new Blob([generateXlsxTemplate(validValues)], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
     triggerDownload(blob, "cucurucho-plantilla.xlsx");
   }
 
@@ -256,6 +281,29 @@ function UploadFlow({
   // runValidation, read by the review step to show a per-campaign
   // result column instead of a single file-wide guess.
   const [rowResultResolutions, setRowResultResolutions] = useState<RowResultResolution[]>([]);
+  // CAMPAIGN IMPORT INTELLIGENCE PHASE 1: per-row objective
+  // classification + derived funnel stages, in the same row order as
+  // normalizedRows — populated by runValidation, read by the review
+  // step. rowFunnel3/rowFunnel5 are PRESENTATIONAL ONLY (see
+  // lib/import/funnelClassification.ts's header comment) and are never
+  // sent to bulkSubmitContributionsAction or persisted anywhere.
+  const [rowObjectiveClassifications, setRowObjectiveClassifications] = useState<ObjectiveClassificationResult[]>([]);
+  const [rowFunnel3, setRowFunnel3] = useState<FunnelStage3Result[]>([]);
+  const [rowFunnel5, setRowFunnel5] = useState<EcommerceFunnelResult[]>([]);
+  // A row whose objective was explicitly set by the user — either via
+  // the per-row "Cambiar" control or the deliberate bulk-apply action —
+  // always labeled "Manual" in the UI, taking precedence over whatever
+  // confidence the classifier originally produced for that row.
+  const [manualOverrideRows, setManualOverrideRows] = useState<Set<number>>(new Set());
+  // Which row's inline objective <select> is currently expanded — null
+  // means every row shows its plain label + badge, not an editable
+  // control (keeps the table calm by default, per the brief's own
+  // "lightweight edit control" instruction).
+  const [editingObjectiveRow, setEditingObjectiveRow] = useState<number | null>(null);
+  // The separate, deliberately-clicked bulk-override action (§A/§P
+  // redesign) always requires a second, explicit confirmation click —
+  // this tracks whether that confirmation is currently showing.
+  const [bulkOverridePending, setBulkOverridePending] = useState(false);
   // §10: optional, explicit "where did you download this from" hint —
   // never required, never silently forces a mapping; only pre-fills
   // the manual override when auto-detection itself couldn't confirm a
@@ -276,6 +324,12 @@ function UploadFlow({
   // lines (e.g. Google's own "18 de septiembre de 2026 - ..." line) —
   // null for any file with no such preamble (every existing shape).
   const [reportDateRange, setReportDateRange] = useState<{ start: string; end: string } | null>(null);
+  // CAMPAIGN IMPORT INTELLIGENCE PHASE 1: the recognized Cucurucho
+  // template version, when present (see lib/import/template.ts's
+  // detectTemplateVersion) — purely informational, null for a legacy
+  // template, a real ad-platform export, or any other generic file,
+  // all of which import identically either way.
+  const [detectedTemplateVersion, setDetectedTemplateVersion] = useState<number | null>(null);
   // §A/§P: the file-level "Contexto del reporte" — selected ONCE and
   // applied to every row that doesn't already have its own value (see
   // runValidation's injection below). Plain internal_key/iso_code
@@ -314,6 +368,7 @@ function UploadFlow({
     setFileName(file.name);
     setSourceType(isCsv ? "csv" : "xlsx");
     setReportDateRange(result.reportDateRange);
+    setDetectedTemplateVersion(result.templateVersion);
     // CONTRIBUTION UX SAFETY PASS A (§4): surface the truncation that
     // parse.ts already performs silently — never a new limit, just a
     // visible signal when the existing one was hit.
@@ -460,6 +515,49 @@ function UploadFlow({
         }))
       : rowsWithResults;
 
+    // CAMPAIGN IMPORT INTELLIGENCE PHASE 1: per-ROW objective
+    // classification — evidence precedence (structured Meta/Google
+    // signal, then campaign-name keyword) is entirely inside
+    // classifyRowObjective; this file only gathers the evidence and
+    // applies the fill-if-missing injection pattern already used above
+    // for platform/currency/dates. Resolved ONCE per file: Google's
+    // video-report evidence is a header-level signal (classifyExportProfile,
+    // reused rather than re-implemented), so it applies uniformly to
+    // every row in a video-report file — exactly like the real
+    // underlying evidence (the file either has the quartile columns or
+    // it doesn't).
+    const profileForObjectiveEvidence = resolvedPlatformId ? classifyExportProfile(resolvedPlatformId, table, mappings) : null;
+    const googleHasVideoViewEvidence = profileForObjectiveEvidence?.profileId === "google_video_campaign_report";
+    const isStructuredEvidenceTier = (tier?: ObjectiveEvidenceTier) => tier === "meta_result_indicator" || tier === "google_metric_presence";
+    const objectiveClassifications: ObjectiveClassificationResult[] = [];
+    const rowsWithObjective = rowsWithDates.map((row, i) => {
+      const classification = classifyRowObjective(
+        {
+          metaIndicatorNormalized: resolvedPlatformId === "meta_ads" ? resolutions[i]?.indicatorSample ?? null : null,
+          googleHasVideoViewEvidence: resolvedPlatformId === "google_ads" && googleHasVideoViewEvidence,
+          // Row-level: a generic "Conversiones" column can be mapped for
+          // the whole file yet still be blank on a specific row — only a
+          // row with an actual value counts as ambiguous-conversions
+          // evidence for THAT row.
+          googleConversionsPresent: resolvedPlatformId === "google_ads" && !!row.conversions?.trim(),
+          campaignName: row.campaign_name ?? null,
+        },
+        taxonomies.objectives
+      );
+      objectiveClassifications.push(classification);
+      // Fill-if-missing only — a real per-row objective column (however
+      // it was mapped) always wins, exactly like every other injection
+      // in this function. The file-level "Contexto del reporte" fallback
+      // just below then only ever applies to whatever THIS step still
+      // leaves unfilled (brief: "fallback for UNKNOWN rows... must NOT
+      // automatically overwrite a DETECTED/SUGGESTED row-level
+      // objective").
+      if (!row.objective && classification.objectiveKey) {
+        return { ...row, objective: classification.objectiveKey };
+      }
+      return row;
+    });
+
     // POST-MVP IMPORT FIX 3 (§A/§P): the file-level "Contexto del
     // reporte" — Objective/Vertical/Country (plus the optional business
     // model/audience strategy/funnel stage) selected ONCE and applied to
@@ -467,7 +565,9 @@ function UploadFlow({
     // column. Exactly the same optional-injection pattern already used
     // for platform/currency above — no new mechanism, and a row with a
     // real per-row value is never overwritten (§P: "if some rows already
-    // have a safe value, don't overwrite it unnecessarily").
+    // have a safe value, don't overwrite it unnecessarily"). For
+    // Objective specifically, "already have a value" now also covers
+    // whatever the row-level classification above just resolved.
     const contextValues: Partial<Record<CanonicalField, string>> = {};
     if (contextObjective) contextValues.objective = contextObjective;
     if (contextVertical) contextValues.vertical = contextVertical;
@@ -477,14 +577,14 @@ function UploadFlow({
     if (contextFunnelStage) contextValues.funnel_stage = contextFunnelStage;
     const contextEntries = Object.entries(contextValues) as [CanonicalField, string][];
     const rowsWithContext = contextEntries.length > 0
-      ? rowsWithDates.map((row) => {
+      ? rowsWithObjective.map((row) => {
           const merged = { ...row };
           for (const [field, value] of contextEntries) {
             if (!merged[field]) merged[field] = value;
           }
           return merged;
         })
-      : rowsWithDates;
+      : rowsWithObjective;
 
     const normalizedBase = rowsWithContext.map((row, i) => normalizeAndValidateRow(i + 2, row, taxonomies, { numberFormat })); // +2: row 1 is the header
 
@@ -502,6 +602,24 @@ function UploadFlow({
 
     const finalRows = detectDuplicates(normalized);
     setNormalizedRows(finalRows);
+    setRowObjectiveClassifications(objectiveClassifications);
+    // CAMPAIGN IMPORT INTELLIGENCE PHASE 1: funnel derivation reads the
+    // FINAL, taxonomy-resolved objective (normalizeAndValidateRow's own
+    // matchTaxonomyValue already turned the classifier's internal_key
+    // string into the exact same resolved value every other field
+    // goes through) — never re-derives objective itself. "Structured"
+    // evidence (for the Store Visits gate — see derive3StageFunnel's
+    // own comment) means tier 2/3 of the classifier, never a
+    // campaign-name guess and never the manual/report-level fallback.
+    setRowFunnel3(finalRows.map((row, i) => derive3StageFunnel(row.objective, { hasStructuredObjectiveEvidence: isStructuredEvidenceTier(objectiveClassifications[i]?.evidenceTier) })));
+    setRowFunnel5(finalRows.map((row) => derive5StageEcommerceFunnel(row.objective, {
+      audienceStrategyKey: row.audienceStrategy,
+      funnelStageKey: row.funnelStage,
+      campaignName: row.campaignName,
+    })));
+    setManualOverrideRows(new Set());
+    setEditingObjectiveRow(null);
+    setBulkOverridePending(false);
     setDupVerdicts(new Map());
     setSkipRows(new Set());
     setStep("review");
@@ -545,6 +663,111 @@ function UploadFlow({
     setSubmitting(false);
     setResult({ imported: res.imported, failed: res.failed });
     setStep("done");
+  }
+
+  // CAMPAIGN IMPORT INTELLIGENCE PHASE 1: the per-row "Cambiar"/Change
+  // control — a deliberate, single-row edit, distinct from the bulk
+  // override below. Clears only this row's objective-related issues
+  // (never touches any other field's issues), recomputes its status,
+  // and marks it "Manual" — which always takes visual precedence over
+  // whatever confidence the classifier originally produced for it.
+  function changeRowObjective(rowNumber: number, newObjectiveKey: string) {
+    const idx = normalizedRows.findIndex((r) => r.rowNumber === rowNumber);
+    if (idx === -1) return;
+    const targetRow = normalizedRows[idx];
+    setNormalizedRows((prev) => prev.map((row, i) => {
+      if (i !== idx) return row;
+      const issues = row.issues.filter((iss) => iss.field !== "objective");
+      const hasError = issues.some((iss) => iss.severity === "error");
+      return { ...row, objective: newObjectiveKey, issues, status: row.status === "duplicate" ? "duplicate" : (hasError ? "needs_review" : "valid") };
+    }));
+    setManualOverrideRows((prev) => new Set(prev).add(rowNumber));
+    setRowFunnel3((prev) => prev.map((f, i) => i === idx ? derive3StageFunnel(newObjectiveKey, { hasStructuredObjectiveEvidence: false }) : f));
+    setRowFunnel5((prev) => prev.map((f, i) => i === idx ? derive5StageEcommerceFunnel(newObjectiveKey, {
+      audienceStrategyKey: targetRow.audienceStrategy,
+      funnelStageKey: targetRow.funnelStage,
+      campaignName: targetRow.campaignName,
+    }) : f));
+    setEditingObjectiveRow(null);
+  }
+
+  // The separate, deliberately-clicked bulk-override action (§A/§P
+  // redesign): force-overwrites EVERY row's objective to the chosen
+  // report-level contextObjective — unlike the automatic fallback
+  // merge in runValidation, this one DOES replace an already
+  // detected/suggested row-level value, which is exactly why it always
+  // requires its own explicit confirmation click (see the "Aplicar..."
+  // button below) rather than ever firing on its own. Re-runs
+  // detectDuplicates afterward: changing every row's objective can
+  // create or resolve within-file duplicates (the dup key includes
+  // objective), so the duplicate flags must be recomputed, not left
+  // stale.
+  function applyObjectiveToAllRows() {
+    if (!contextObjective) return;
+    const overridden = normalizedRows.map((row) => {
+      const issues = row.issues.filter((iss) => iss.field !== "objective" && iss.messageKey !== "import.issue.possibleDuplicate");
+      const hasError = issues.some((iss) => iss.severity === "error");
+      return { ...row, objective: contextObjective, issues, status: hasError ? ("needs_review" as const) : ("valid" as const) };
+    });
+    const reDuped = detectDuplicates(overridden);
+    setNormalizedRows(reDuped);
+    setManualOverrideRows(new Set(reDuped.map((r) => r.rowNumber)));
+    setRowFunnel3(reDuped.map((row) => derive3StageFunnel(row.objective, { hasStructuredObjectiveEvidence: false })));
+    setRowFunnel5(reDuped.map((row) => derive5StageEcommerceFunnel(row.objective, {
+      audienceStrategyKey: row.audienceStrategy,
+      funnelStageKey: row.funnelStage,
+      campaignName: row.campaignName,
+    })));
+    setBulkOverridePending(false);
+  }
+
+  // §9-style plain-language explanation, mirroring renderResultCell's
+  // own pattern: a label + confidence badge, "Manual" always winning
+  // over the classifier's own original confidence once the user has
+  // deliberately changed a row (per-row or via the bulk action).
+  function objectiveConfidenceBadge(rowNumber: number, classification: ObjectiveClassificationResult | undefined) {
+    const isManual = manualOverrideRows.has(rowNumber);
+    const confidence = isManual ? "manual" : classification?.confidence ?? "unknown";
+    const toneClass = confidence === "detected"
+      ? "bg-pistachio-soft text-pistachio"
+      : confidence === "suggested"
+      ? "bg-vanilla-soft text-vanilla"
+      : confidence === "manual"
+      ? "bg-brandLavender/20 text-brandLavender"
+      : "bg-surface2 text-ink-500";
+    const labelKey = confidence === "detected"
+      ? "contribute.import.objectiveConfidence.detected"
+      : confidence === "suggested"
+      ? "contribute.import.objectiveConfidence.suggested"
+      : confidence === "manual"
+      ? "contribute.import.objectiveConfidence.manual"
+      : "contribute.import.objectiveConfidence.unknown";
+    const reasonTitle = !isManual && classification?.reasonKey ? t(classification.reasonKey, classification.reasonVars) : undefined;
+    return (
+      <span className={`inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium ${toneClass}`} title={reasonTitle}>
+        {t(labelKey)}
+      </span>
+    );
+  }
+
+  // Funnel cell: 3-stage label always shown, with the optional 5-stage
+  // ecommerce label + both detection reasons folded into the title
+  // tooltip — never a second visible column, per the brief's own
+  // "without excessively widening the table" instruction.
+  function renderFunnelCell(idx: number) {
+    const f3 = rowFunnel3[idx];
+    const f5 = rowFunnel5[idx];
+    if (!f3) return <span className="text-ink-400">—</span>;
+    const stage3Label = t(`contribute.import.funnel3Stage.${f3.stage}`);
+    const stage5Label = f5?.stage ? t(`contribute.import.funnel5Stage.${f5.stage}`) : null;
+    const titleParts = [t(f3.reasonKey)];
+    if (f5) titleParts.push(t(f5.reasonKey));
+    return (
+      <span className="text-ink-800" title={titleParts.join(" · ")}>
+        {stage3Label}
+        {stage5Label && <span className="text-ink-400"> · {stage5Label}</span>}
+      </span>
+    );
   }
 
   const validCount = normalizedRows.filter((r) => r.status === "valid").length;
@@ -612,6 +835,16 @@ function UploadFlow({
   const suggestedObjectiveLabel = objectiveSuggestion
     ? taxonomies.objectives.find((o) => o.internal_key === objectiveSuggestion.internalKey)?.display_label ?? objectiveSuggestion.internalKey
     : null;
+  // CAMPAIGN IMPORT INTELLIGENCE PHASE 1: the chosen report-context
+  // objective's own display label, used only by the bulk-override
+  // confirmation copy below — never a new resolution mechanism.
+  const contextObjectiveLabel = contextObjective
+    ? taxonomies.objectives.find((o) => o.internal_key === contextObjective)?.display_label ?? contextObjective
+    : null;
+  function objectiveDisplayLabel(internalKey: string | null): string {
+    if (!internalKey) return "—";
+    return taxonomies.objectives.find((o) => o.internal_key === internalKey)?.display_label ?? internalKey;
+  }
 
   // §9: a plain-language explanation for a per-row "Resultado
   // contextual" result — never a raw technical reason code.
@@ -735,6 +968,28 @@ function UploadFlow({
             <p className="mt-1.5">{t("contribute.import.downloadGuidanceFlexible")}</p>
             <p className="mt-1.5">{t("contribute.import.downloadGuidanceRecommendedFields")}</p>
           </div>
+
+          {/* CAMPAIGN IMPORT INTELLIGENCE PHASE 1 (§ export guidance):
+              ONLY the exact column names the approved brief itself
+              verified against a real Meta/Google export fixture in this
+              project — never a speculative alias (Optimization Goal,
+              Buying Type, Conversion Action/Category, Advertising
+              Channel Subtype, etc. are deliberately absent; see
+              lib/import/objectiveClassification.ts's own header comment
+              for why those are never guessed at either). Collapsed by
+              default — detailed reference, not the primary instruction
+              (that's downloadGuidanceMeta/Google above). */}
+          <details className="mt-2 rounded-xl border border-line bg-surface px-4 py-3 text-xs text-ink-600">
+            <summary className="cursor-pointer list-none font-medium text-ink-700 [&::-webkit-details-marker]:hidden">
+              {t("contribute.import.exportGuidanceDetailsTitle")}
+            </summary>
+            <div className="mt-2 space-y-2">
+              <p><span className="font-medium text-ink-800">Meta Ads — </span>{t("contribute.import.exportGuidanceMetaMin")}</p>
+              <p className="text-ink-500">{t("contribute.import.exportGuidanceMetaRecommended")}</p>
+              <p><span className="font-medium text-ink-800">Google Ads — </span>{t("contribute.import.exportGuidanceGoogleMin")}</p>
+              <p className="text-ink-500">{t("contribute.import.exportGuidanceGoogleRecommended")}</p>
+            </div>
+          </details>
         </div>
       )}
 
@@ -777,6 +1032,13 @@ function UploadFlow({
                 be classified. */}
             {exportProfile && (
               <p className="mt-2 text-xs font-medium text-ink-700">{t(exportProfile.labelKey)}</p>
+            )}
+            {/* CAMPAIGN IMPORT INTELLIGENCE PHASE 1: purely informational
+                — never shown as a warning, and absent for a legacy
+                template/real export/any other generic file, all of
+                which import identically regardless. */}
+            {detectedTemplateVersion !== null && (
+              <p className="mt-2 text-xs text-ink-500">{t("contribute.import.templateVersionDetected", { version: detectedTemplateVersion })}</p>
             )}
           </div>
 
@@ -868,6 +1130,15 @@ function UploadFlow({
                     </button>
                   </span>
                 )}
+                {/* CAMPAIGN IMPORT INTELLIGENCE PHASE 1 (§A/§P redesign):
+                    this field is now an explicit FALLBACK, not a
+                    file-wide override — Cucurucho already classifies
+                    most rows per campaign. Vertical/Country keep their
+                    exact pre-existing "applies to every row that
+                    doesn't already have a value" behavior unchanged;
+                    only Objective gets this more specific explanation,
+                    plus the separate deliberate bulk-apply action. */}
+                <p className="mt-1 text-[11px] text-ink-500">{t("contribute.import.objectiveContextFallbackNote")}</p>
               </label>
               <label className="text-xs text-ink-700">
                 {t("contribute.field.vertical")} *
@@ -1085,6 +1356,44 @@ function UploadFlow({
             </p>
           )}
 
+          {/* CAMPAIGN IMPORT INTELLIGENCE PHASE 1 (§A/§P redesign): the
+              separate, deliberately-clicked bulk-override action — only
+              shown when a report-level Objective was actually chosen in
+              the previous step, and always requiring its own explicit
+              second click before anything is overwritten. This is the
+              ONLY thing in this feature that replaces an already
+              DETECTED/SUGGESTED row-level objective; the automatic
+              fallback in runValidation never does. */}
+          {contextObjective && (
+            <div className="mt-3 rounded-xl border border-dashed border-line bg-surface2/40 px-3 py-2 text-xs">
+              {!bulkOverridePending ? (
+                <button
+                  type="button"
+                  onClick={() => setBulkOverridePending(true)}
+                  className="font-medium text-primary hover:underline"
+                >
+                  {t("contribute.import.objectiveApplyBulkLabel")}
+                </button>
+              ) : (
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-ink-700">
+                    {t("contribute.import.objectiveApplyBulkConfirm", { objective: contextObjectiveLabel ?? "", n: normalizedRows.length })}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={applyObjectiveToAllRows}
+                    className="rounded-full bg-primary px-3 py-1 font-semibold text-white hover:opacity-90"
+                  >
+                    {t("contribute.import.objectiveApplyBulkConfirmButton")}
+                  </button>
+                  <button type="button" onClick={() => setBulkOverridePending(false)} className="font-medium text-ink-500 hover:underline">
+                    {t("contribute.import.cancel")}
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* POST-MVP MOBILE PASS §9/§13C: below md, the desktop review
               TABLE is replaced by one campaign-review CARD per row —
               never squeezed desktop columns at 320px. Same data, same
@@ -1120,6 +1429,42 @@ function UploadFlow({
                   <div>
                     <dt className="text-ink-400">{t("contribute.field.adSpend")}</dt>
                     <dd className="tabular text-ink-800">{row.adSpend ?? "—"}</dd>
+                  </div>
+                  {/* CAMPAIGN IMPORT INTELLIGENCE PHASE 1: row-level
+                      objective (label + confidence badge + inline
+                      "Cambiar" control) and the derived, never-persisted
+                      funnel stage — mirrors the desktop table's own
+                      cells below. */}
+                  <div className="col-span-2">
+                    <dt className="text-ink-400">{t("contribute.field.objective")}</dt>
+                    <dd className="mt-0.5 flex flex-wrap items-center gap-1.5 text-ink-800">
+                      {editingObjectiveRow === row.rowNumber ? (
+                        <select
+                          autoFocus
+                          defaultValue={row.objective ?? ""}
+                          onChange={(e) => e.target.value && changeRowObjective(row.rowNumber, e.target.value)}
+                          onBlur={() => setEditingObjectiveRow(null)}
+                          className="rounded-lg border border-line bg-canvas px-1.5 py-1 text-[11px] text-ink-900"
+                        >
+                          <option value="" disabled>{t("contribute.import.selectField")}</option>
+                          {taxonomies.objectives.map((o) => (
+                            <option key={o.internal_key} value={o.internal_key}>{o.display_label}</option>
+                          ))}
+                        </select>
+                      ) : (
+                        <>
+                          <span>{objectiveDisplayLabel(row.objective)}</span>
+                          {objectiveConfidenceBadge(row.rowNumber, rowObjectiveClassifications[idx])}
+                          <button type="button" onClick={() => setEditingObjectiveRow(row.rowNumber)} className="text-[11px] font-medium text-primary hover:underline">
+                            {t("contribute.import.objectiveChangeControl")}
+                          </button>
+                        </>
+                      )}
+                    </dd>
+                  </div>
+                  <div className="col-span-2">
+                    <dt className="text-ink-400">{t("contribute.import.colFunnel")}</dt>
+                    <dd>{renderFunnelCell(idx)}</dd>
                   </div>
                   {showCampaignReviewColumns && (
                     <div>
@@ -1159,6 +1504,12 @@ function UploadFlow({
                       rendimiento") — review-only, never persisted. */}
                   {showCampaignReviewColumns && <th scope="col" className="px-3 py-2">{t("contribute.field.campaignType")}</th>}
                   <th scope="col" className="px-3 py-2">{t("contribute.field.objective")}</th>
+                  {/* CAMPAIGN IMPORT INTELLIGENCE PHASE 1: derived,
+                      never-persisted funnel stage — always shown right
+                      next to Objective, never a second competing
+                      "source of truth" column; see
+                      lib/import/funnelClassification.ts. */}
+                  <th scope="col" className="px-3 py-2">{t("contribute.import.colFunnel")}</th>
                   <th scope="col" className="px-3 py-2">{t("contribute.field.country")}</th>
                   {showCampaignReviewColumns && <th scope="col" className="px-3 py-2">{t("contribute.import.colDates")}</th>}
                   <th scope="col" className="px-3 py-2">{t("contribute.field.adSpend")}</th>
@@ -1179,7 +1530,35 @@ function UploadFlow({
                     {hasCampaignNames && <td className="px-3 py-2 text-ink-800">{row.campaignName ?? "—"}</td>}
                     <td className="px-3 py-2 text-ink-800">{row.platform ?? "—"}</td>
                     {showCampaignReviewColumns && <td className="px-3 py-2 text-ink-800">{row.campaignType ?? "—"}</td>}
-                    <td className="px-3 py-2 text-ink-800">{row.objective ?? "—"}</td>
+                    <td className="px-3 py-2">
+                      {/* CAMPAIGN IMPORT INTELLIGENCE PHASE 1: label +
+                          confidence badge + inline "Cambiar" control —
+                          every row gets a working edit control, never
+                          just a plain static string. */}
+                      {editingObjectiveRow === row.rowNumber ? (
+                        <select
+                          autoFocus
+                          defaultValue={row.objective ?? ""}
+                          onChange={(e) => e.target.value && changeRowObjective(row.rowNumber, e.target.value)}
+                          onBlur={() => setEditingObjectiveRow(null)}
+                          className="rounded-lg border border-line bg-canvas px-1.5 py-1 text-[11px] text-ink-900"
+                        >
+                          <option value="" disabled>{t("contribute.import.selectField")}</option>
+                          {taxonomies.objectives.map((o) => (
+                            <option key={o.internal_key} value={o.internal_key}>{o.display_label}</option>
+                          ))}
+                        </select>
+                      ) : (
+                        <span className="flex flex-wrap items-center gap-1.5 text-ink-800">
+                          {objectiveDisplayLabel(row.objective)}
+                          {objectiveConfidenceBadge(row.rowNumber, rowObjectiveClassifications[idx])}
+                          <button type="button" onClick={() => setEditingObjectiveRow(row.rowNumber)} className="text-[11px] font-medium text-primary hover:underline">
+                            {t("contribute.import.objectiveChangeControl")}
+                          </button>
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-3 py-2">{renderFunnelCell(idx)}</td>
                     <td className="px-3 py-2 text-ink-800">{row.country ?? "—"}</td>
                     {showCampaignReviewColumns && (
                       <td className="px-3 py-2 text-ink-800">{row.startDate ?? "—"}{row.endDate ? ` → ${row.endDate}` : ""}</td>

@@ -23,7 +23,7 @@ export interface ObjectiveSuggestion {
   matchedKeyword: string;
 }
 
-interface ObjectiveTaxonomyItem {
+export interface ObjectiveTaxonomyItem {
   internal_key: string;
   display_label: string;
 }
@@ -31,10 +31,28 @@ interface ObjectiveTaxonomyItem {
 // Order matters only in that the FIRST matching rule for a given
 // campaign name wins — Awareness and Reach are deliberately separate
 // objectives (Architecture Freeze V1), so a name can't match both.
-const KEYWORD_RULES: { pattern: RegExp; internalKey: string; keyword: string }[] = [
+//
+// CAMPAIGN IMPORT INTELLIGENCE PHASE 1: exported (was module-private)
+// so lib/import/objectiveClassification.ts can reuse these EXACT rules
+// per row, instead of inventing a second, parallel keyword list — the
+// approved brief's own instruction ("Extend/reuse existing
+// suggestions.ts rules PER ROW"). Two new rules were added (Ventas/
+// Sales, Lead(s)) per that same brief; the three original rules are
+// completely unchanged. Appending them after the existing three keeps
+// the pre-existing file-level suggestion behavior (this module's own
+// suggestObjectiveFromCampaignNames below) byte-for-byte identical for
+// any name that only matches awareness/reach/traffic — a name
+// matching BOTH an earlier and a later rule (e.g. "WM | Trafico |
+// Ventas", which contains both "Trafico" and "Ventas") deterministically
+// resolves to the EARLIER rule in this array (first-match-wins), which
+// is documented explicitly in lib/import/objectiveClassification.ts's
+// own tests rather than silently relied upon.
+export const KEYWORD_RULES: { pattern: RegExp; internalKey: string; keyword: string }[] = [
   { pattern: /awareness/i, internalKey: "awareness", keyword: "Awareness" },
   { pattern: /alcance|reach/i, internalKey: "reach", keyword: "Alcance/Reach" },
   { pattern: /tr[aá]fico|traffic/i, internalKey: "traffic", keyword: "Tráfico/Traffic" },
+  { pattern: /ventas|sales/i, internalKey: "sales", keyword: "Ventas/Sales" },
+  { pattern: /leads?/i, internalKey: "leads", keyword: "Lead(s)" },
 ];
 
 // Scans a set of campaign names (typically the mapped campaign_name

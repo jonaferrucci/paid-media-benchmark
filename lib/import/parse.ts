@@ -2,6 +2,14 @@ import Papa from "papaparse";
 import * as XLSX from "xlsx";
 import type { RawTable } from "./types";
 import { findReportDateRangeInLines } from "./normalize";
+// CAMPAIGN IMPORT INTELLIGENCE PHASE 1 (§ template versioning): reuses
+// the SAME preamble-line collection splitPreambleAndHeader already
+// produces for the unrelated report-date-range check — never a second
+// preamble scan — to also recognize a Cucurucho template's own
+// version-marker line, when present. See template.ts's own comment on
+// detectTemplateVersion for the legacy-fallback behavior (null for any
+// file without the marker, which imports exactly as it always has).
+import { detectTemplateVersion } from "./template";
 
 // Centralized limits (Phase 16 item 31/7) — referenced by both the
 // client (to show a message before even attempting to parse a huge
@@ -29,6 +37,13 @@ export interface ParseResult {
   // line) — null when the file had no preamble, or the preamble didn't
   // state a parseable range. Never a guess.
   reportDateRange: { start: string; end: string } | null;
+  // CAMPAIGN IMPORT INTELLIGENCE PHASE 1: the recognized Cucurucho
+  // template version, when this file's own skipped preamble carries
+  // the marker line template.ts's generators now embed. null for a
+  // legacy (pre-this-pass) template, for any non-Cucurucho generic
+  // CSV/XLSX, or for a real ad-platform export — all three import
+  // exactly as before; this is purely informational, never a gate.
+  templateVersion: number | null;
 }
 export interface ParseError {
   ok: false;
@@ -119,6 +134,7 @@ export function parseCsv(fileContent: string): ParseResult | ParseError {
     truncated,
     originalRowCount: cleanRows.length,
     reportDateRange: findReportDateRangeInLines(preambleLines),
+    templateVersion: detectTemplateVersion(preambleLines),
   };
 }
 
@@ -177,5 +193,6 @@ export function parseXlsxBuffer(buffer: ArrayBuffer): ParseResult | ParseError {
     truncated,
     originalRowCount: cleanRows.length,
     reportDateRange: findReportDateRangeInLines(preambleLines),
+    templateVersion: detectTemplateVersion(preambleLines),
   };
 }

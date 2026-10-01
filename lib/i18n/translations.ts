@@ -951,6 +951,84 @@ const es = {
       ctaViewBenchmarks: "Comparar benchmark",
       ctaContributeMore: "Aportar más datos",
       ctaHome: "Volver al inicio",
+      // CAMPAIGN IMPORT INTELLIGENCE PHASE 1: row-level objective
+      // classification (Detectado/Sugerido/Sin detectar — nunca un
+      // score numérico, nunca un LLM, ver lib/import/
+      // objectiveClassification.ts) y derivación de funnel (solo
+      // presentacional, nunca persistida en funnel_stage_id — ver
+      // lib/import/funnelClassification.ts).
+      colFunnel: "Funnel",
+      objectiveChangeControl: "Cambiar",
+      objectiveConfidence: {
+        detected: "Objetivo detectado",
+        suggested: "Objetivo sugerido",
+        unknown: "Sin detectar",
+        manual: "Manual",
+      },
+      objectiveReason: {
+        metaIndicator: "Detectado por el indicador de resultado de Meta ({indicator}).",
+        googleVideoEvidence: "Detectado por evidencia de reproducciones de video en el archivo.",
+        googleConversionsAmbiguous: "El archivo tiene \"Conversiones\" de Google, pero no distingue si son leads o ventas.",
+        campaignName: "Sugerido por el nombre de la campaña (coincide con \"{keyword}\").",
+        noEvidence: "Sin evidencia suficiente para detectar un objetivo en esta fila.",
+      },
+      funnel3Reason: {
+        awareness: "Objetivo Awareness → etapa Awareness.",
+        reach: "Objetivo Alcance/Reach → etapa Awareness.",
+        videoViewsDefault: "Objetivo Video Views → etapa Awareness (valor por defecto, sin más evidencia).",
+        engagement: "Objetivo Engagement → etapa Consideración.",
+        traffic: "Objetivo Tráfico → etapa Consideración.",
+        leads: "Objetivo Leads → etapa Conversión.",
+        sales: "Objetivo Ventas → etapa Conversión.",
+        storeVisits: "Objetivo Visitas a tienda, con evidencia estructurada → etapa Conversión.",
+        storeVisitsNoEvidence: "Objetivo Visitas a tienda, sin evidencia estructurada → sin definir.",
+        appUnknown: "Objetivo App → por ahora sin definir.",
+        otherUnknown: "Objetivo \"Otro\" → sin definir.",
+        noObjective: "Sin objetivo detectado → sin definir.",
+      },
+      funnel5Reason: {
+        conocimiento: "Awareness/Alcance/Video Views → Conocimiento.",
+        consideracion: "Engagement/Tráfico → Consideración.",
+        leadsOmitted: "Leads no se puede clasificar de forma segura en este modelo de 5 etapas — se omite.",
+        fidelizacion: "Ventas, con evidencia de fidelización/retención → Fidelización.",
+        recompra: "Ventas, con evidencia de remarketing/recompra → Recompra.",
+        compraDefault: "Ventas, sin evidencia adicional → Compra.",
+        notApplicable: "No aplica al objetivo de esta fila.",
+      },
+      funnel3Stage: {
+        awareness: "Awareness",
+        consideration: "Consideración",
+        conversion: "Conversión",
+        unknown: "Sin definir",
+      },
+      funnel5Stage: {
+        conocimiento: "Conocimiento",
+        consideracion: "Consideración",
+        compra: "Compra",
+        recompra: "Recompra",
+        fidelizacion: "Fidelización",
+      },
+      // §A/§P redesign: the file-level Objective picker is now an
+      // explicit FALLBACK for rows Cucurucho couldn't classify, never
+      // an automatic overwrite of a detected/suggested row-level value
+      // — the separate bulk-apply action below is the only way to force
+      // every row, and it always requires a deliberate second click.
+      objectiveContextFallbackNote: "Se aplicará solamente a campañas donde Cucurucho no pudo detectar un objetivo.",
+      objectiveApplyBulkLabel: "Aplicar este objetivo a todas las campañas",
+      objectiveApplyBulkConfirm: "¿Aplicar \"{objective}\" a las {n} campañas de este archivo? Esto reemplaza el objetivo detectado o sugerido de cada fila.",
+      objectiveApplyBulkConfirmButton: "Sí, aplicar a todas",
+      cancel: "Cancelar",
+      // CAMPAIGN IMPORT INTELLIGENCE PHASE 1 (§ template versioning):
+      // purely informational — never a warning.
+      templateVersionDetected: "Plantilla de Cucurucho detectada (versión {version}).",
+      // CAMPAIGN IMPORT INTELLIGENCE PHASE 1 (§ export guidance): exact
+      // column names only, never a speculative alias — see this key
+      // group's own comment at its usage site in ContributeLanding.tsx.
+      exportGuidanceDetailsTitle: "Ver columnas exactas verificadas (Meta / Google)",
+      exportGuidanceMetaMin: "Nombre de la campaña, Inicio del informe, Fin del informe, Importe gastado.",
+      exportGuidanceMetaRecommended: "Recomendadas: Alcance, Impresiones, Frecuencia, Resultados, Indicador de resultado.",
+      exportGuidanceGoogleMin: "Campaña, Código de moneda, Costo.",
+      exportGuidanceGoogleRecommended: "Recomendadas: Tipo de campaña, Clics, Impr., Conversiones. Si tu reporte es de video: Valor de conv., Vistas de TrueView, Video reproducido al 25/50/75/100 %, Usuarios únicos.",
     },
     privacyNote: "Tus datos individuales son privados. Cucurucho utiliza datos agregados y anonimizados para construir benchmarks.",
     stepContext: "Contexto de campaña",
@@ -2311,6 +2389,75 @@ const en: typeof es = {
       ctaViewBenchmarks: "Compare benchmark",
       ctaContributeMore: "Contribute more data",
       ctaHome: "Back to home",
+      // CAMPAIGN IMPORT INTELLIGENCE PHASE 1: see the ES block's
+      // comment above this same key group for context.
+      colFunnel: "Funnel",
+      objectiveChangeControl: "Change",
+      objectiveConfidence: {
+        detected: "Objective detected",
+        suggested: "Objective suggested",
+        unknown: "Not detected",
+        manual: "Manual",
+      },
+      objectiveReason: {
+        metaIndicator: "Detected from Meta's result indicator ({indicator}).",
+        googleVideoEvidence: "Detected from video-view evidence in the file.",
+        googleConversionsAmbiguous: "The file has Google's \"Conversions\", but it doesn't distinguish leads from sales.",
+        campaignName: "Suggested by the campaign name (matches \"{keyword}\").",
+        noEvidence: "Not enough evidence to detect an objective for this row.",
+      },
+      funnel3Reason: {
+        awareness: "Awareness objective → Awareness stage.",
+        reach: "Reach objective → Awareness stage.",
+        videoViewsDefault: "Video Views objective → Awareness stage (safe default, no further evidence).",
+        engagement: "Engagement objective → Consideration stage.",
+        traffic: "Traffic objective → Consideration stage.",
+        leads: "Leads objective → Conversion stage.",
+        sales: "Sales objective → Conversion stage.",
+        storeVisits: "Store Visits objective, with structured evidence → Conversion stage.",
+        storeVisitsNoEvidence: "Store Visits objective, without structured evidence → unknown.",
+        appUnknown: "App objective → unknown for now.",
+        otherUnknown: "\"Other\" objective → unknown.",
+        noObjective: "No objective detected → unknown.",
+      },
+      funnel5Reason: {
+        conocimiento: "Awareness/Reach/Video Views → Awareness.",
+        consideracion: "Engagement/Traffic → Consideration.",
+        leadsOmitted: "Leads can't be safely classified in this 5-stage model — omitted.",
+        fidelizacion: "Sales, with loyalty/retention evidence → Loyalty.",
+        recompra: "Sales, with remarketing/repeat-purchase evidence → Repeat purchase.",
+        compraDefault: "Sales, with no further evidence → Purchase.",
+        notApplicable: "Doesn't apply to this row's objective.",
+      },
+      funnel3Stage: {
+        awareness: "Awareness",
+        consideration: "Consideration",
+        conversion: "Conversion",
+        unknown: "Unknown",
+      },
+      funnel5Stage: {
+        conocimiento: "Awareness",
+        consideracion: "Consideration",
+        compra: "Purchase",
+        recompra: "Repeat purchase",
+        fidelizacion: "Loyalty",
+      },
+      objectiveContextFallbackNote: "This will only apply to campaigns where Cucurucho couldn't detect an objective.",
+      objectiveApplyBulkLabel: "Apply this objective to every campaign",
+      objectiveApplyBulkConfirm: "Apply \"{objective}\" to the {n} campaigns in this file? This replaces each row's detected or suggested objective.",
+      objectiveApplyBulkConfirmButton: "Yes, apply to all",
+      cancel: "Cancel",
+      templateVersionDetected: "Cucurucho template detected (version {version}).",
+      // Kept in the exact Spanish column names Cucurucho has actually
+      // verified against a real export fixture (see the approved
+      // discovery report) — an invented English equivalent would be a
+      // guess this task's own brief explicitly forbids, so the English
+      // UI still names the real Spanish columns to look for.
+      exportGuidanceDetailsTitle: "See exact verified columns (Meta / Google)",
+      exportGuidanceMetaMin: "Nombre de la campaña, Inicio del informe, Fin del informe, Importe gastado.",
+      exportGuidanceMetaRecommended: "Recommended: Alcance, Impresiones, Frecuencia, Resultados, Indicador de resultado.",
+      exportGuidanceGoogleMin: "Campaña, Código de moneda, Costo.",
+      exportGuidanceGoogleRecommended: "Recommended: Tipo de campaña, Clics, Impr., Conversiones. For a video report: Valor de conv., Vistas de TrueView, Video reproducido al 25/50/75/100%, Usuarios únicos.",
     },
     privacyNote: "Your individual data is private. Cucurucho uses aggregated and anonymized data to build benchmarks.",
     stepContext: "Campaign Context",
