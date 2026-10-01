@@ -13,6 +13,8 @@ import { detectRateCardMapping, applyRateCardMapping, validateRateCardRow, markR
 import { resolveMediaContext } from "@/lib/media/contextLinks";
 import { generateRateCardCsvTemplate, generateRateCardXlsxTemplate } from "@/lib/media/rateCardTemplate";
 import { bulkSubmitRateCardsAction } from "@/lib/media/actions";
+import { checkRateCardDuplicatesAction, type RateCardDuplicateCheckCandidate } from "./duplicateActions";
+import type { RateCardDuplicateMatch } from "@/lib/media/rateCardDuplicates";
 import type { RawTable } from "@/lib/import/types";
 
 type Step = "file" | "columns" | "review" | "confirm" | "done";
@@ -70,6 +72,14 @@ export function RateCardImportFlow({
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<{ imported: number; failed: number } | null>(null);
   const [dragActive, setDragActive] = useState(false);
+  // CONTRIBUTION RELIABILITY PASS B (§6/§7): cross-DB verdicts against
+  // already-persisted rate cards, keyed by rowNumber — mirrors
+  // ContributeLanding.tsx's own dupVerdicts/skipRows state and this
+  // flow's own public-metrics sibling exactly. skipRows only ever
+  // applies to an "exact_duplicate" verdict — a "conflicting_version"
+  // is never skippable (§8: never silently skipped).
+  const [dupVerdicts, setDupVerdicts] = useState<Map<number, RateCardDuplicateMatch>>(new Map());
+  const [skipRows, setSkipRows] = useState<Set<number>>(new Set());
   const inputRef = useRef<HTMLInputElement>(null);
 
   const platformByKey = new Map(knownPlatforms.map((p) => [p.internal_key, p]));
@@ -108,14 +118,40 @@ export function RateCardImportFlow({
     if (!table) return;
     const rawRows = applyRateCardMapping(table, mappings);
     const validated = rawRows.map((row) => validateRateCardRow(row, knownPlatforms, knownFormats));
-    setValidatedRows(markRateCardDuplicates(validated));
+    const finalRows = markRateCardDuplicates(validated);
+    setValidatedRows(finalRows);
+    setDupVerdicts(new Map());
+    setSkipRows(new Set());
     setStep("review");
+
+    // CONTRIBUTION RELIABILITY PASS B (§6/§9): a single batched check
+    // against already-persisted rate cards, fired after the review
+    // rows are already shown, never gating the review step itself.
+    // Best-effort: a failed check just means no banner shows. Includes
+    // rows already flagged "conflicting" within this file too.
+    const candidates: RateCardDuplicateCheckCandidate[] = finalRows
+      .filter((r) => (r.status === "valid" || r.status === "conflicting") && r.platformKey && r.mediaFormatKey && r.currency && r.pricingUnit && r.validFrom && r.price !== null)
+      .map((r) => ({
+        rowNumber: r.rowNumber, platformKey: r.platformKey!, mediaFormatKey: r.mediaFormatKey!,
+        currency: r.currency!, pricingUnit: r.pricingUnit!, validFrom: r.validFrom!, price: r.price!,
+      }));
+    if (candidates.length > 0) {
+      checkRateCardDuplicatesAction(candidates)
+        .then((results) => {
+          const map = new Map<number, RateCardDuplicateMatch>();
+          for (const entry of results) {
+            if (entry.match.verdict !== "none") map.set(entry.rowNumber, entry.match);
+          }
+          setDupVerdicts(map);
+        })
+        .catch(() => {});
+    }
   }
 
   async function confirmImport() {
     setSubmitting(true);
     const payload = validatedRows
-      .filter((r) => r.status === "valid")
+      .filter((r) => (r.status === "valid" || r.status === "conflicting") && !skipRows.has(r.rowNumber))
       .map((r) => ({
         platformKey: r.platformKey!,
         mediaFormatKey: r.mediaFormatKey!,
@@ -135,7 +171,13 @@ export function RateCardImportFlow({
   }
 
   const validCount = validatedRows.filter((r) => r.status === "valid").length;
-  const reviewCount = validatedRows.filter((r) => r.status !== "valid").length;
+  // CONTRIBUTION RELIABILITY PASS B (§5): "conflicting" rows are
+  // deliberately NOT part of reviewCount — never blocked, so counting
+  // them as "needs review" would misrepresent them.
+  const conflictingCount = validatedRows.filter((r) => r.status === "conflicting").length;
+  const reviewCount = validatedRows.filter((r) => r.status === "needs_review" || r.status === "duplicate").length;
+  const effectiveSubmitCount = validatedRows.filter((r) => (r.status === "valid" || r.status === "conflicting") && !skipRows.has(r.rowNumber)).length;
+  const submittedConflictingCount = validatedRows.filter((r) => r.status === "conflicting" && !skipRows.has(r.rowNumber)).length;
 
   const STEP_LABELS: { key: Step; labelKey: string }[] = [
     { key: "file", labelKey: "contribute.import.step.file" },
@@ -246,6 +288,9 @@ export function RateCardImportFlow({
             <div>
               <div className="flex flex-wrap gap-3">
                 <span className="rounded-full bg-pistachio-soft px-3 py-1 text-xs font-medium text-pistachio">{t("contribute.import.readyCount", { n: validCount })}</span>
+                {conflictingCount > 0 && (
+                  <span className="rounded-full bg-primary-soft px-3 py-1 text-xs font-medium text-primary">{t("contribute.import.statusConflictingVersion")} ({conflictingCount})</span>
+                )}
                 <span className="rounded-full bg-vanilla-soft px-3 py-1 text-xs font-medium text-vanilla">{t("contribute.import.reviewCount", { n: reviewCount })}</span>
               </div>
               <div className="mt-4 max-h-96 overflow-y-auto overflow-x-auto rounded-xl border border-line">
@@ -267,8 +312,23 @@ export function RateCardImportFlow({
                         <td className="px-3 py-2 text-ink-800">{row.mediaFormatKey ? formatByKey.get(row.mediaFormatKey)?.display_label : "—"}</td>
                         <td className="px-3 py-2 text-ink-800">{row.currency && row.price !== null ? `${row.currency} ${row.price}` : "—"}</td>
                         <td className="px-3 py-2">
+                          {/* CONTRIBUTION RELIABILITY PASS B (§7): four
+                              distinct states — an exact within-file
+                              repeat ("Duplicado exacto") must read
+                              differently from a legitimate different
+                              price for the same identity+date ("Versión
+                              en conflicto"), and neither is the generic
+                              validation-error "Revisar". */}
                           {row.status === "valid" ? (
                             <span className="inline-flex items-center gap-1 rounded-full bg-pistachio-soft px-2 py-0.5 text-[10px] font-medium text-pistachio"><Check size={10} aria-hidden="true" />{t("contribute.import.statusReady")}</span>
+                          ) : row.status === "conflicting" ? (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-primary-soft px-2 py-0.5 text-[10px] font-medium text-primary" title={t("media.rateCardConflictingVersion")}>
+                              <AlertTriangle size={10} aria-hidden="true" />{t("contribute.import.statusConflictingVersion")}
+                            </span>
+                          ) : row.status === "duplicate" ? (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-caution-soft px-2 py-0.5 text-[10px] font-medium text-caution" title={t("contribute.import.statusExactDuplicate")}>
+                              <AlertTriangle size={10} aria-hidden="true" />{t("contribute.import.statusExactDuplicate")}
+                            </span>
                           ) : (
                             <span className="inline-flex items-center gap-1 rounded-full bg-vanilla-soft px-2 py-0.5 text-[10px] font-medium text-vanilla" title={row.errors.map((e) => formatRateCardError(e, t)).join(" · ")}>
                               <AlertTriangle size={10} aria-hidden="true" />{t("contribute.import.statusReview")}
@@ -282,12 +342,58 @@ export function RateCardImportFlow({
               </div>
               {reviewCount > 0 && (
                 <div className="mt-3 space-y-1 text-xs text-ink-600">
-                  {validatedRows.filter((r) => r.status !== "valid").slice(0, 8).map((row) => (
-                    <p key={row.rowNumber}>{t("contribute.import.rowLabel", { n: row.rowNumber })}: {row.errors.map((e) => formatRateCardError(e, t)).join(" · ")}</p>
+                  {/* CONTRIBUTION RELIABILITY PASS B (§5): "conflicting"
+                      rows are intentionally excluded here — never
+                      blocked, nothing to fix before submission. */}
+                  {validatedRows.filter((r) => r.status === "needs_review" || r.status === "duplicate").slice(0, 8).map((row) => (
+                    <p key={row.rowNumber}>{t("contribute.import.rowLabel", { n: row.rowNumber })}: {row.status === "duplicate" ? t("contribute.import.statusExactDuplicate") : row.errors.map((e) => formatRateCardError(e, t)).join(" · ")}</p>
                   ))}
                 </div>
               )}
-              <button onClick={() => setStep("confirm")} disabled={validCount === 0} className="mt-5 rounded-full bg-primary px-4 py-2 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-40">
+              {/* CONTRIBUTION RELIABILITY PASS B (§6/§7/§8): mirrors
+                  PublicMetricImportFlow.tsx's own cross-DB banner
+                  exactly — only an "exact_duplicate" verdict gets a
+                  Skip toggle, a "conflicting_version" always proceeds
+                  to curator review. */}
+              {dupVerdicts.size > 0 && (
+                <>
+                  <p className="mt-4 text-xs font-semibold uppercase tracking-wide text-ink-500">{t("contribute.import.duplicateSectionTitle")}</p>
+                  <div className="mt-2 space-y-2">
+                    {Array.from(dupVerdicts.entries()).map(([rowNumber, match]) => {
+                      const row = validatedRows.find((r) => r.rowNumber === rowNumber);
+                      if (!row) return null;
+                      const isExact = match.verdict === "exact_duplicate";
+                      const skipped = skipRows.has(rowNumber);
+                      return (
+                        <div key={rowNumber} className={`rounded-xl border px-3 py-2.5 text-xs ${isExact ? "border-caution/40 bg-caution-soft/30" : "border-primary/30 bg-primary-soft/20"}`}>
+                          <p className="font-medium text-ink-800">{isExact ? t("contribute.import.statusExactDuplicate") : t("contribute.import.statusConflictingVersion")}</p>
+                          <p className="mt-0.5 text-ink-600">
+                            {t("contribute.import.rowLabel", { n: rowNumber })}: {row.platformKey ? platformByKey.get(row.platformKey)?.display_label : "—"} · {row.mediaFormatKey ? formatByKey.get(row.mediaFormatKey)?.display_label : "—"} · {row.validFrom ?? "—"}
+                          </p>
+                          <p className="mt-0.5 text-[11px] text-ink-500">{isExact ? t("contribute.import.exactDuplicateExplain") : t("media.rateCardConflictingVersion")}</p>
+                          {isExact && (
+                            <label className="mt-1.5 inline-flex items-center gap-1.5 text-ink-700">
+                              <input
+                                type="checkbox"
+                                checked={skipped}
+                                onChange={(e) => {
+                                  setSkipRows((prev) => {
+                                    const next = new Set(prev);
+                                    if (e.target.checked) next.add(rowNumber); else next.delete(rowNumber);
+                                    return next;
+                                  });
+                                }}
+                              />
+                              {skipped ? t("contribute.import.duplicateSkipped") : t("contribute.import.duplicateSkipToggle")}
+                            </label>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+              <button onClick={() => setStep("confirm")} disabled={effectiveSubmitCount === 0} className="mt-5 rounded-full bg-primary px-4 py-2 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-40">
                 {t("contribute.import.continueToConfirm")}
               </button>
             </div>
@@ -295,8 +401,13 @@ export function RateCardImportFlow({
 
           {step === "confirm" && (
             <div className="rounded-2xl border border-line bg-surface p-5">
-              <p className="text-sm text-ink-800">{t("media.confirmRateCardImportIntro", { n: validCount })}</p>
+              <p className="text-sm text-ink-800">{t("media.confirmRateCardImportIntro", { n: effectiveSubmitCount })}</p>
               <p className="mt-1 text-xs text-ink-500">{t("media.rateCardPendingNote")}</p>
+              {skipRows.size > 0 && <p className="mt-1 text-xs text-ink-500">{t("contribute.import.confirmSkippedDuplicates", { n: skipRows.size })}</p>}
+              {/* CONTRIBUTION RELIABILITY PASS B (§7/§8): never implies
+                  anything was dropped — conflicting rows are always
+                  included in effectiveSubmitCount above. */}
+              {submittedConflictingCount > 0 && <p className="mt-1 text-xs text-ink-500">{t("contribute.import.confirmConflictingVersions", { n: submittedConflictingCount })}</p>}
               <button onClick={confirmImport} disabled={submitting} aria-busy={submitting} className="mt-4 rounded-full bg-primary px-4 py-2 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-60">
                 {submitting ? t("contribute.import.submitting") : t("contribute.import.confirmButton")}
               </button>

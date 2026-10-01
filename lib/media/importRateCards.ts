@@ -1,6 +1,7 @@
 import { parseLatamAwareNumber, parseFlexibleDate } from "@/lib/import/normalize";
 import type { RawTable } from "@/lib/import/types";
 import { isSupportedCurrencyCode } from "@/lib/config/currencies";
+import { classifyRateCardFileDuplicates, type RateCardFileCandidate } from "./rateCardDuplicates";
 
 // Phase 19 item 9/10/11: reuses lib/import/parse.ts's parseCsv/
 // parseXlsxBuffer directly — same reused pattern as lib/media/
@@ -99,7 +100,15 @@ export interface ValidatedRateCardRow {
   source: string;
   sourceReference: string | null;
   notes: string | null;
-  status: "valid" | "needs_review" | "duplicate";
+  // CONTRIBUTION RELIABILITY PASS B (§4/§5): "conflicting" is a new,
+  // distinct status from "duplicate" — same canonical identity
+  // (RateCardIdentity: platform + property + format + currency +
+  // pricing_unit) AND the same validFrom, but a DIFFERENT price than
+  // another row in this same file. Unlike "duplicate" (an exact
+  // repeat, excluded from submission exactly as before this pass), a
+  // "conflicting" row is never blocked — it may still be submitted for
+  // curator review. Never silently resolved, never auto-superseded.
+  status: "valid" | "needs_review" | "duplicate" | "conflicting";
   errors: string[];
 }
 
@@ -165,13 +174,32 @@ export function validateRateCardRow(
 
 // Item 13: within-import duplicate detection — same identity concept
 // as the snapshot/campaign import engines.
+// CONTRIBUTION RELIABILITY PASS B (§4/§5): the old key included price
+// itself, so two rows sharing the same identity + validFrom but a
+// DIFFERENT price never even matched as "the same row" — they silently
+// passed through as two independent valid rows with no information at
+// all. classifyRateCardFileDuplicates fixes this by matching on
+// identity + validFrom FIRST, then separately checking price: a match
+// with the same price is still "duplicate" (same blocking behavior as
+// before this pass), a match with a different price becomes the new
+// "conflicting" status (never blocked — see the field's own comment
+// above).
 export function markRateCardDuplicates(rows: ValidatedRateCardRow[]): ValidatedRateCardRow[] {
-  const seen = new Map<string, number>();
-  return rows.map((row) => {
-    if (row.status !== "valid") return row;
-    const key = `${row.platformKey}|${row.mediaFormatKey}|${row.currency}|${row.pricingUnit}|${row.validFrom}|${row.price}`;
-    if (seen.has(key)) return { ...row, status: "duplicate" as const };
-    seen.set(key, row.rowNumber);
-    return row;
+  const candidates: RateCardFileCandidate[] = rows.map((r) => ({
+    platformId: r.platformKey ?? "",
+    propertyId: null,
+    mediaFormatId: r.mediaFormatKey ?? "",
+    currency: r.currency ?? "",
+    pricingUnit: r.pricingUnit ?? "",
+    validFrom: r.validFrom ?? "",
+    price: r.price ?? 0,
+  }));
+  const verdicts = classifyRateCardFileDuplicates(candidates);
+  return rows.map((r, i) => {
+    if (r.status !== "valid") return r;
+    const verdict = verdicts.get(i);
+    if (verdict === "exact_duplicate") return { ...r, status: "duplicate" as const };
+    if (verdict === "conflicting_version") return { ...r, status: "conflicting" as const };
+    return r;
   });
 }

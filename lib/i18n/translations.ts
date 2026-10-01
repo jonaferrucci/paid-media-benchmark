@@ -616,6 +616,13 @@ const es = {
     // (same {imported}/{failed} params, same underlying result object).
     publicMetricsDoneSummary: "{imported} métricas importadas, {failed} con errores.",
     rateCardsDoneSummary: "{imported} tarifas importadas, {failed} con errores.",
+    // CONTRIBUTION RELIABILITY PASS B (§7): the exact, non-scary wording
+    // the brief prescribes — explains what a conflicting version MEANS
+    // (a different value already exists) and what happens next (sent
+    // for review), never implies anything was overwritten, replaced, or
+    // automatically applied.
+    publicMetricConflictingVersion: "Ya existe un valor distinto para esta métrica y fecha. Si continuás, el nuevo valor se enviará a revisión.",
+    rateCardConflictingVersion: "Ya existe un precio distinto para esta tarifa y fecha de vigencia. Si continuás, el nuevo precio se enviará a revisión.",
     vsPrevious: "vs. anterior",
     historyAvailable: "{n} observaciones históricas disponibles",
     listPriceLabel: "Precio de lista / Tarifario",
@@ -766,11 +773,26 @@ const es = {
       colStatus: "Estado",
       statusReady: "Lista",
       statusReview: "Revisar",
+      // CONTRIBUTION RELIABILITY PASS B (§7): the user must be able to
+      // tell an exact repeat apart from a legitimate different value
+      // for the same identity — never call the second one a
+      // "duplicate". Shared across the three import flows (Public
+      // Metrics and Rate Cards today; the campaign flow keeps its own
+      // separate duplicateLikely/duplicatePossible copy below, unchanged).
+      statusExactDuplicate: "Duplicado exacto",
+      statusConflictingVersion: "Versión en conflicto",
+      exactDuplicateExplain: "Ya existe exactamente este mismo valor para esta combinación.",
       rowLabel: "Fila {n}",
       continueToConfirm: "Continuar a confirmar",
       confirmIntro: "Vamos a importar {n} filas de {file}.",
       confirmSkipped: "{n} filas no se importarán hasta que se corrijan.",
       confirmSkippedDuplicates: "{n} filas se omitirán por posible duplicado.",
+      // CONTRIBUTION RELIABILITY PASS B (§7/§8): conflicting versions
+      // are NEVER silently skipped — this just tells the user, at
+      // confirm time, that some of what they're about to submit will
+      // reach curator review as a correction to an existing value,
+      // never that it was dropped.
+      confirmConflictingVersions: "{n} fila(s) con una versión en conflicto se enviarán igual, para revisión.",
       submitting: "Importando…",
       // Post-MVP: platform auto-detection (§D) and the recognized/
       // review/ignored column breakdown (§E).
@@ -2033,6 +2055,10 @@ const en: typeof es = {
     // specific done-summary copy for Public Metrics and Rate Cards.
     publicMetricsDoneSummary: "{imported} metrics imported, {failed} with errors.",
     rateCardsDoneSummary: "{imported} rates imported, {failed} with errors.",
+    // CONTRIBUTION RELIABILITY PASS B (§7): exact prescribed wording —
+    // see the ES block's comment.
+    publicMetricConflictingVersion: "A different value already exists for this metric and date. If you continue, the new value will be sent for review.",
+    rateCardConflictingVersion: "A different price already exists for this rate and effective date. If you continue, the new price will be sent for review.",
     vsPrevious: "vs. previous",
     historyAvailable: "{n} historical observations available",
     listPriceLabel: "List price / Rate card",
@@ -2173,11 +2199,15 @@ const en: typeof es = {
       colStatus: "Status",
       statusReady: "Ready",
       statusReview: "Review",
+      statusExactDuplicate: "Exact duplicate",
+      statusConflictingVersion: "Conflicting version",
+      exactDuplicateExplain: "This exact value already exists for this combination.",
       rowLabel: "Row {n}",
       continueToConfirm: "Continue to confirm",
       confirmIntro: "We'll import {n} rows from {file}.",
       confirmSkipped: "{n} rows won't be imported until corrected.",
       confirmSkippedDuplicates: "{n} rows will be skipped as possible duplicates.",
+      confirmConflictingVersions: "{n} row(s) with a conflicting version will still be sent for review.",
       submitting: "Importing…",
       detectedPlatform: "We detected {platform}",
       detectionUnknownTitle: "We couldn't automatically identify the platform.",

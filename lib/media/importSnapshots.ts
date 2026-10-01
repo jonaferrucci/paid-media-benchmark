@@ -1,6 +1,6 @@
 import { parseLatamAwareNumber, parseFlexibleDate } from "@/lib/import/normalize";
 import type { RawTable } from "@/lib/import/types";
-import { findDuplicateSnapshotIndices, type SnapshotDuplicateCandidate } from "./trend";
+import { classifySnapshotFileDuplicates, type SnapshotFileCandidate } from "./snapshotDuplicates";
 
 // Phase 18 item 4/5: reuses lib/import/parse.ts's parseCsv/
 // parseXlsxBuffer directly (format-agnostic, already generic over any
@@ -81,7 +81,15 @@ export interface ValidatedSnapshotRow {
   observedAt: string | null;
   source: string;
   sourceReference: string | null;
-  status: "valid" | "needs_review" | "duplicate";
+  // CONTRIBUTION RELIABILITY PASS B (§1/§2): "conflicting" is a new,
+  // distinct status from "duplicate" — same identity (platform +
+  // property + metric + observed_at) but a DIFFERENT value than
+  // another row in this same file. Unlike "duplicate" (an exact
+  // repeat, excluded from submission exactly as before this pass),
+  // a "conflicting" row is never blocked — it may still be submitted
+  // for curator review, per the approved product decision. Never
+  // silently resolved to "whichever is latest."
+  status: "valid" | "needs_review" | "duplicate" | "conflicting";
   errors: string[]; // translation keys, same convention as lib/import/validate.ts
 }
 
@@ -126,13 +134,29 @@ export function validateSnapshotRow(
   };
 }
 
+// CONTRIBUTION RELIABILITY PASS B (§1/§2): previously this collapsed
+// "same identity, same value" and "same identity, different value"
+// into the exact same "duplicate" classification — a corrected
+// re-entry for the same day looked identical to an accidental repeat,
+// and was silently blocked either way with no information about which
+// one it was. classifySnapshotFileDuplicates now distinguishes them:
+// an exact value match still becomes "duplicate" (same blocking
+// behavior as before), a differing value becomes the new "conflicting"
+// status (never blocked — see the field's own comment above).
 export function markSnapshotDuplicates(rows: ValidatedSnapshotRow[]): ValidatedSnapshotRow[] {
-  const candidates: SnapshotDuplicateCandidate[] = rows.map((r) => ({
+  const candidates: SnapshotFileCandidate[] = rows.map((r) => ({
     platformKey: r.platformKey ?? "",
     propertyKey: null,
     metricKey: r.metricKey ?? "",
     observedAt: r.observedAt ?? "",
+    value: r.value ?? 0,
   }));
-  const dupIndices = findDuplicateSnapshotIndices(candidates);
-  return rows.map((r, i) => (r.status === "valid" && dupIndices.has(i) ? { ...r, status: "duplicate" as const } : r));
+  const verdicts = classifySnapshotFileDuplicates(candidates);
+  return rows.map((r, i) => {
+    if (r.status !== "valid") return r;
+    const verdict = verdicts.get(i);
+    if (verdict === "exact_duplicate") return { ...r, status: "duplicate" as const };
+    if (verdict === "conflicting_version") return { ...r, status: "conflicting" as const };
+    return r;
+  });
 }
