@@ -584,10 +584,38 @@ const es = {
     priceLabel: "Precio",
     currencyLabel: "Moneda",
     pricingUnitLabel: "Unidad de precio",
+    // CONTRIBUTION UX SAFETY PASS A (§3): pricing_unit is a literal
+    // canonical enum value (lib/media/importRateCards.ts's
+    // VALID_PRICING_UNITS) typed directly into a CSV/XLSX cell, with no
+    // dropdown in the file itself — previously the only guidance lived
+    // inside the downloadable XLSX template's "Instrucciones" sheet, so
+    // a user working from the CSV template (no second sheet) or who
+    // never opened that sheet had no way to see the valid options at
+    // all. These canonical values themselves are NEVER translated or
+    // changed — only the surrounding sentence is localized.
+    pricingUnitValidOptions: "per_integration, per_spot, per_mention, per_day, per_week, per_month, per_thousand, package, custom",
+    pricingUnitGuidance: "La unidad de precio debe ser exactamente uno de estos valores: {options}.",
+    pricingUnitInvalidWithOptions: "La unidad de precio no es válida. Usá exactamente uno de estos valores: {options}.",
     validFromLabel: "Vigente desde",
     rateCardPendingNote: "Tu aporte queda pendiente de revisión antes de mostrarse como tarifario vigente.",
     contributionPendingSaved: "Precio enviado — pendiente de revisión.",
     publicMetricsDisclaimer: "Datos públicos del medio. No son resultados de campaña ni benchmark.",
+    // CONTRIBUTION UX SAFETY PASS A (§1): PublicMetricImportFlow never
+    // disclosed that imported rows sit in the curator queue before
+    // becoming visible — publicMetricsDisclaimer above only says what
+    // the data ISN'T, not its review status. Mirrors rateCardPendingNote
+    // (same underlying pending-review behavior, lib/media/actions.ts,
+    // already unchanged by this pass) so both sibling import flows are
+    // equally honest about it. Shown before confirmation and on success.
+    publicMetricsPendingNote: "Tu aporte queda pendiente de revisión antes de estar disponible en la plataforma.",
+    // CONTRIBUTION UX SAFETY PASS A.1: contribute.import.doneSummary says
+    // "campañas importadas" and was being reused verbatim by the Public
+    // Metrics and Rate Cards done screens, which import metrics/prices,
+    // not campaigns. These flow-specific keys fix that without touching
+    // the campaign flow's own copy or any counter/placeholder semantics
+    // (same {imported}/{failed} params, same underlying result object).
+    publicMetricsDoneSummary: "{imported} métricas importadas, {failed} con errores.",
+    rateCardsDoneSummary: "{imported} tarifas importadas, {failed} con errores.",
     vsPrevious: "vs. anterior",
     historyAvailable: "{n} observaciones históricas disponibles",
     listPriceLabel: "Precio de lista / Tarifario",
@@ -849,6 +877,10 @@ const es = {
       // §J: aggregate "Total: ..." rows excluded before persistence —
       // shown alongside the real campaign count, never silently dropped.
       totalRowsExcluded: "{n} filas de totales excluidas",
+      // CONTRIBUTION UX SAFETY PASS A (§4): parse.ts already truncates
+      // silently at IMPORT_LIMITS.maxRows (5000) — this makes that cut
+      // visible with the real original count, never changes the limit.
+      truncationWarning: "Tu archivo tiene {original} filas. Por ahora procesamos solo las primeras {imported}; el resto no se importó.",
       // ADAPTIVE PLATFORM IMPORT ARCHITECTURE (§3/§22): the export
       // PROFILE's own short display label, shown right under "Detectamos
       // {platform}" (e.g. "Reporte de campañas"). One honest generic
@@ -913,6 +945,16 @@ const es = {
     country: "País",
     businessModel: "Modelo de negocio",
     performanceScope: "Alcance de performance",
+    // CONTRIBUTION UX SAFETY PASS A (§5): the manual campaign form
+    // (ContributeWizard.tsx) used to render these three option labels as
+    // literal English strings regardless of locale. The stored value
+    // (full_account/campaign_group/individual_campaign) is unchanged —
+    // only the label shown to the user now goes through t().
+    performanceScopeOptions: {
+      fullAccount: "Cuenta completa",
+      campaignGroup: "Grupo de campañas",
+      individualCampaign: "Campaña individual",
+    },
     audienceStrategy: "Estrategia de audiencia",
     funnelStage: "Etapa del funnel",
     ageMin: "Edad mínima",
@@ -1973,10 +2015,24 @@ const en: typeof es = {
     priceLabel: "Price",
     currencyLabel: "Currency",
     pricingUnitLabel: "Pricing unit",
+    // CONTRIBUTION UX SAFETY PASS A (§3): see the ES block's comment
+    // above this same key for context. The canonical values below are
+    // identical in both locales by design — they're stored keys, not
+    // display text.
+    pricingUnitValidOptions: "per_integration, per_spot, per_mention, per_day, per_week, per_month, per_thousand, package, custom",
+    pricingUnitGuidance: "The pricing unit must be exactly one of these values: {options}.",
+    pricingUnitInvalidWithOptions: "That pricing unit isn't valid. Use exactly one of these values: {options}.",
     validFromLabel: "Valid from",
     rateCardPendingNote: "Your submission stays pending review before showing as the current rate card.",
     contributionPendingSaved: "Price submitted — pending review.",
     publicMetricsDisclaimer: "Public media data. Not campaign results or benchmark data.",
+    // CONTRIBUTION UX SAFETY PASS A (§1): see the ES block's comment
+    // above this same key for context.
+    publicMetricsPendingNote: "Your submission stays pending review before it's available on the platform.",
+    // CONTRIBUTION UX SAFETY PASS A.1: see the ES block's comment — flow-
+    // specific done-summary copy for Public Metrics and Rate Cards.
+    publicMetricsDoneSummary: "{imported} metrics imported, {failed} with errors.",
+    rateCardsDoneSummary: "{imported} rates imported, {failed} with errors.",
     vsPrevious: "vs. previous",
     historyAvailable: "{n} historical observations available",
     listPriceLabel: "List price / Rate card",
@@ -2194,6 +2250,9 @@ const en: typeof es = {
       objectiveSuggested: "Suggested",
       useSuggestion: "Use \"{objective}\"",
       totalRowsExcluded: "{n} total rows excluded",
+      // CONTRIBUTION UX SAFETY PASS A (§4): see the ES block's comment
+      // above this same key for context.
+      truncationWarning: "Your file has {original} rows. For now we only process the first {imported}; the rest wasn't imported.",
       profile: {
         campaignReport: "Campaign report",
         googleSearch: "Search report",
@@ -2238,6 +2297,13 @@ const en: typeof es = {
     country: "Country",
     businessModel: "Business Model",
     performanceScope: "Performance Scope",
+    // CONTRIBUTION UX SAFETY PASS A (§5): see the ES block's comment
+    // above this same key for context.
+    performanceScopeOptions: {
+      fullAccount: "Full Account",
+      campaignGroup: "Campaign Group",
+      individualCampaign: "Individual Campaign",
+    },
     audienceStrategy: "Audience Strategy",
     funnelStage: "Funnel Stage",
     ageMin: "Minimum age",

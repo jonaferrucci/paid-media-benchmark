@@ -15,6 +15,14 @@ export interface ParseResult {
   ok: true;
   table: RawTable;
   truncated: boolean;
+  // CONTRIBUTION UX SAFETY PASS A (§4): the real data-row count BEFORE
+  // the IMPORT_LIMITS.maxRows cut — i.e. table.rows.length when
+  // truncated is false, and the true original count (> maxRows) when
+  // it's true. Added so a truncated file can show "your file had X
+  // rows, we processed the first 5000" instead of silently importing a
+  // subset with no visible signal. Never used to change what actually
+  // gets parsed/persisted — purely informational for the UI.
+  originalRowCount: number;
   // Post-MVP Google Ads fix (§D/§G): a report-level date range found in
   // skipped preamble lines above the real header row (e.g. Google's own
   // "18 de septiembre de 2026 - 18 de septiembre de 2026" summary
@@ -105,7 +113,13 @@ export function parseCsv(fileContent: string): ParseResult | ParseError {
   const truncated = cleanRows.length > IMPORT_LIMITS.maxRows;
   const finalRows = truncated ? cleanRows.slice(0, IMPORT_LIMITS.maxRows) : cleanRows;
 
-  return { ok: true, table: toRawTable(headerRow, finalRows), truncated, reportDateRange: findReportDateRangeInLines(preambleLines) };
+  return {
+    ok: true,
+    table: toRawTable(headerRow, finalRows),
+    truncated,
+    originalRowCount: cleanRows.length,
+    reportDateRange: findReportDateRangeInLines(preambleLines),
+  };
 }
 
 // XLSX: reads the first sheet with actual data (not blindly
@@ -157,5 +171,11 @@ export function parseXlsxBuffer(buffer: ArrayBuffer): ParseResult | ParseError {
   const truncated = cleanRows.length > IMPORT_LIMITS.maxRows;
   const finalRows = truncated ? cleanRows.slice(0, IMPORT_LIMITS.maxRows) : cleanRows;
 
-  return { ok: true, table: toRawTable(headerRow.map(String), finalRows), truncated, reportDateRange: findReportDateRangeInLines(preambleLines) };
+  return {
+    ok: true,
+    table: toRawTable(headerRow.map(String), finalRows),
+    truncated,
+    originalRowCount: cleanRows.length,
+    reportDateRange: findReportDateRangeInLines(preambleLines),
+  };
 }

@@ -266,6 +266,12 @@ function UploadFlow({
   // tracked purely so the review UI can say how many were dropped,
   // never used to change validation behavior.
   const [totalRowsExcludedCount, setTotalRowsExcludedCount] = useState(0);
+  // CONTRIBUTION UX SAFETY PASS A (§4): null when the file was under the
+  // 5000-row limit (the common case — most files never show this).
+  // Set only when parse.ts's own truncated flag is true, carrying the
+  // real original row count alongside the limit actually applied — the
+  // limit itself (IMPORT_LIMITS.maxRows) is never changed by this pass.
+  const [truncationInfo, setTruncationInfo] = useState<{ original: number } | null>(null);
   // §D/§G: a report-level date range recovered from skipped preamble
   // lines (e.g. Google's own "18 de septiembre de 2026 - ..." line) —
   // null for any file with no such preamble (every existing shape).
@@ -308,6 +314,10 @@ function UploadFlow({
     setFileName(file.name);
     setSourceType(isCsv ? "csv" : "xlsx");
     setReportDateRange(result.reportDateRange);
+    // CONTRIBUTION UX SAFETY PASS A (§4): surface the truncation that
+    // parse.ts already performs silently — never a new limit, just a
+    // visible signal when the existing one was hit.
+    setTruncationInfo(result.truncated ? { original: result.originalRowCount } : null);
 
     // POST-MVP IMPORT FIX 3 (§J): drop aggregate "Total: ..." rows
     // BEFORE anything else (detection/mapping/validation) ever sees
@@ -801,6 +811,18 @@ function UploadFlow({
           )}
           {hasCampaignNames && (
             <p className="mt-1 text-xs text-ink-600">{t("contribute.import.campaignCount", { n: table.rows.length })}</p>
+          )}
+          {/* CONTRIBUTION UX SAFETY PASS A (§4): the 5000-row cap
+              (IMPORT_LIMITS.maxRows, lib/import/parse.ts) is unchanged —
+              this only makes a hit against it visible instead of silent.
+              A genuinely attention-getting box, not a small gray line
+              like the other row-count facts above, since rows are
+              actually being dropped here. */}
+          {truncationInfo && (
+            <div className="mt-2 flex items-start gap-2 rounded-xl border border-caution/30 bg-caution-soft p-3 text-xs text-ink-800">
+              <AlertTriangle size={14} className="mt-0.5 shrink-0 text-caution" aria-hidden="true" />
+              <p>{t("contribute.import.truncationWarning", { original: truncationInfo.original, imported: IMPORT_LIMITS.maxRows })}</p>
+            </div>
           )}
           {/* §J: aggregate "Total: ..." rows were already excluded in
               handleFile, before this table's row count was ever computed

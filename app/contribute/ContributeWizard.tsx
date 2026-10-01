@@ -475,9 +475,9 @@ export function ContributeWizard({ taxonomies }: { taxonomies: ContributionTaxon
                 value={draft.performanceScope}
                 onChange={(v) => update("performanceScope", v)}
                 options={[
-                  { value: "full_account", label: "Full Account" },
-                  { value: "campaign_group", label: "Campaign Group" },
-                  { value: "individual_campaign", label: "Individual Campaign" },
+                  { value: "full_account", label: t("contribute.performanceScopeOptions.fullAccount") },
+                  { value: "campaign_group", label: t("contribute.performanceScopeOptions.campaignGroup") },
+                  { value: "individual_campaign", label: t("contribute.performanceScopeOptions.individualCampaign") },
                 ]}
               />
             </Field>

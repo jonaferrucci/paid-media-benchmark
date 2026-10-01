@@ -23,6 +23,30 @@ const FIELD_LABEL_KEYS: Record<SnapshotField, string> = {
   value: "media.field.value", observed_at: "media.field.observedAt", source: "media.field.source", source_reference: "media.field.sourceReference",
 };
 
+// CONTRIBUTION UX SAFETY PASS A (§2): validateSnapshotRow
+// (lib/media/importSnapshots.ts) returns a flat string[] of translation
+// keys with no field attached — unlike lib/import/validate.ts's RowIssue
+// shape (which already carries .field, see ContributeLanding.tsx's own
+// formatIssue). Each of these five keys is raised by exactly one check
+// in that function today, so this mapping is accurate to its current
+// behavior; it's presentation-only and never changes validateSnapshotRow
+// itself or the error keys it returns. An unmapped key (should not
+// happen given the five checks above) simply renders unprefixed, same
+// as before this pass.
+const SNAPSHOT_ERROR_FIELD: Record<string, SnapshotField> = {
+  "import.issue.unknownMediaOutlet": "media_outlet",
+  "import.issue.unknownMetricDefinition": "metric",
+  "import.issue.invalidNumber": "value",
+  "import.issue.invalidDate": "observed_at",
+  "import.issue.missingRequired": "source",
+};
+
+function formatSnapshotError(errorKey: string, t: (key: string, vars?: Record<string, string | number>) => string): string {
+  const field = SNAPSHOT_ERROR_FIELD[errorKey];
+  const message = t(errorKey);
+  return field ? `${t(FIELD_LABEL_KEYS[field])}: ${message}` : message;
+}
+
 function triggerDownload(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
@@ -227,6 +251,14 @@ export function PublicMetricImportFlow({
                       <th scope="col" className="px-3 py-2">{t("media.field.mediaOutlet")}</th>
                       <th scope="col" className="px-3 py-2">{t("media.field.metric")}</th>
                       <th scope="col" className="px-3 py-2">{t("media.field.value")}</th>
+                      {/* CONTRIBUTION UX SAFETY PASS A (§2): date and
+                          source are both required and can fail
+                          validation on their own, but used to be
+                          invisible in this table — a row could show
+                          "Revisar" with no way to spot-check either
+                          value without opening the error tooltip. */}
+                      <th scope="col" className="px-3 py-2">{t("media.field.observedAt")}</th>
+                      <th scope="col" className="px-3 py-2">{t("media.field.source")}</th>
                       <th scope="col" className="px-3 py-2">{t("contribute.import.colStatus")}</th>
                     </tr>
                   </thead>
@@ -237,11 +269,13 @@ export function PublicMetricImportFlow({
                         <td className="px-3 py-2 text-ink-800">{row.platformKey ? platformByKey.get(row.platformKey)?.display_label : "—"}</td>
                         <td className="px-3 py-2 text-ink-800">{row.metricKey ? metricByKey.get(row.metricKey)?.display_label : "—"}</td>
                         <td className="px-3 py-2 text-ink-800">{row.value ?? "—"}</td>
+                        <td className="px-3 py-2 text-ink-800">{row.observedAt ?? "—"}</td>
+                        <td className="px-3 py-2 truncate text-ink-800">{row.source || "—"}</td>
                         <td className="px-3 py-2">
                           {row.status === "valid" ? (
                             <span className="inline-flex items-center gap-1 rounded-full bg-pistachio-soft px-2 py-0.5 text-[10px] font-medium text-pistachio"><Check size={10} aria-hidden="true" />{t("contribute.import.statusReady")}</span>
                           ) : (
-                            <span className="inline-flex items-center gap-1 rounded-full bg-vanilla-soft px-2 py-0.5 text-[10px] font-medium text-vanilla" title={row.errors.map((e) => t(e)).join(" · ")}>
+                            <span className="inline-flex items-center gap-1 rounded-full bg-vanilla-soft px-2 py-0.5 text-[10px] font-medium text-vanilla" title={row.errors.map((e) => formatSnapshotError(e, t)).join(" · ")}>
                               <AlertTriangle size={10} aria-hidden="true" />{t("contribute.import.statusReview")}
                             </span>
                           )}
@@ -254,7 +288,7 @@ export function PublicMetricImportFlow({
               {reviewCount > 0 && (
                 <div className="mt-3 space-y-1 text-xs text-ink-600">
                   {validatedRows.filter((r) => r.status !== "valid").slice(0, 8).map((row) => (
-                    <p key={row.rowNumber}>{t("contribute.import.rowLabel", { n: row.rowNumber })}: {row.errors.map((e) => t(e)).join(" · ")}</p>
+                    <p key={row.rowNumber}>{t("contribute.import.rowLabel", { n: row.rowNumber })}: {row.errors.map((e) => formatSnapshotError(e, t)).join(" · ")}</p>
                   ))}
                 </div>
               )}
@@ -268,6 +302,9 @@ export function PublicMetricImportFlow({
             <div className="rounded-2xl border border-line bg-surface p-5">
               <p className="text-sm text-ink-800">{t("media.confirmImportIntro", { n: validCount })}</p>
               <p className="mt-1 text-xs text-ink-500">{t("media.publicMetricsDisclaimer")}</p>
+              {/* CONTRIBUTION UX SAFETY PASS A (§1): never disclosed
+                  before this pass — see the i18n key's own comment. */}
+              <p className="mt-1 text-xs text-ink-500">{t("media.publicMetricsPendingNote")}</p>
               <button onClick={confirmImport} disabled={submitting} aria-busy={submitting} className="mt-4 rounded-full bg-primary px-4 py-2 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-60">
                 {submitting ? t("contribute.import.submitting") : t("contribute.import.confirmButton")}
               </button>
@@ -278,7 +315,15 @@ export function PublicMetricImportFlow({
             <div className="rounded-2xl border border-line bg-surface p-6 text-center">
               <Check size={24} className="mx-auto text-pistachio" aria-hidden="true" />
               <p className="mt-3 font-display text-base font-semibold text-ink-900">{t("contribute.import.doneTitle")}</p>
-              <p className="mt-1 text-sm text-ink-600">{t("contribute.import.doneSummary", { imported: result.imported, failed: result.failed })}</p>
+              {/* CONTRIBUTION UX SAFETY PASS A.1: contribute.import.doneSummary
+                  says "campañas importadas" (campaigns imported) — this flow
+                  imports metrics, not campaigns, so it uses its own
+                  flow-specific key instead of reusing the campaign copy. */}
+              <p className="mt-1 text-sm text-ink-600">{t("media.publicMetricsDoneSummary", { imported: result.imported, failed: result.failed })}</p>
+              {/* CONTRIBUTION UX SAFETY PASS A (§1): shown "on success"
+                  as required — a user finishing this flow previously had
+                  no way to know their data wasn't live yet. */}
+              <p className="mt-1 text-xs text-ink-500">{t("media.publicMetricsPendingNote")}</p>
               <div className="mt-4 flex flex-wrap justify-center gap-2">
                 <Link href="/platforms" className="rounded-full bg-primary px-4 py-2 text-xs font-semibold text-white hover:opacity-90">{t("media.backToCatalog")}</Link>
                 <button onClick={() => { setStep("file"); setTable(null); setResult(null); }} className="rounded-full border border-line px-4 py-2 text-xs font-medium text-ink-700 hover:bg-surface2">{t("contribute.import.ctaContributeMore")}</button>

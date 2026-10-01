@@ -25,6 +25,19 @@ const FIELD_LABEL_KEYS: Record<RateCardField, string> = {
   source_reference: "media.field.sourceReference", notes: "media.field.notes",
 };
 
+// CONTRIBUTION UX SAFETY PASS A (§3): the only check in validateRateCardRow
+// whose valid values are a closed set of literal tokens with zero
+// dropdown anywhere in the file-upload flow. This swaps in a fuller
+// message wherever that one key is displayed — the canonical error key
+// itself (import.issue.unknownPricingUnit, still raised unchanged by
+// lib/media/importRateCards.ts) and VALID_PRICING_UNITS are untouched.
+function formatRateCardError(errorKey: string, t: (key: string, vars?: Record<string, string | number>) => string): string {
+  if (errorKey === "import.issue.unknownPricingUnit") {
+    return t("media.pricingUnitInvalidWithOptions", { options: t("media.pricingUnitValidOptions") });
+  }
+  return t(errorKey);
+}
+
 function triggerDownload(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
@@ -162,6 +175,12 @@ export function RateCardImportFlow({
               <button onClick={() => triggerDownload(new Blob([generateRateCardXlsxTemplate()], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }), "cucurucho-tarifarios.xlsx")} className="inline-flex items-center gap-1.5 rounded-full border border-line px-3 py-1.5 text-xs font-medium text-ink-700 hover:border-primary hover:text-primary">
                 <FileDown size={12} aria-hidden="true" /> XLSX
               </button>
+              {/* CONTRIBUTION UX SAFETY PASS A (§3): visible at upload
+                  time, not only inside the XLSX template's second sheet
+                  (which the CSV template doesn't have at all) — so a user
+                  who skips the template or picks CSV still sees the valid
+                  pricing_unit values before they hit the error. */}
+              <p className="mt-2 text-xs text-ink-500">{t("media.pricingUnitGuidance", { options: t("media.pricingUnitValidOptions") })}</p>
             </div>
           )}
 
@@ -251,7 +270,7 @@ export function RateCardImportFlow({
                           {row.status === "valid" ? (
                             <span className="inline-flex items-center gap-1 rounded-full bg-pistachio-soft px-2 py-0.5 text-[10px] font-medium text-pistachio"><Check size={10} aria-hidden="true" />{t("contribute.import.statusReady")}</span>
                           ) : (
-                            <span className="inline-flex items-center gap-1 rounded-full bg-vanilla-soft px-2 py-0.5 text-[10px] font-medium text-vanilla" title={row.errors.map((e) => t(e)).join(" · ")}>
+                            <span className="inline-flex items-center gap-1 rounded-full bg-vanilla-soft px-2 py-0.5 text-[10px] font-medium text-vanilla" title={row.errors.map((e) => formatRateCardError(e, t)).join(" · ")}>
                               <AlertTriangle size={10} aria-hidden="true" />{t("contribute.import.statusReview")}
                             </span>
                           )}
@@ -264,7 +283,7 @@ export function RateCardImportFlow({
               {reviewCount > 0 && (
                 <div className="mt-3 space-y-1 text-xs text-ink-600">
                   {validatedRows.filter((r) => r.status !== "valid").slice(0, 8).map((row) => (
-                    <p key={row.rowNumber}>{t("contribute.import.rowLabel", { n: row.rowNumber })}: {row.errors.map((e) => t(e)).join(" · ")}</p>
+                    <p key={row.rowNumber}>{t("contribute.import.rowLabel", { n: row.rowNumber })}: {row.errors.map((e) => formatRateCardError(e, t)).join(" · ")}</p>
                   ))}
                 </div>
               )}
@@ -288,7 +307,11 @@ export function RateCardImportFlow({
             <div className="rounded-2xl border border-line bg-surface p-6 text-center">
               <Check size={24} className="mx-auto text-pistachio" aria-hidden="true" />
               <p className="mt-3 font-display text-base font-semibold text-ink-900">{t("contribute.import.doneTitle")}</p>
-              <p className="mt-1 text-sm text-ink-600">{t("contribute.import.doneSummary", { imported: result.imported, failed: result.failed })}</p>
+              {/* CONTRIBUTION UX SAFETY PASS A.1: contribute.import.doneSummary
+                  says "campañas importadas" (campaigns imported) — this flow
+                  imports rate-card prices, not campaigns, so it uses its own
+                  flow-specific key instead of reusing the campaign copy. */}
+              <p className="mt-1 text-sm text-ink-600">{t("media.rateCardsDoneSummary", { imported: result.imported, failed: result.failed })}</p>
               <div className="mt-4 flex flex-wrap justify-center gap-2">
                 <Link href="/platforms" className="rounded-full bg-primary px-4 py-2 text-xs font-semibold text-white hover:opacity-90">{t("media.backToCatalog")}</Link>
                 <button onClick={() => { setStep("file"); setTable(null); setResult(null); }} className="rounded-full border border-line px-4 py-2 text-xs font-medium text-ink-700 hover:bg-surface2">{t("contribute.import.ctaContributeMore")}</button>
