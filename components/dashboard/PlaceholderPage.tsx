@@ -1,10 +1,12 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { DashboardSidebar } from "@/components/dashboard/DashboardSidebar";
 import { AppHeader } from "@/components/dashboard/AppHeader";
 import { SearchOverlay } from "@/components/dashboard/SearchOverlay";
 import { useTranslation } from "@/lib/i18n/LanguageContext";
+import { benchmarkHrefForCohortFilters } from "@/lib/benchmark/prefillQuery";
 
 interface PlaceholderPageProps {
   title: string;
@@ -14,12 +16,17 @@ interface PlaceholderPageProps {
 
 export function PlaceholderPage({ title, description, plannedPhase }: PlaceholderPageProps) {
   const { t } = useTranslation();
+  const router = useRouter();
   const [searchOpen, setSearchOpen] = useState(false);
 
   return (
     <div className="min-h-screen bg-canvas">
       <AppHeader onSearchClick={() => setSearchOpen(true)} />
-      {searchOpen && <SearchOverlay onClose={() => setSearchOpen(false)} onApply={() => {}} />}
+      {/* RELEASE POLISH (Section 3): see BenchmarkExplorer.tsx's identical
+          comment. */}
+      {searchOpen && (
+        <SearchOverlay onClose={() => setSearchOpen(false)} onApply={(filters) => router.push(benchmarkHrefForCohortFilters(filters))} />
+      )}
 
       <DashboardSidebar />
       <div className="md:pl-[var(--sidebar-inset)] transition-[padding-left] duration-150">

@@ -1,9 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import { useTranslation } from "@/lib/i18n/LanguageContext";
 import type { ContributionTaxonomies } from "@/lib/contribute/taxonomies";
+import { splitPlatformsAndMedia } from "@/lib/media/filter";
+import { translateTaxonomyLabel } from "@/lib/i18n/taxonomyLabels";
 import { runBenchmarkQueryBatch, type BenchmarkFormInput } from "./actions";
 import { Select } from "./Select";
 import { classifyPerformance, resolveClassificationLabelKey } from "@/lib/comparison/classify";
@@ -66,7 +68,20 @@ interface MetricRow {
 }
 
 export function CampaignExplorer({ taxonomies, initialSaved }: { taxonomies: ContributionTaxonomies; initialSaved?: SavedComparison | null }) {
-  const { t } = useTranslation();
+  const { t, locale } = useTranslation();
+  // RELEASE POLISH (Section 2 — platform vs. media entity separation):
+  // taxonomies.platforms mixes real ad platforms with individual media
+  // outlets (both live in the same `platforms` table, told apart only
+  // by their media_category_id — see lib/media/filter.ts's own header
+  // comment). A "Plataforma" selector must only ever offer real ad
+  // platforms; splitPlatformsAndMedia is the existing, already-correct
+  // helper Media Catalog/Planner's data layer already uses for this
+  // exact distinction — reused here unchanged, never a second
+  // independently-invented filter.
+  const { adPlatforms } = useMemo(
+    () => splitPlatformsAndMedia(taxonomies.platforms, taxonomies.mediaCategories),
+    [taxonomies]
+  );
   const [cohort, setCohort] = useState<CohortDraft>(DEFAULT_COHORT);
   const [rows, setRows] = useState<MetricRow[]>([{ metric: "cpm", value: "" }]);
   const [loading, setLoading] = useState(false);
@@ -183,29 +198,48 @@ export function CampaignExplorer({ taxonomies, initialSaved }: { taxonomies: Con
 
   const aggregate = results ? computeCampaignAggregate(results) : null;
 
+  // RELEASE POLISH (Section 1 — taxonomy localization): platform is a
+  // real brand/proper noun (never translated); objective/vertical/
+  // country are resolved through the shared taxonomyLabels helper
+  // instead of the raw (always-English) display_label.
   const platformLabel = taxonomies.platforms.find((p) => p.internal_key === cohort.platform)?.display_label ?? cohort.platform;
-  const objectiveLabel = taxonomies.objectives.find((o) => o.internal_key === cohort.objective)?.display_label ?? cohort.objective;
-  const verticalLabel = taxonomies.verticals.find((v) => v.internal_key === cohort.vertical)?.display_label ?? cohort.vertical;
-  const countryLabel = taxonomies.countries.find((c) => c.iso_code === cohort.country)?.display_label ?? cohort.country;
+  const objectiveLabel = translateTaxonomyLabel(
+    "objective",
+    cohort.objective,
+    taxonomies.objectives.find((o) => o.internal_key === cohort.objective)?.display_label ?? cohort.objective,
+    locale
+  );
+  const verticalLabel = translateTaxonomyLabel(
+    "vertical",
+    cohort.vertical,
+    taxonomies.verticals.find((v) => v.internal_key === cohort.vertical)?.display_label ?? cohort.vertical,
+    locale
+  );
+  const countryLabel = translateTaxonomyLabel(
+    "country",
+    cohort.country,
+    taxonomies.countries.find((c) => c.iso_code === cohort.country)?.display_label ?? cohort.country,
+    locale
+  );
 
   return (
     <div className="space-y-6">
       <section className="rounded-2xl border border-line bg-surface p-6 shadow-sm">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <Select label={t("contribute.platform")} value={cohort.platform} onChange={(v) => updateCohort("platform", v)} allowEmpty required
-            options={taxonomies.platforms.map((p) => ({ value: p.internal_key, label: p.display_label }))} />
+            options={adPlatforms.map((p) => ({ value: p.internal_key, label: p.display_label }))} />
           <Select label={t("contribute.objective")} value={cohort.objective} onChange={(v) => updateCohort("objective", v)} allowEmpty required
-            options={taxonomies.objectives.map((o) => ({ value: o.internal_key, label: o.display_label }))} />
+            options={taxonomies.objectives.map((o) => ({ value: o.internal_key, label: translateTaxonomyLabel("objective", o.internal_key, o.display_label, locale) }))} />
           <Select label={t("contribute.vertical")} value={cohort.vertical} onChange={(v) => updateCohort("vertical", v)} allowEmpty required
-            options={taxonomies.verticals.map((v) => ({ value: v.internal_key, label: v.display_label }))} />
+            options={taxonomies.verticals.map((v) => ({ value: v.internal_key, label: translateTaxonomyLabel("vertical", v.internal_key, v.display_label, locale) }))} />
           <Select label={t("contribute.country")} value={cohort.country} onChange={(v) => updateCohort("country", v)} allowEmpty required
-            options={taxonomies.countries.map((c) => ({ value: c.iso_code, label: c.display_label }))} />
+            options={taxonomies.countries.map((c) => ({ value: c.iso_code, label: translateTaxonomyLabel("country", c.iso_code, c.display_label, locale) }))} />
           <Select label={t("contribute.audienceStrategy")} value={cohort.audienceStrategy} onChange={(v) => updateCohort("audienceStrategy", v)} allowEmpty
-            options={taxonomies.audienceStrategies.map((a) => ({ value: a.internal_key, label: a.display_label }))} />
+            options={taxonomies.audienceStrategies.map((a) => ({ value: a.internal_key, label: translateTaxonomyLabel("audienceStrategy", a.internal_key, a.display_label, locale) }))} />
           <Select label={t("contribute.funnelStage")} value={cohort.funnelStage} onChange={(v) => updateCohort("funnelStage", v)} allowEmpty
-            options={taxonomies.funnelStages.map((f) => ({ value: f.internal_key, label: f.display_label }))} />
+            options={taxonomies.funnelStages.map((f) => ({ value: f.internal_key, label: translateTaxonomyLabel("funnelStage", f.internal_key, f.display_label, locale) }))} />
           <Select label={t("contribute.businessModel")} value={cohort.businessModel} onChange={(v) => updateCohort("businessModel", v)} allowEmpty
-            options={taxonomies.businessModels.map((b) => ({ value: b.internal_key, label: b.display_label }))} />
+            options={taxonomies.businessModels.map((b) => ({ value: b.internal_key, label: translateTaxonomyLabel("businessModel", b.internal_key, b.display_label, locale) }))} />
           <Select label={t("finder.spendRange")} value={cohort.spendBand} onChange={(v) => updateCohort("spendBand", v)} allowEmpty
             options={[
               { value: "under_500", label: "< USD 500" }, { value: "500_2000", label: "USD 500-2,000" },

@@ -15,6 +15,16 @@ import { CurationGate } from "./CurationGate";
 // parallel, same "no N+1, no sequential reads" discipline as every
 // other multi-query page in this codebase.
 export default async function CurationPage() {
+  // RELEASE POLISH (Section 5 — protected route consistency):
+  // middleware (lib/supabase/middleware.ts) now redirects a signed-out
+  // visitor to /auth/sign-in before this ever runs — the same
+  // "user-specific workspace" rule /account already had — so
+  // CurationGate's `signedIn={false}` case is now defense-in-depth
+  // rather than the normal path, exactly like /account/page.tsx's own
+  // vestigial signed-out branch. The signed-in-but-non-curator case
+  // below is untouched and still the normal path for it: middleware
+  // only ever knows "is there a session", never "is this user a
+  // curator" (that stays this server-side, RLS-backed check).
   const { userId, isCurator } = await getCurrentProfileIsCurator();
 
   if (!userId || !isCurator) {

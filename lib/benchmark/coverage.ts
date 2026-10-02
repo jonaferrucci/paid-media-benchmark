@@ -7,6 +7,7 @@ import { getMinimumSampleSize } from "./minimumSampleSize";
 import { deriveBenchmarkStatus, type CohortQueryStatus } from "./resultStatus";
 import { SINGLE_METRIC_OPTIONS } from "./singleMetricOptions";
 import type { TimeWindowInput } from "./types";
+import { splitPlatformsAndMedia } from "@/lib/media/filter";
 
 // -----------------------------------------------------------------------
 // CUCURUCHO INTELLIGENCE 4 — COVERAGE MAP V1.
@@ -290,14 +291,27 @@ export interface CoverageTaxonomies {
 export async function getCoverageTaxonomies(): Promise<CoverageTaxonomies> {
   const supabase = createServerSupabaseClient();
 
-  const [platforms, objectives, countries, verticals] = await Promise.all([
-    supabase.from("platforms").select("internal_key, display_label").eq("active", true).order("display_order"),
+  // RELEASE POLISH (Section 2 — platform vs. media entity separation):
+  // media_category_id/is_global added to the platforms select (additive
+  // columns only — same reasoning as lib/contribute/taxonomies.ts's own
+  // Phase 19B item 2 comment), plus a media_categories query, so
+  // splitPlatformsAndMedia (lib/media/filter.ts — the exact helper
+  // Media Catalog/Planner's data layer already uses) can filter out
+  // individual media/outlets here, the same way it filters there.
+  // Coverage's "Plataforma" selector has no separate media-browsing
+  // surface the way Media Catalog does, so media entities are dropped
+  // entirely from this list rather than shown in a second section —
+  // they remain fully available on Media Catalog/Planner/Media Profile,
+  // never deleted from the underlying `platforms` table.
+  const [platforms, objectives, countries, verticals, mediaCategories] = await Promise.all([
+    supabase.from("platforms").select("internal_key, display_label, media_category_id, is_global").eq("active", true).order("display_order"),
     supabase.from("objectives").select("internal_key, display_label").eq("active", true).order("display_order"),
     supabase.from("countries").select("iso_code, display_label").eq("active", true).order("display_order"),
     supabase.from("verticals").select("internal_key, display_label").eq("active", true).order("display_order"),
+    supabase.from("media_categories").select("id, internal_key").eq("active", true),
   ]);
 
-  const hasError = Boolean(platforms.error || objectives.error || countries.error || verticals.error);
+  const hasError = Boolean(platforms.error || objectives.error || countries.error || verticals.error || mediaCategories.error);
   if (hasError) {
     // Same never-silently-empty convention as lib/contribute/
     // taxonomies.ts's own audited error handling — logged server-side
@@ -307,11 +321,14 @@ export async function getCoverageTaxonomies(): Promise<CoverageTaxonomies> {
       objectives: objectives.error?.message,
       countries: countries.error?.message,
       verticals: verticals.error?.message,
+      mediaCategories: mediaCategories.error?.message,
     });
   }
 
+  const { adPlatforms } = splitPlatformsAndMedia(platforms.data ?? [], mediaCategories.data ?? []);
+
   return {
-    platforms: (platforms.data ?? []).map((p) => ({ value: p.internal_key, label: p.display_label })),
+    platforms: adPlatforms.map((p) => ({ value: p.internal_key, label: p.display_label })),
     objectives: (objectives.data ?? []).map((o) => ({ value: o.internal_key, label: o.display_label })),
     countries: (countries.data ?? []).map((c) => ({ value: c.iso_code, label: c.display_label })),
     verticals: (verticals.data ?? []).map((v) => ({ value: v.internal_key, label: v.display_label })),

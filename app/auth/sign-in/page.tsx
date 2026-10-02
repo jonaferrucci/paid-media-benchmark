@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense } from "react";
+import { Suspense, useEffect, useRef } from "react";
 import { useFormState, useFormStatus } from "react-dom";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
@@ -30,6 +30,22 @@ function SignInForm() {
   const resetSuccess = searchParams.get("reset") === "success";
 
   const [state, formAction] = useFormState<AuthActionResult, FormData>(signInWithEmailAction, {});
+
+  // RELEASE POLISH (Section 4 — login error accessibility): the error
+  // message below was plain text with no live-region semantics and no
+  // link to the form fields — a screen reader user who submits an
+  // invalid login gets no indication anything happened. role="alert"
+  // (an implicit assertive live region, designed specifically for
+  // content that appears after the fact, like this one) plus
+  // aria-describedby on both inputs gives that announcement and ties it
+  // to the fields it's about; moving focus to the message on a new
+  // error guarantees it's actually noticed, not just technically
+  // announceable. Never changes signInWithEmailAction or its error
+  // values — only how the existing error is exposed.
+  const errorRef = useRef<HTMLParagraphElement>(null);
+  useEffect(() => {
+    if (state.error) errorRef.current?.focus();
+  }, [state.error]);
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-canvas px-4">
@@ -73,6 +89,8 @@ function SignInForm() {
             type="email"
             name="email"
             required
+            aria-invalid={state.error ? true : undefined}
+            aria-describedby={state.error ? "signin-error" : undefined}
             placeholder={t("auth.emailPlaceholder")}
             className="w-full rounded-full border border-line bg-canvas px-4 py-2.5 text-sm text-ink-900 outline-none focus-visible:border-primary"
           />
@@ -80,11 +98,15 @@ function SignInForm() {
             type="password"
             name="password"
             required
+            aria-invalid={state.error ? true : undefined}
+            aria-describedby={state.error ? "signin-error" : undefined}
             placeholder={t("auth.passwordPlaceholder")}
             className="w-full rounded-full border border-line bg-canvas px-4 py-2.5 text-sm text-ink-900 outline-none focus-visible:border-primary"
           />
           {state.error && (
-            <p className="text-xs text-caution">{t(`authErrors.${state.error}`)}</p>
+            <p id="signin-error" ref={errorRef} role="alert" tabIndex={-1} className="text-xs text-caution outline-none">
+              {t(`authErrors.${state.error}`)}
+            </p>
           )}
           <SubmitButton labelKey="auth.signInTitle" loadingKey="auth.signingIn" />
         </form>

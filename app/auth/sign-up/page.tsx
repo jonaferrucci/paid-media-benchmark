@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import { useFormState, useFormStatus } from "react-dom";
 import Link from "next/link";
 import { LogoMark } from "@/components/dashboard/LogoMark";
@@ -23,6 +24,13 @@ function SubmitButton() {
 export default function SignUpPage() {
   const { t } = useTranslation();
   const [state, formAction] = useFormState<AuthActionResult, FormData>(signUpWithEmailAction, {});
+
+  // RELEASE POLISH (Section 4): see app/auth/sign-in/page.tsx's
+  // identical comment — same fix, same reasoning, applied here.
+  const errorRef = useRef<HTMLParagraphElement>(null);
+  useEffect(() => {
+    if (state.error) errorRef.current?.focus();
+  }, [state.error]);
 
   if (state.success === "check_email") {
     return (
@@ -78,6 +86,8 @@ export default function SignUpPage() {
             type="email"
             name="email"
             required
+            aria-invalid={state.error ? true : undefined}
+            aria-describedby={state.error ? "signup-error" : undefined}
             placeholder={t("auth.emailPlaceholder")}
             className="w-full rounded-full border border-line bg-canvas px-4 py-2.5 text-sm text-ink-900 outline-none focus-visible:border-primary"
           />
@@ -86,10 +96,16 @@ export default function SignUpPage() {
             name="password"
             required
             minLength={8}
+            aria-invalid={state.error ? true : undefined}
+            aria-describedby={state.error ? "signup-error" : undefined}
             placeholder={t("auth.passwordPlaceholder")}
             className="w-full rounded-full border border-line bg-canvas px-4 py-2.5 text-sm text-ink-900 outline-none focus-visible:border-primary"
           />
-          {state.error && <p className="text-xs text-caution">{t(`authErrors.${state.error}`)}</p>}
+          {state.error && (
+            <p id="signup-error" ref={errorRef} role="alert" tabIndex={-1} className="text-xs text-caution outline-none">
+              {t(`authErrors.${state.error}`)}
+            </p>
+          )}
           <SubmitButton />
         </form>
 

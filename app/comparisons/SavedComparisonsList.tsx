@@ -138,6 +138,16 @@ export function SavedComparisonsList({
             // (no account, not "nothing saved yet") — the same
             // sign-in/create-account prompt as /account, not a
             // misleading "you haven't saved a comparison" empty state.
+            //
+            // RELEASE POLISH (Section 5): /comparisons now redirects a
+            // signed-out visitor to /auth/sign-in before this component
+            // ever renders (lib/supabase/middleware.ts's
+            // PROTECTED_PREFIXES — same "user-specific workspace"
+            // redirect rule /account already had), so in normal
+            // operation this branch is unreachable, exactly like
+            // app/account/page.tsx's own equivalent `!user` branch.
+            // Left in place as the same defense-in-depth this codebase
+            // already relies on elsewhere, not removed.
             <div className="mt-6 rounded-2xl border border-dashed border-line bg-surface p-8 text-center">
               <FolderOpen size={22} className="mx-auto text-ink-400" aria-hidden="true" />
               <p className="mt-3 text-sm font-semibold text-ink-900">{t("account.signedOutTitle")}</p>

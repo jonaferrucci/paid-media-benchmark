@@ -1426,10 +1426,20 @@ const es = {
     awareness: "Reconocimiento",
     reach: "Alcance",
     traffic: "Tráfico",
-    video_views: "Video Views",
-    engagement: "Engagement",
+    // RELEASE POLISH (taxonomy localization): these two were literal
+    // English strings left in the ES dictionary — the exact same bug
+    // class this pass exists to fix, just already inside translations.ts
+    // itself rather than in a component bypassing it.
+    video_views: "Reproducciones de video",
+    engagement: "Interacción",
     sales: "Ventas",
     leads: "Leads",
+    // RELEASE POLISH: app/store_visits/other were missing entirely —
+    // objectives.internal_key has 10 real rows (supabase/seed.sql), this
+    // block only ever had 7.
+    app: "App",
+    store_visits: "Visitas a tienda",
+    other: "Otro",
   },
   metrics: {
     cpm: "CPM",
@@ -1469,18 +1479,34 @@ const es = {
     lookalike: "Lookalike",
     remarketing: "Remarketing",
     customer_list: "Lista de clientes",
+    // RELEASE POLISH: audience_strategies has 11 real rows — this block
+    // only ever had 6.
+    contextual: "Contextual",
+    keyword_based: "Basada en palabras clave",
     automated_algorithmic: "Automática / Algorítmica",
+    mixed: "Mixta",
+    other: "Otra",
+    unknown: "Desconocida / No provista",
   },
+  // RELEASE POLISH: all 4 pre-existing values here were literal English
+  // strings in the ES dictionary (same bug class as objectives.video_views
+  // above); funnel_stages also has 3 real rows (mixed/other/unknown) this
+  // block never had at all.
   funnel: {
-    prospecting: "Prospecting",
-    consideration: "Consideration",
+    prospecting: "Prospección",
+    consideration: "Consideración",
     remarketing: "Remarketing",
-    retention: "Retention",
+    retention: "Retención",
+    mixed: "Mixta",
+    other: "Otra",
+    unknown: "Desconocida / No provista",
   },
   theme: {
     light: "Claro",
     dark: "Oscuro",
   },
+  // RELEASE POLISH: countries has 12 real rows (supabase/seed.sql +
+  // 0017_latam_digital_catalog.sql's EC/BO) — this block only ever had 8.
   countries: {
     AR: "Argentina",
     BR: "Brasil",
@@ -1490,6 +1516,81 @@ const es = {
     UY: "Uruguay",
     PE: "Perú",
     PY: "Paraguay",
+    US: "Estados Unidos",
+    ES: "España",
+    EC: "Ecuador",
+    BO: "Bolivia",
+  },
+  // RELEASE POLISH (taxonomy localization layer): verticals/business
+  // models/digital media categories are seeded 100% in English with no
+  // locale column (permanent by design — see supabase/migrations'
+  // comments), so lib/i18n/taxonomyLabels.ts's translateTaxonomyLabel()
+  // resolves every taxonomy label through dictionaries like these three
+  // instead of ever reading a Supabase row's display_label directly in
+  // a component. Every internal_key below matches a real row
+  // (supabase/seed.sql) — never an invented value.
+  verticals: {
+    beauty_personal_care: "Belleza y cuidado personal",
+    fashion_apparel: "Moda e indumentaria",
+    home_kitchen: "Hogar y cocina",
+    consumer_electronics: "Electrónica de consumo",
+    automotive: "Automotriz",
+    financial_services: "Servicios financieros",
+    insurance: "Seguros",
+    education: "Educación",
+    real_estate: "Inmobiliario",
+    travel_tourism: "Viajes y turismo",
+    food_beverage: "Alimentos y bebidas",
+    health_wellness: "Salud y bienestar",
+    fitness: "Fitness",
+    b2b_services: "Servicios B2B",
+    saas: "SaaS",
+    retail: "Retail",
+    entertainment: "Entretenimiento",
+    gaming: "Gaming",
+    telecommunications: "Telecomunicaciones",
+    professional_services: "Servicios profesionales",
+    construction: "Construcción",
+    industrial_manufacturing: "Industria y manufactura",
+    agriculture: "Agro",
+    pet_care: "Cuidado de mascotas",
+    baby_kids: "Bebés y niños",
+    sports_outdoor: "Deportes y outdoor",
+    jewelry_accessories: "Joyería y accesorios",
+    marketplace: "Marketplace",
+    other: "Otro",
+  },
+  businessModels: {
+    ecommerce: "Ecommerce",
+    marketplace_seller: "Vendedor de marketplace",
+    lead_generation: "Generación de leads",
+    retail: "Retail",
+    b2b: "B2B",
+    saas: "SaaS",
+    app: "App",
+    subscription: "Suscripción",
+    services: "Servicios",
+    local_business: "Negocio local",
+    omnichannel: "Omnicanal",
+    other: "Otro",
+    unknown: "Desconocido / No provisto",
+  },
+  // Digital-only subset (lib/media/filter.ts's digitalMediaCategories
+  // excludes print/television/radio/ooh/dooh from every surface this
+  // phase touches) — the 3 already-confirmed-live-buggy ones
+  // (streaming_live/digital_publisher/podcast) use the SAME renamed
+  // display_label semantics supabase/migrations/0016 gave them, not the
+  // original 0012 wording.
+  mediaCategories: {
+    paid_social: "Redes sociales (pago)",
+    search: "Búsqueda",
+    marketplace_ads: "Publicidad en marketplaces",
+    online_video: "Video online",
+    streaming_live: "Streaming / medios nativos sociales",
+    digital_publisher: "Editores digitales / Noticias digitales",
+    podcast: "Podcast / Audio digital",
+    programmatic: "Programática",
+    other: "Otro",
   },
   timeWindows: {
     current_year: "Año actual",
@@ -2838,6 +2939,9 @@ const en: typeof es = {
     engagement: "Engagement",
     sales: "Sales",
     leads: "Leads",
+    app: "App",
+    store_visits: "Store Visits",
+    other: "Other",
   },
   metrics: {
     cpm: "CPM",
@@ -2877,13 +2981,21 @@ const en: typeof es = {
     lookalike: "Lookalike",
     remarketing: "Remarketing",
     customer_list: "Customer List",
+    contextual: "Contextual",
+    keyword_based: "Keyword-Based",
     automated_algorithmic: "Automated / Algorithmic",
+    mixed: "Mixed",
+    other: "Other",
+    unknown: "Unknown / Not Provided",
   },
   funnel: {
     prospecting: "Prospecting",
     consideration: "Consideration",
     remarketing: "Remarketing",
     retention: "Retention",
+    mixed: "Mixed",
+    other: "Other",
+    unknown: "Unknown / Not Provided",
   },
   theme: {
     light: "Light",
@@ -2898,6 +3010,67 @@ const en: typeof es = {
     UY: "Uruguay",
     PE: "Peru",
     PY: "Paraguay",
+    US: "United States",
+    ES: "Spain",
+    EC: "Ecuador",
+    BO: "Bolivia",
+  },
+  verticals: {
+    beauty_personal_care: "Beauty & Personal Care",
+    fashion_apparel: "Fashion & Apparel",
+    home_kitchen: "Home & Kitchen",
+    consumer_electronics: "Consumer Electronics",
+    automotive: "Automotive",
+    financial_services: "Financial Services",
+    insurance: "Insurance",
+    education: "Education",
+    real_estate: "Real Estate",
+    travel_tourism: "Travel & Tourism",
+    food_beverage: "Food & Beverage",
+    health_wellness: "Health & Wellness",
+    fitness: "Fitness",
+    b2b_services: "B2B Services",
+    saas: "SaaS",
+    retail: "Retail",
+    entertainment: "Entertainment",
+    gaming: "Gaming",
+    telecommunications: "Telecommunications",
+    professional_services: "Professional Services",
+    construction: "Construction",
+    industrial_manufacturing: "Industrial & Manufacturing",
+    agriculture: "Agriculture",
+    pet_care: "Pet Care",
+    baby_kids: "Baby & Kids",
+    sports_outdoor: "Sports & Outdoor",
+    jewelry_accessories: "Jewelry & Accessories",
+    marketplace: "Marketplace",
+    other: "Other",
+  },
+  businessModels: {
+    ecommerce: "Ecommerce",
+    marketplace_seller: "Marketplace Seller",
+    lead_generation: "Lead Generation",
+    retail: "Retail",
+    b2b: "B2B",
+    saas: "SaaS",
+    app: "App",
+    subscription: "Subscription",
+    services: "Services",
+    local_business: "Local Business",
+    omnichannel: "Omnichannel",
+    other: "Other",
+    unknown: "Unknown / Not Provided",
+  },
+  mediaCategories: {
+    paid_social: "Paid Social",
+    search: "Search",
+    marketplace_ads: "Marketplace Ads",
+    online_video: "Online Video",
+    streaming_live: "Streaming / Social-Native Media",
+    digital_publisher: "Digital Publishers / Digital News",
+    podcast: "Podcast / Digital Audio",
+    programmatic: "Programmatic",
+    other: "Other",
   },
   timeWindows: {
     current_year: "Current Year",

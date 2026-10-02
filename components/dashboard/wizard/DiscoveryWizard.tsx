@@ -10,6 +10,7 @@ import { VerticalStep } from "./VerticalStep";
 import { CountryStep } from "./CountryStep";
 import { ContextStep } from "./ContextStep";
 import { useTranslation } from "@/lib/i18n/LanguageContext";
+import { translateTaxonomyLabel } from "@/lib/i18n/taxonomyLabels";
 
 interface DiscoveryWizardProps {
   onComplete: (filters: CohortFilters) => void;
@@ -51,13 +52,18 @@ const DEFAULT_DRAFT: WizardDraft = {
 };
 
 export function DiscoveryWizard({ onComplete, initialDraft }: DiscoveryWizardProps) {
-  const { t } = useTranslation();
+  const { t, locale } = useTranslation();
   const [step, setStep] = useState(0);
   const [draft, setDraft] = useState<WizardDraft>({ ...DEFAULT_DRAFT, ...initialDraft });
 
   const platformLabel = PLATFORM_CARDS.find((p) => p.uiId === draft.platformUiId)?.label ?? null;
   const objectiveLabel = draft.objectiveUiKey ? t(`objectivesWizard.${draft.objectiveUiKey}`) : null;
-  const verticalLabel = VERTICALS.find((v) => v.id === draft.verticalId)?.label ?? null;
+  // RELEASE POLISH (Section 1): same raw-English leak as VerticalStep's
+  // own grid of buttons (lib/mock/taxonomies.ts's VERTICALS.label is
+  // always English) — this breadcrumb value is a second render of the
+  // exact same selection and needs the exact same fix.
+  const selectedVertical = VERTICALS.find((v) => v.id === draft.verticalId) ?? null;
+  const verticalLabel = selectedVertical ? translateTaxonomyLabel("vertical", selectedVertical.id, selectedVertical.label, locale) : null;
   const countryLabel = draft.countryId ? t(`countries.${draft.countryId}`) : null;
 
   // PHASE 39 (§8): only the 4 required dimensions are counted here, so

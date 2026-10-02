@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { AlertCircle } from "lucide-react";
 import { AppHeader } from "@/components/dashboard/AppHeader";
 import { DashboardSidebar } from "@/components/dashboard/DashboardSidebar";
@@ -14,6 +15,9 @@ import { CoverageStatusLegend } from "./CoverageStatusLegend";
 import { CoverageMetricVisibilityControl } from "./CoverageMetricVisibilityControl";
 import { CoverageCellPanel } from "./CoverageCellPanel";
 import { CoverageEmptyState } from "./CoverageEmptyState";
+import { translateTaxonomyLabel, type TaxonomyKind } from "@/lib/i18n/taxonomyLabels";
+import { benchmarkHrefForCohortFilters } from "@/lib/benchmark/prefillQuery";
+import type { Locale } from "@/lib/i18n/translations";
 
 // CUCURUCHO INTELLIGENCE 4 — COVERAGE MAP V1 (CUCURUCHO INTELLIGENCE 4.1
 // — COVERAGE MAP UX POLISH added the metric-visibility control, status
@@ -49,8 +53,26 @@ function labelFor(options: CoverageTaxonomyOption[], value: string): string {
   return options.find((o) => o.value === value)?.label ?? value;
 }
 
+// RELEASE POLISH (Section 1 — taxonomy localization): same labelFor
+// lookup, then resolved through the shared taxonomyLabels helper.
+// Never used for `platforms` — platform names are real brand/proper
+// nouns and are never translated (see lib/i18n/taxonomyLabels.ts).
+function translatedLabelFor(kind: TaxonomyKind, options: CoverageTaxonomyOption[], value: string, locale: Locale): string {
+  return translateTaxonomyLabel(kind, value, labelFor(options, value), locale);
+}
+
 export function CoverageExplorer({ taxonomies }: { taxonomies: CoverageTaxonomies }) {
-  const { t } = useTranslation();
+  const { t, locale } = useTranslation();
+  const router = useRouter();
+  // RELEASE POLISH (Section 1): translated once here so CoverageGrid
+  // (which renders `vertical.label` directly) and every other spot
+  // that reads taxonomies.verticals for display show the same,
+  // already-translated labels — never a second, divergent translation
+  // path for the grid vs. the selector/cell panel.
+  const translatedVerticals = useMemo(
+    () => taxonomies.verticals.map((v) => ({ ...v, label: translateTaxonomyLabel("vertical", v.value, v.label, locale) })),
+    [taxonomies.verticals, locale]
+  );
   const [searchOpen, setSearchOpen] = useState(false);
   const [platform, setPlatform] = useState("");
   const [objective, setObjective] = useState("");
@@ -128,8 +150,8 @@ export function CoverageExplorer({ taxonomies }: { taxonomies: CoverageTaxonomie
   }
 
   const platformLabel = labelFor(taxonomies.platforms, platform);
-  const objectiveLabel = labelFor(taxonomies.objectives, objective);
-  const countryLabel = labelFor(taxonomies.countries, country);
+  const objectiveLabel = translatedLabelFor("objective", taxonomies.objectives, objective, locale);
+  const countryLabel = translatedLabelFor("country", taxonomies.countries, country, locale);
 
   // INTELLIGENCE 4.1 (§5): computed from the FULL, unfiltered grid
   // response (every metric in Coverage's canonical universe, every
@@ -141,7 +163,13 @@ export function CoverageExplorer({ taxonomies }: { taxonomies: CoverageTaxonomie
   return (
     <div className="min-h-screen bg-canvas">
       <AppHeader onSearchClick={() => setSearchOpen(true)} />
-      {searchOpen && <SearchOverlay onClose={() => setSearchOpen(false)} onApply={() => {}} />}
+      {/* RELEASE POLISH (Section 3): see BenchmarkExplorer.tsx's identical
+          comment — a suggestion chip always means "go look at that
+          benchmark", so applying one navigates to /benchmark with the
+          same prefill query Home's chips already use. */}
+      {searchOpen && (
+        <SearchOverlay onClose={() => setSearchOpen(false)} onApply={(filters) => router.push(benchmarkHrefForCohortFilters(filters))} />
+      )}
       <DashboardSidebar />
       <div className="md:pl-[var(--sidebar-inset)] transition-[padding-left] duration-150">
         <main className="mx-auto max-w-[1400px] space-y-6 px-4 py-8 md:px-8">
@@ -165,7 +193,7 @@ export function CoverageExplorer({ taxonomies }: { taxonomies: CoverageTaxonomie
               onChange={handleObjectiveChange}
               allowEmpty
               required
-              options={taxonomies.objectives.map((o) => ({ value: o.value, label: o.label }))}
+              options={taxonomies.objectives.map((o) => ({ value: o.value, label: translateTaxonomyLabel("objective", o.value, o.label, locale) }))}
             />
             <Select
               label={t("contribute.country")}
@@ -173,7 +201,7 @@ export function CoverageExplorer({ taxonomies }: { taxonomies: CoverageTaxonomie
               onChange={handleCountryChange}
               allowEmpty
               required
-              options={taxonomies.countries.map((c) => ({ value: c.value, label: c.label }))}
+              options={taxonomies.countries.map((c) => ({ value: c.value, label: translateTaxonomyLabel("country", c.value, c.label, locale) }))}
             />
           </div>
 
@@ -212,7 +240,7 @@ export function CoverageExplorer({ taxonomies }: { taxonomies: CoverageTaxonomie
                   </div>
 
                   <CoverageGrid
-                    verticals={taxonomies.verticals}
+                    verticals={translatedVerticals}
                     visibleMetrics={grid.grid.metrics.filter((m) => visibleMetrics.has(m))}
                     cells={grid.grid.cells}
                     selectedCell={selectedCell as SelectedCoverageCellKey | null}
@@ -223,7 +251,7 @@ export function CoverageExplorer({ taxonomies }: { taxonomies: CoverageTaxonomie
                     <CoverageCellPanel
                       cell={{
                         vertical: selectedCell.vertical,
-                        verticalLabel: labelFor(taxonomies.verticals, selectedCell.vertical),
+                        verticalLabel: labelFor(translatedVerticals, selectedCell.vertical),
                         metric: selectedCell.metric,
                         status: selectedCell.status,
                       }}

@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import { useFormState, useFormStatus } from "react-dom";
 import { LogoMark } from "@/components/dashboard/LogoMark";
 import { useTranslation } from "@/lib/i18n/LanguageContext";
@@ -23,6 +24,13 @@ export default function ResetPasswordPage() {
   const { t } = useTranslation();
   const [state, formAction] = useFormState<AuthActionResult, FormData>(resetPasswordAction, {});
 
+  // RELEASE POLISH (Section 4): see app/auth/sign-in/page.tsx's
+  // identical comment — same fix, same reasoning, applied here.
+  const errorRef = useRef<HTMLParagraphElement>(null);
+  useEffect(() => {
+    if (state.error) errorRef.current?.focus();
+  }, [state.error]);
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-canvas px-4">
       <div className="w-full max-w-sm rounded-2xl border border-line bg-surface p-6 shadow-sm">
@@ -39,6 +47,8 @@ export default function ResetPasswordPage() {
             name="password"
             required
             minLength={8}
+            aria-invalid={state.error ? true : undefined}
+            aria-describedby={state.error ? "reset-password-error" : undefined}
             placeholder={t("auth.passwordPlaceholder")}
             className="w-full rounded-full border border-line bg-canvas px-4 py-2.5 text-sm text-ink-900 outline-none focus-visible:border-primary"
           />
@@ -47,10 +57,16 @@ export default function ResetPasswordPage() {
             name="confirmPassword"
             required
             minLength={8}
+            aria-invalid={state.error ? true : undefined}
+            aria-describedby={state.error ? "reset-password-error" : undefined}
             placeholder={t("auth.confirmPasswordPlaceholder")}
             className="w-full rounded-full border border-line bg-canvas px-4 py-2.5 text-sm text-ink-900 outline-none focus-visible:border-primary"
           />
-          {state.error && <p className="text-xs text-caution">{t(`authErrors.${state.error}`)}</p>}
+          {state.error && (
+            <p id="reset-password-error" ref={errorRef} role="alert" tabIndex={-1} className="text-xs text-caution outline-none">
+              {t(`authErrors.${state.error}`)}
+            </p>
+          )}
           <SubmitButton />
         </form>
       </div>

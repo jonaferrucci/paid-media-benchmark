@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Search, Layers, Info } from "lucide-react";
 import { AppHeader } from "@/components/dashboard/AppHeader";
 import { DashboardSidebar } from "@/components/dashboard/DashboardSidebar";
@@ -12,6 +13,8 @@ import { PLATFORM_LOGO } from "@/components/dashboard/PlatformLogo";
 import { useTranslation } from "@/lib/i18n/LanguageContext";
 import type { MediaCatalog } from "@/lib/media/catalog";
 import { platformsForCategory, platformsForCountry, searchCatalogAcrossFields, splitPlatformsAndMedia } from "@/lib/media/filter";
+import { translateTaxonomyLabel } from "@/lib/i18n/taxonomyLabels";
+import { benchmarkHrefForCohortFilters } from "@/lib/benchmark/prefillQuery";
 
 // Phase 20C item D: progressive chip filters replace the two dropdown
 // <select>s (a "filter wall") — the same platformsForCategory/
@@ -55,7 +58,8 @@ function FilterChip({ label, active, onClick }: { label: string; active: boolean
 }
 
 export function MediaCatalogView({ catalog }: { catalog: MediaCatalog }) {
-  const { t } = useTranslation();
+  const { t, locale } = useTranslation();
+  const router = useRouter();
   const [searchOpen, setSearchOpen] = useState(false);
   const [categoryId, setCategoryId] = useState<string | null>(null);
   const [countryId, setCountryId] = useState<string | null>(null);
@@ -87,15 +91,28 @@ export function MediaCatalogView({ catalog }: { catalog: MediaCatalog }) {
     [catalog]
   );
 
+  // RELEASE POLISH (Section 1 — taxonomy localization): media_categories
+  // display_label is always English (no locale column — see
+  // lib/i18n/taxonomyLabels.ts's header comment); countries resolve the
+  // same way. Both now go through the shared helper instead of being
+  // rendered raw.
   function categoryLabel(id: string | null): string {
-    return catalog.categories.find((c) => c.id === id)?.display_label ?? "";
+    const category = catalog.categories.find((c) => c.id === id);
+    if (!category) return "";
+    return translateTaxonomyLabel("mediaCategory", category.internal_key, category.display_label, locale);
+  }
+
+  function countryLabelFor(countryId: string): string {
+    const country = catalog.countries.find((c) => c.id === countryId);
+    if (!country) return "";
+    return translateTaxonomyLabel("country", country.iso_code, country.display_label, locale);
   }
 
   function countryMetaFor(platformId: string, isGlobal: boolean): string {
     if (isGlobal) return t("media.globalAvailability");
     const ids = catalog.platformCountries.filter((pc) => pc.platform_id === platformId).map((pc) => pc.country_id);
     if (ids.length === 0) return "";
-    if (ids.length === 1) return catalog.countries.find((c) => c.id === ids[0])?.display_label ?? "";
+    if (ids.length === 1) return countryLabelFor(ids[0]);
     return t("media.countryCount", { n: ids.length });
   }
 
@@ -114,7 +131,13 @@ export function MediaCatalogView({ catalog }: { catalog: MediaCatalog }) {
   return (
     <div className="min-h-screen bg-canvas">
       <AppHeader onSearchClick={() => setSearchOpen(true)} />
-      {searchOpen && <SearchOverlay onClose={() => setSearchOpen(false)} onApply={() => {}} />}
+      {/* RELEASE POLISH (Section 3): see BenchmarkExplorer.tsx's identical
+          comment — a suggestion chip always means "go look at that
+          benchmark", so applying one navigates to /benchmark with the
+          same prefill query Home's chips already use. */}
+      {searchOpen && (
+        <SearchOverlay onClose={() => setSearchOpen(false)} onApply={(filters) => router.push(benchmarkHrefForCohortFilters(filters))} />
+      )}
       <DashboardSidebar />
       <div className="md:pl-[var(--sidebar-inset)] transition-[padding-left] duration-150">
         <main className="mx-auto max-w-5xl px-4 py-6 md:px-8">
@@ -164,7 +187,12 @@ export function MediaCatalogView({ catalog }: { catalog: MediaCatalog }) {
             <div className="mt-1.5 flex flex-wrap gap-1.5" role="group" aria-labelledby="catalog-category-label">
               <FilterChip label={t("media.allCategories")} active={categoryId === null} onClick={() => setCategoryId(null)} />
               {catalog.categories.map((c) => (
-                <FilterChip key={c.id} label={c.display_label} active={categoryId === c.id} onClick={() => setCategoryId(c.id)} />
+                <FilterChip
+                  key={c.id}
+                  label={translateTaxonomyLabel("mediaCategory", c.internal_key, c.display_label, locale)}
+                  active={categoryId === c.id}
+                  onClick={() => setCategoryId(c.id)}
+                />
               ))}
             </div>
           </div>
@@ -175,7 +203,12 @@ export function MediaCatalogView({ catalog }: { catalog: MediaCatalog }) {
             <div className="mt-1.5 flex flex-wrap gap-1.5" role="group" aria-labelledby="catalog-country-label">
               <FilterChip label={t("media.allCountries")} active={countryId === null} onClick={() => setCountryId(null)} />
               {countriesWithEntities.map((c) => (
-                <FilterChip key={c.id} label={c.display_label} active={countryId === c.id} onClick={() => setCountryId(c.id)} />
+                <FilterChip
+                  key={c.id}
+                  label={translateTaxonomyLabel("country", c.iso_code, c.display_label, locale)}
+                  active={countryId === c.id}
+                  onClick={() => setCountryId(c.id)}
+                />
               ))}
             </div>
           </div>

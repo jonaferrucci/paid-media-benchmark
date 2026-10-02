@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, Info, TrendingUp, Tag, BarChart3, ChevronDown, ChevronUp, Compass } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { AppHeader } from "@/components/dashboard/AppHeader";
 import { DashboardSidebar } from "@/components/dashboard/DashboardSidebar";
 import { SearchOverlay } from "@/components/dashboard/SearchOverlay";
@@ -12,6 +13,8 @@ import { AddMetricSnapshotForm, AddRateCardForm } from "./ContributionForms";
 import { freshnessLabel } from "@/lib/media/trend";
 import { plannerHrefForMedia, contributeRateCardHref, contributePublicDataHref } from "@/lib/media/contextLinks";
 import { resolveMediaCompleteness, resolveMediaNextAction, describeRateCardChange } from "@/lib/intelligence/mediaIntelligence";
+import { translateTaxonomyLabel } from "@/lib/i18n/taxonomyLabels";
+import { benchmarkHrefForCohortFilters } from "@/lib/benchmark/prefillQuery";
 
 function formatPrice(price: number, currency: string): string {
   return `${currency} ${new Intl.NumberFormat("es-AR").format(price)}`;
@@ -115,6 +118,7 @@ function formatValue(value: number, unitType: string): string {
 
 export function MediaProfileView({ profile }: { profile: MediaProfile }) {
   const { t, locale } = useTranslation();
+  const router = useRouter();
   const [searchOpen, setSearchOpen] = useState(false);
   const { platform, category, countries, latestMetrics, rateCardGroups, metricDefinitions, formats } = profile;
 
@@ -131,7 +135,13 @@ export function MediaProfileView({ profile }: { profile: MediaProfile }) {
   return (
     <div className="min-h-screen bg-canvas">
       <AppHeader onSearchClick={() => setSearchOpen(true)} />
-      {searchOpen && <SearchOverlay onClose={() => setSearchOpen(false)} onApply={() => {}} />}
+      {/* RELEASE POLISH (Section 3): see BenchmarkExplorer.tsx's identical
+          comment — a suggestion chip always means "go look at that
+          benchmark", so applying one navigates to /benchmark with the
+          same prefill query Home's chips already use. */}
+      {searchOpen && (
+        <SearchOverlay onClose={() => setSearchOpen(false)} onApply={(filters) => router.push(benchmarkHrefForCohortFilters(filters))} />
+      )}
       <DashboardSidebar />
       <div className="md:pl-[var(--sidebar-inset)] transition-[padding-left] duration-150">
         <main className="mx-auto max-w-4xl px-4 py-6 md:px-8">
@@ -149,10 +159,17 @@ export function MediaProfileView({ profile }: { profile: MediaProfile }) {
                 <span className="rounded-full bg-vanilla-soft px-2 py-0.5 text-[10px] font-medium text-vanilla">{t("media.statusPending")}</span>
               )}
             </div>
-            <p className="mt-1 text-sm text-ink-600">{category?.display_label ?? "—"}</p>
+            {/* RELEASE POLISH (Section 1 — taxonomy localization):
+                category/countries are always-English taxonomy rows,
+                resolved through the shared helper instead of rendered
+                raw. platform.display_label (the outlet's own name,
+                just above) is a real entity name and stays untranslated. */}
+            <p className="mt-1 text-sm text-ink-600">
+              {category ? translateTaxonomyLabel("mediaCategory", category.internal_key, category.display_label, locale) : "—"}
+            </p>
             {countries.length > 0 && (
               <p className="mt-1 text-xs text-ink-500">
-                {countries.map((c) => c?.display_label).filter(Boolean).join(", ")}
+                {countries.map((c) => c && translateTaxonomyLabel("country", c.iso_code, c.display_label, locale)).filter(Boolean).join(", ")}
               </p>
             )}
             {platform.is_global && <p className="mt-1 text-xs text-ink-500">{t("media.globalAvailability")}</p>}

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Search } from "lucide-react";
 import { VERTICALS } from "@/lib/mock/taxonomies";
 import { useTranslation } from "@/lib/i18n/LanguageContext";
+import { translateTaxonomyLabel } from "@/lib/i18n/taxonomyLabels";
 
 interface VerticalStepProps {
   onSelect: (verticalId: string) => void;
@@ -19,13 +20,22 @@ const COMMON_VERTICAL_IDS = [
 ];
 
 export function VerticalStep({ onSelect }: VerticalStepProps) {
-  const { t } = useTranslation();
+  const { t, locale } = useTranslation();
   const [query, setQuery] = useState("");
   const [showAll, setShowAll] = useState(false);
 
+  // RELEASE POLISH (Section 1 — taxonomy localization): VERTICALS
+  // (lib/mock/taxonomies.ts) is a static, hand-maintained list whose
+  // `label` is always English, by that file's own design (kept in sync
+  // with the real verticals.internal_key rows, never with a localized
+  // display — see its header comment). This was the one wizard step
+  // rendering that raw label directly instead of going through the
+  // shared taxonomyLabels helper every other taxonomy surface now uses.
+  const label = (v: { id: string; label: string }) => translateTaxonomyLabel("vertical", v.id, v.label, locale);
+
   const commonVerticals = VERTICALS.filter((v) => COMMON_VERTICAL_IDS.includes(v.id));
   const filtered = query
-    ? VERTICALS.filter((v) => v.label.toLowerCase().includes(query.toLowerCase()))
+    ? VERTICALS.filter((v) => label(v).toLowerCase().includes(query.toLowerCase()))
     : showAll
     ? VERTICALS
     : commonVerticals;
@@ -53,7 +63,7 @@ export function VerticalStep({ onSelect }: VerticalStepProps) {
             onClick={() => onSelect(v.id)}
             className="rounded-xl border border-line bg-surface px-3 py-3 text-sm font-medium text-ink-900 transition-colors hover:border-primary hover:text-primary"
           >
-            {v.label}
+            {label(v)}
           </button>
         ))}
       </div>

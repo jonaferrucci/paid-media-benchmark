@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import { Compass, Wallet, Bookmark, X, AlertTriangle, Info, TrendingUp, Trash2 } from "lucide-react";
 import { AppHeader } from "@/components/dashboard/AppHeader";
 import { DashboardSidebar } from "@/components/dashboard/DashboardSidebar";
@@ -25,6 +25,8 @@ import { computeMultiOpportunityTotals, requiresCommercialReview, type PlannedLi
 import { resolveMediaContext, resolveIdContext, contributeRateCardHref } from "@/lib/media/contextLinks";
 import { buildPlanSummaryLines, groupPlannerWarnings, countStaleSignals } from "@/lib/intelligence/plannerIntelligence";
 import { fetchPlanningOpportunitiesAction, saveScenarioAction, deleteScenarioAction, getScenarioAction, type SavedPlanningScenario } from "./actions";
+import { translateTaxonomyLabel } from "@/lib/i18n/taxonomyLabels";
+import { benchmarkHrefForCohortFilters } from "@/lib/benchmark/prefillQuery";
 
 type Opportunity = PlanningResult["opportunities"][number];
 
@@ -52,6 +54,7 @@ interface PlannerViewProps {
 export function PlannerView({ catalog, initialScenarios }: PlannerViewProps) {
   const { t, locale } = useTranslation();
   const { user } = useSupabaseUser();
+  const router = useRouter();
   const [searchOpen, setSearchOpen] = useState(false);
   const searchParams = useSearchParams();
 
@@ -135,10 +138,16 @@ export function PlannerView({ catalog, initialScenarios }: PlannerViewProps) {
     const format = result?.formats.find((f) => f.id === o.mediaFormatId);
     const category = result?.categories.find((c) => c.id === platform?.media_category_id);
     return {
+      // RELEASE POLISH (Section 1): outlet/property names are real
+      // entity names (never translated); media_formats stays raw —
+      // deliberately out of scope for this pass (see
+      // lib/i18n/taxonomyLabels.ts's header comment: many format names
+      // are industry loanwords not yet product-reviewed for a confident
+      // Spanish rendering). category (media_categories) IS in scope.
       outlet: platform?.display_label ?? "—",
       property: property?.display_label ?? null,
       format: format?.display_label ?? "—",
-      category: category?.display_label ?? "—",
+      category: category ? translateTaxonomyLabel("mediaCategory", category.internal_key, category.display_label, locale) : "—",
     };
   }
 
@@ -268,7 +277,13 @@ export function PlannerView({ catalog, initialScenarios }: PlannerViewProps) {
   return (
     <div className="min-h-screen bg-canvas">
       <AppHeader onSearchClick={() => setSearchOpen(true)} />
-      {searchOpen && <SearchOverlay onClose={() => setSearchOpen(false)} onApply={() => {}} />}
+      {/* RELEASE POLISH (Section 3): see BenchmarkExplorer.tsx's identical
+          comment — a suggestion chip always means "go look at that
+          benchmark", so applying one navigates to /benchmark with the
+          same prefill query Home's chips already use. */}
+      {searchOpen && (
+        <SearchOverlay onClose={() => setSearchOpen(false)} onApply={(filters) => router.push(benchmarkHrefForCohortFilters(filters))} />
+      )}
       <DashboardSidebar />
       <div className="md:pl-[var(--sidebar-inset)] transition-[padding-left] duration-150">
         <main className="mx-auto max-w-5xl px-4 py-6 md:px-8">
@@ -303,7 +318,7 @@ export function PlannerView({ catalog, initialScenarios }: PlannerViewProps) {
                 >
                   <option value="">{t("mediaPlanner.filters.categoryPlaceholder")}</option>
                   {catalog.categories.map((c) => (
-                    <option key={c.id} value={c.id}>{c.display_label}</option>
+                    <option key={c.id} value={c.id}>{translateTaxonomyLabel("mediaCategory", c.internal_key, c.display_label, locale)}</option>
                   ))}
                 </select>
               </label>
@@ -316,7 +331,7 @@ export function PlannerView({ catalog, initialScenarios }: PlannerViewProps) {
                 >
                   <option value="">{t("mediaPlanner.filters.countryPlaceholder")}</option>
                   {catalog.countries.map((c) => (
-                    <option key={c.id} value={c.id}>{c.display_label}</option>
+                    <option key={c.id} value={c.id}>{translateTaxonomyLabel("country", c.iso_code, c.display_label, locale)}</option>
                   ))}
                 </select>
               </label>
@@ -356,7 +371,7 @@ export function PlannerView({ catalog, initialScenarios }: PlannerViewProps) {
                     onClick={() => quickExplore(c.id)}
                     className="rounded-full border border-line bg-canvas px-3.5 py-1.5 text-xs font-medium text-ink-700 hover:border-primary hover:text-primary"
                   >
-                    {c.display_label} — {t("media.exploreCta")}
+                    {translateTaxonomyLabel("mediaCategory", c.internal_key, c.display_label, locale)} — {t("media.exploreCta")}
                   </button>
                 ))}
               </div>

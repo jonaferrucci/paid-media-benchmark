@@ -140,7 +140,15 @@ assertTrue(
   "Google Ads remains available as its own, independent platform option"
 );
 assertTrue(
-  benchmarkExplorerSource.includes("taxonomies.platforms.map((p) => ({ value: p.internal_key, label: p.display_label }))"),
+  // RELEASE POLISH (Section 2 — platform vs. media entity separation):
+  // the selector's options now come from `adPlatforms`, a filtered
+  // view of taxonomies.platforms (lib/media/filter.ts's
+  // splitPlatformsAndMedia, dropping individual media/outlet rows out
+  // of the "Plataforma" dropdown) — still sourced directly from the
+  // real platforms table, still with no 'youtube' row, so this
+  // assertion's actual invariant is unchanged; only which exact subset
+  // of that real table feeds the selector changed.
+  benchmarkExplorerSource.includes("adPlatforms.map((p) => ({ value: p.internal_key, label: p.display_label }))"),
   "/benchmark's own platform selector is built directly from the real platforms table (which has no 'youtube' row — see supabase/seed.sql) — YouTube cannot appear there as an independent platform even in principle"
 );
 

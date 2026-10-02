@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import { AlertCircle, ShieldAlert, Info } from "lucide-react";
 import { AppHeader } from "@/components/dashboard/AppHeader";
 import { DashboardSidebar } from "@/components/dashboard/DashboardSidebar";
@@ -20,6 +20,10 @@ import { SaveComparisonButton } from "@/app/comparisons/SaveComparisonButton";
 import { getSavedComparisonAction, type SavedComparison } from "@/app/comparisons/actions";
 import { resolveNoDataAction } from "@/lib/intelligence/benchmarkIntelligence";
 import { SINGLE_METRIC_OPTIONS } from "@/lib/benchmark/singleMetricOptions";
+import { splitPlatformsAndMedia } from "@/lib/media/filter";
+import { translateTaxonomyLabel } from "@/lib/i18n/taxonomyLabels";
+import { benchmarkHrefForCohortFilters } from "@/lib/benchmark/prefillQuery";
+import type { Locale } from "@/lib/i18n/translations";
 
 // PHASE 32: now the single shared source of truth (lib/benchmark/
 // singleMetricOptions.ts) — the campaign-detail activation flow
@@ -106,8 +110,17 @@ const DEFAULT_DRAFT: Draft = {
 };
 
 export function BenchmarkExplorer({ taxonomies }: { taxonomies: ContributionTaxonomies }) {
-  const { t } = useTranslation();
+  const { t, locale } = useTranslation();
   const searchParams = useSearchParams();
+  const router = useRouter();
+  // RELEASE POLISH (Section 2 — platform vs. media entity separation):
+  // see CampaignExplorer.tsx's identical comment — same shared
+  // splitPlatformsAndMedia helper, same reasoning, applied here for the
+  // single-metric tab's own "Plataforma" selector.
+  const { adPlatforms } = useMemo(
+    () => splitPlatformsAndMedia(taxonomies.platforms, taxonomies.mediaCategories),
+    [taxonomies]
+  );
   const [mode, setMode] = useState<"single" | "campaign">("single");
   const [draft, setDraft] = useState<Draft>(DEFAULT_DRAFT);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -378,10 +391,17 @@ export function BenchmarkExplorer({ taxonomies }: { taxonomies: ContributionTaxo
     handleSubmit(nextRelaxed);
   }
 
+  // RELEASE POLISH (Section 1 — taxonomy localization): platform stays
+  // a raw lookup (real brand/proper noun, never translated); objective/
+  // vertical/country now resolve through the shared taxonomyLabels
+  // helper instead of the raw (always-English) display_label.
   const platformLabel = (key: string) => taxonomies.platforms.find((p) => p.internal_key === key)?.display_label ?? key;
-  const objectiveLabel = (key: string) => taxonomies.objectives.find((o) => o.internal_key === key)?.display_label ?? key;
-  const verticalLabel = (key: string) => taxonomies.verticals.find((v) => v.internal_key === key)?.display_label ?? key;
-  const countryLabel = (key: string) => taxonomies.countries.find((c) => c.iso_code === key)?.display_label ?? key;
+  const objectiveLabel = (key: string) =>
+    translateTaxonomyLabel("objective", key, taxonomies.objectives.find((o) => o.internal_key === key)?.display_label ?? key, locale);
+  const verticalLabel = (key: string) =>
+    translateTaxonomyLabel("vertical", key, taxonomies.verticals.find((v) => v.internal_key === key)?.display_label ?? key, locale);
+  const countryLabel = (key: string) =>
+    translateTaxonomyLabel("country", key, taxonomies.countries.find((c) => c.iso_code === key)?.display_label ?? key, locale);
 
   // HOME->BENCHMARK CONTINUITY FIX (§3/§6): there is something real to
   // summarize once every required dimension has a value, regardless of
@@ -407,7 +427,15 @@ export function BenchmarkExplorer({ taxonomies }: { taxonomies: ContributionTaxo
   return (
     <div className="min-h-screen bg-canvas">
       <AppHeader onSearchClick={() => setSearchOpen(true)} />
-      {searchOpen && <SearchOverlay onClose={() => setSearchOpen(false)} onApply={() => {}} />}
+      {/* RELEASE POLISH (Section 3): a suggestion chip's filter is a
+          Benchmark cohort filter, so clicking one here — where we're
+          already on /benchmark — navigates with the same query string
+          Home's chips already use; the existing prefill useEffect
+          above (keyed on searchParams) picks it up and merges it into
+          `draft`, exactly like a Home arrival. */}
+      {searchOpen && (
+        <SearchOverlay onClose={() => setSearchOpen(false)} onApply={(filters) => router.push(benchmarkHrefForCohortFilters(filters))} />
+      )}
       <DashboardSidebar />
       <div className="md:pl-[var(--sidebar-inset)] transition-[padding-left] duration-150">
         <main className={`mx-auto space-y-6 px-4 py-8 md:px-8 ${response && mode === "single" ? "max-w-[1400px]" : "max-w-2xl"}`}>
@@ -496,7 +524,7 @@ export function BenchmarkExplorer({ taxonomies }: { taxonomies: ContributionTaxo
                     onChange={(v) => update("platform", v)}
                     allowEmpty
                     required
-                    options={taxonomies.platforms.map((p) => ({ value: p.internal_key, label: p.display_label }))}
+                    options={adPlatforms.map((p) => ({ value: p.internal_key, label: p.display_label }))}
                   />
                   <Select
                     label={t("contribute.objective")}
@@ -504,7 +532,7 @@ export function BenchmarkExplorer({ taxonomies }: { taxonomies: ContributionTaxo
                     onChange={(v) => update("objective", v)}
                     allowEmpty
                     required
-                    options={taxonomies.objectives.map((o) => ({ value: o.internal_key, label: o.display_label }))}
+                    options={taxonomies.objectives.map((o) => ({ value: o.internal_key, label: translateTaxonomyLabel("objective", o.internal_key, o.display_label, locale) }))}
                   />
                   <Select
                     label={t("contribute.vertical")}
@@ -512,7 +540,7 @@ export function BenchmarkExplorer({ taxonomies }: { taxonomies: ContributionTaxo
                     onChange={(v) => update("vertical", v)}
                     allowEmpty
                     required
-                    options={taxonomies.verticals.map((v) => ({ value: v.internal_key, label: v.display_label }))}
+                    options={taxonomies.verticals.map((v) => ({ value: v.internal_key, label: translateTaxonomyLabel("vertical", v.internal_key, v.display_label, locale) }))}
                   />
                   <Select
                     label={t("contribute.country")}
@@ -520,7 +548,7 @@ export function BenchmarkExplorer({ taxonomies }: { taxonomies: ContributionTaxo
                     onChange={(v) => update("country", v)}
                     allowEmpty
                     required
-                    options={taxonomies.countries.map((c) => ({ value: c.iso_code, label: c.display_label }))}
+                    options={taxonomies.countries.map((c) => ({ value: c.iso_code, label: translateTaxonomyLabel("country", c.iso_code, c.display_label, locale) }))}
                   />
                 </div>
                 {hasCompleteContext && (
@@ -620,21 +648,21 @@ export function BenchmarkExplorer({ taxonomies }: { taxonomies: ContributionTaxo
                   value={draft.audienceStrategy}
                   onChange={(v) => update("audienceStrategy", v)}
                   allowEmpty
-                  options={taxonomies.audienceStrategies.map((a) => ({ value: a.internal_key, label: a.display_label }))}
+                  options={taxonomies.audienceStrategies.map((a) => ({ value: a.internal_key, label: translateTaxonomyLabel("audienceStrategy", a.internal_key, a.display_label, locale) }))}
                 />
                 <Select
                   label={t("contribute.funnelStage")}
                   value={draft.funnelStage}
                   onChange={(v) => update("funnelStage", v)}
                   allowEmpty
-                  options={taxonomies.funnelStages.map((f) => ({ value: f.internal_key, label: f.display_label }))}
+                  options={taxonomies.funnelStages.map((f) => ({ value: f.internal_key, label: translateTaxonomyLabel("funnelStage", f.internal_key, f.display_label, locale) }))}
                 />
                 <Select
                   label={t("contribute.businessModel")}
                   value={draft.businessModel}
                   onChange={(v) => update("businessModel", v)}
                   allowEmpty
-                  options={taxonomies.businessModels.map((b) => ({ value: b.internal_key, label: b.display_label }))}
+                  options={taxonomies.businessModels.map((b) => ({ value: b.internal_key, label: translateTaxonomyLabel("businessModel", b.internal_key, b.display_label, locale) }))}
                 />
               </div>
 
@@ -684,6 +712,7 @@ export function BenchmarkExplorer({ taxonomies }: { taxonomies: ContributionTaxo
               <ResultView
                 response={response}
                 t={t}
+                locale={locale}
                 onApplySuggestion={applyRelaxationSuggestion}
                 onRetry={() => handleSubmit()}
                 platformLabel={platformLabel(draft.platform)}
@@ -720,6 +749,7 @@ export function BenchmarkExplorer({ taxonomies }: { taxonomies: ContributionTaxo
 export function ResultView({
   response,
   t,
+  locale,
   onApplySuggestion,
   onRetry,
   platformLabel,
@@ -733,6 +763,7 @@ export function ResultView({
 }: {
   response: BenchmarkResponse;
   t: (key: string, vars?: Record<string, string | number>) => string;
+  locale: Locale;
   onApplySuggestion: () => void;
   onRetry?: () => void;
   platformLabel: string;
@@ -889,7 +920,7 @@ export function ResultView({
           dimension notice — same underlying facts (response.cohort),
           never a new computation, just consolidated so cohort
           information isn't scattered across the card. */}
-      {taxonomies && <CohortContextSection response={response} taxonomies={taxonomies} t={t} />}
+      {taxonomies && <CohortContextSection response={response} taxonomies={taxonomies} t={t} locale={locale} />}
 
       {/* HISTORICAL BENCHMARKS ARCHITECTURE: collapsed by default,
           lazily queried only when opened (§11) — placed right after the
@@ -957,10 +988,12 @@ function CohortContextSection({
   response,
   taxonomies,
   t,
+  locale,
 }: {
   response: BenchmarkResponse;
   taxonomies: ContributionTaxonomies;
   t: (key: string, vars?: Record<string, string | number>) => string;
+  locale: Locale;
 }) {
   const applied = response.cohort.applied as {
     audienceStrategy?: string | null;
@@ -973,13 +1006,37 @@ function CohortContextSection({
 
   const rows: { label: string; value: string }[] = [];
   if (applied.audienceStrategy) {
-    rows.push({ label: t("contribute.audienceStrategy"), value: taxonomies.audienceStrategies.find((a) => a.internal_key === applied.audienceStrategy)?.display_label ?? applied.audienceStrategy });
+    rows.push({
+      label: t("contribute.audienceStrategy"),
+      value: translateTaxonomyLabel(
+        "audienceStrategy",
+        applied.audienceStrategy,
+        taxonomies.audienceStrategies.find((a) => a.internal_key === applied.audienceStrategy)?.display_label ?? applied.audienceStrategy,
+        locale
+      ),
+    });
   }
   if (applied.funnelStage) {
-    rows.push({ label: t("contribute.funnelStage"), value: taxonomies.funnelStages.find((f) => f.internal_key === applied.funnelStage)?.display_label ?? applied.funnelStage });
+    rows.push({
+      label: t("contribute.funnelStage"),
+      value: translateTaxonomyLabel(
+        "funnelStage",
+        applied.funnelStage,
+        taxonomies.funnelStages.find((f) => f.internal_key === applied.funnelStage)?.display_label ?? applied.funnelStage,
+        locale
+      ),
+    });
   }
   if (applied.businessModel) {
-    rows.push({ label: t("contribute.businessModel"), value: taxonomies.businessModels.find((b) => b.internal_key === applied.businessModel)?.display_label ?? applied.businessModel });
+    rows.push({
+      label: t("contribute.businessModel"),
+      value: translateTaxonomyLabel(
+        "businessModel",
+        applied.businessModel,
+        taxonomies.businessModels.find((b) => b.internal_key === applied.businessModel)?.display_label ?? applied.businessModel,
+        locale
+      ),
+    });
   }
   if (applied.spendBand) {
     rows.push({ label: t("finder.spendRange"), value: SPEND_BAND_OPTIONS.find((o) => o.value === applied.spendBand)?.label ?? applied.spendBand });

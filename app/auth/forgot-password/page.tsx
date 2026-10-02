@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import { useFormState, useFormStatus } from "react-dom";
 import Link from "next/link";
 import { LogoMark } from "@/components/dashboard/LogoMark";
@@ -24,6 +25,13 @@ export default function ForgotPasswordPage() {
   const { t } = useTranslation();
   const [state, formAction] = useFormState<AuthActionResult, FormData>(forgotPasswordAction, {});
 
+  // RELEASE POLISH (Section 4): see app/auth/sign-in/page.tsx's
+  // identical comment — same fix, same reasoning, applied here.
+  const errorRef = useRef<HTMLParagraphElement>(null);
+  useEffect(() => {
+    if (state.error) errorRef.current?.focus();
+  }, [state.error]);
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-canvas px-4">
       <div className="w-full max-w-sm rounded-2xl border border-line bg-surface p-6 shadow-sm">
@@ -46,10 +54,16 @@ export default function ForgotPasswordPage() {
                 type="email"
                 name="email"
                 required
+                aria-invalid={state.error ? true : undefined}
+                aria-describedby={state.error ? "forgot-password-error" : undefined}
                 placeholder={t("auth.emailPlaceholder")}
                 className="w-full rounded-full border border-line bg-canvas px-4 py-2.5 text-sm text-ink-900 outline-none focus-visible:border-primary"
               />
-              {state.error && <p className="text-xs text-caution">{t(`authErrors.${state.error}`)}</p>}
+              {state.error && (
+                <p id="forgot-password-error" ref={errorRef} role="alert" tabIndex={-1} className="text-xs text-caution outline-none">
+                  {t(`authErrors.${state.error}`)}
+                </p>
+              )}
               <SubmitButton />
             </form>
           </>
