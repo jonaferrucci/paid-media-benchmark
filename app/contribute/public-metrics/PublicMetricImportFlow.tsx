@@ -2,7 +2,8 @@
 
 import { useCallback, useRef, useState } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
+import { benchmarkHrefForCohortFilters } from "@/lib/benchmark/prefillQuery";
 import { Upload, ArrowLeft, Check, AlertTriangle, FileDown, TrendingUp } from "lucide-react";
 import { AppHeader } from "@/components/dashboard/AppHeader";
 import { DashboardSidebar } from "@/components/dashboard/DashboardSidebar";
@@ -69,6 +70,7 @@ export function PublicMetricImportFlow({
   // a context banner only, never a per-row prefill/shortcut.
   const mediaContext = resolveMediaContext(searchParams.get("media"), knownPlatforms);
   const [searchOpen, setSearchOpen] = useState(false);
+  const router = useRouter();
   const [step, setStep] = useState<Step>("file");
   const [fileName, setFileName] = useState("");
   const [fileError, setFileError] = useState<string | null>(null);
@@ -196,7 +198,7 @@ export function PublicMetricImportFlow({
   return (
     <div className="min-h-screen bg-canvas">
       <AppHeader onSearchClick={() => setSearchOpen(true)} />
-      {searchOpen && <SearchOverlay onClose={() => setSearchOpen(false)} onApply={() => {}} />}
+      {searchOpen && <SearchOverlay onClose={() => setSearchOpen(false)} onApply={(filters) => router.push(benchmarkHrefForCohortFilters(filters))} />}
       <DashboardSidebar />
       <div className="md:pl-[var(--sidebar-inset)] transition-[padding-left] duration-150">
         <main className="mx-auto max-w-4xl px-4 py-6 md:px-8">

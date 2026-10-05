@@ -141,16 +141,22 @@ for (const [label, source] of [
 // verified/pending platform distinction untouched, manual entry still
 // secondary.
 // -----------------------------------------------------------------------
+// AUTHENTICATED JOURNEY + CONTRIBUTION ONBOARDING POLISH (§2): the
+// primary-action copy was rewritten to the brief's exact required
+// hierarchy/wording ("Importar campañas" / "Importar reporte" instead
+// of the old "Importar reporte de una plataforma" / "Importar
+// archivo") — still plainly states detection is automatic, in the
+// user's own language rather than DB/model terminology.
 assertTrue(
-  translationsSource.includes('primaryBody: "Subí el reporte exportado desde la plataforma. Cucurucho detecta y mapea las columnas automáticamente."'),
-  "the primary upload action's body copy states plainly that column detection/mapping is automatic (ES)"
+  translationsSource.includes('primaryBody: "Subí un reporte exportado de Meta Ads o Google Ads. Cucurucho detecta las campañas, métricas y contexto automáticamente."'),
+  "the primary upload action's body copy states plainly that detection is automatic (ES)"
 );
 assertTrue(
-  translationsSource.includes('primaryBody: "Upload the report exported from the platform. Cucurucho detects and maps the columns automatically."'),
-  "the primary upload action's body copy states plainly that column detection/mapping is automatic (EN)"
+  translationsSource.includes('primaryBody: "Upload a report exported from Meta Ads or Google Ads. Cucurucho detects the campaigns, metrics and context automatically."'),
+  "the primary upload action's body copy states plainly that detection is automatic (EN)"
 );
 assertTrue(
-  contributeLandingSource.includes("isVerifiedWithRealExport(p)") && contributeLandingSource.includes("t(\"contribute.platformSupportLegend\")"),
+  contributeLandingSource.includes("isVerifiedWithRealExport(p)") && contributeLandingSource.includes("t(\"contribute.import.platformSupportLegend\")"),
   "the honest verified-vs-pending platform legend (Meta/Google verified, others compatible/pending) is untouched"
 );
 assertTrue(

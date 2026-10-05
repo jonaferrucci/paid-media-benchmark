@@ -394,7 +394,10 @@ export function BenchmarkExplorer({ taxonomies }: { taxonomies: ContributionTaxo
   // RELEASE POLISH (Section 1 — taxonomy localization): platform stays
   // a raw lookup (real brand/proper noun, never translated); objective/
   // vertical/country now resolve through the shared taxonomyLabels
-  // helper instead of the raw (always-English) display_label.
+  // helper instead of the raw (always-English) display_label. This is
+  // also the exact root cause the Authenticated Journey pass later
+  // confirmed live ("Reach"/"Beauty & Personal Care" leaking into the
+  // ES "Benchmark seleccionado" summary) — already fixed here.
   const platformLabel = (key: string) => taxonomies.platforms.find((p) => p.internal_key === key)?.display_label ?? key;
   const objectiveLabel = (key: string) =>
     translateTaxonomyLabel("objective", key, taxonomies.objectives.find((o) => o.internal_key === key)?.display_label ?? key, locale);
@@ -504,7 +507,7 @@ export function BenchmarkExplorer({ taxonomies }: { taxonomies: ContributionTaxo
                   type="button"
                   onClick={() => setContextEditing(true)}
                   aria-expanded={false}
-                  className="mt-2 text-xs font-medium text-primary hover:underline"
+                  className="mt-2 text-sm font-semibold text-primary hover:underline"
                 >
                   {t("benchmarkLive.changeContextCta")}
                 </button>

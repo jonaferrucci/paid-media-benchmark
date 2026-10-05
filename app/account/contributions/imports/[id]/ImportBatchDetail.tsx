@@ -4,9 +4,12 @@ import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { AppHeader } from "@/components/dashboard/AppHeader";
 import { DashboardSidebar } from "@/components/dashboard/DashboardSidebar";
+import { useRouter } from "next/navigation";
+import { benchmarkHrefForCohortFilters } from "@/lib/benchmark/prefillQuery";
 import { SearchOverlay } from "@/components/dashboard/SearchOverlay";
 import { useState } from "react";
 import { useTranslation } from "@/lib/i18n/LanguageContext";
+import { translateTaxonomyLabel } from "@/lib/i18n/taxonomyLabels";
 import { computeImportBatchStatus, IMPORT_BATCH_STATUS_STYLE, resolveBatchDisplayCount } from "@/lib/contribute/importBatchStatus";
 
 // PHASE 25 — §17: a small, honest import-batch detail view. Never a
@@ -32,11 +35,13 @@ export interface ImportBatchCampaignRow {
   startDate: string;
   endDate: string;
   objectiveLabel: string;
+  objectiveKey: string | null;
 }
 
 export function ImportBatchDetail({ batch, campaigns }: { batch: ImportBatchDetailData; campaigns: ImportBatchCampaignRow[] }) {
-  const { t } = useTranslation();
+  const { t, locale } = useTranslation();
   const [searchOpen, setSearchOpen] = useState(false);
+  const router = useRouter();
   // PHASE 28: batch.successCount is now finalized for real (migration
   // 0019 + bulk-actions.ts's error-checked update) and is primary;
   // `campaigns.length` (already a real query against
@@ -53,7 +58,7 @@ export function ImportBatchDetail({ batch, campaigns }: { batch: ImportBatchDeta
   return (
     <div className="min-h-screen bg-canvas">
       <AppHeader onSearchClick={() => setSearchOpen(true)} />
-      {searchOpen && <SearchOverlay onClose={() => setSearchOpen(false)} onApply={() => {}} />}
+      {searchOpen && <SearchOverlay onClose={() => setSearchOpen(false)} onApply={(filters) => router.push(benchmarkHrefForCohortFilters(filters))} />}
       <DashboardSidebar />
       <div className="md:pl-[var(--sidebar-inset)] transition-[padding-left] duration-150">
         <main className="mx-auto max-w-2xl px-4 py-8 md:px-8">
@@ -102,7 +107,7 @@ export function ImportBatchDetail({ batch, campaigns }: { batch: ImportBatchDeta
                     className="block rounded-xl border border-line px-3 py-2 text-xs hover:border-primary/40"
                   >
                     <p className="font-medium text-ink-900">{c.campaignName ?? t("contributions.unnamedCampaign")}</p>
-                    <p className="mt-0.5 text-ink-500">{c.objectiveLabel} · {c.startDate} — {c.endDate}</p>
+                    <p className="mt-0.5 text-ink-500">{translateTaxonomyLabel("objective", c.objectiveKey, c.objectiveLabel, locale)} · {c.startDate} — {c.endDate}</p>
                   </Link>
                 ))}
               </div>

@@ -37,8 +37,11 @@ export interface PendingContributionRow {
   campaignName: string | null;
   platformLabel: string;
   objectiveLabel: string;
+  objectiveKey: string | null;
   verticalLabel: string;
+  verticalKey: string | null;
   countryLabel: string;
+  countryKey: string | null;
   startDate: string;
   endDate: string;
   currency: string;
@@ -67,9 +70,9 @@ interface PendingRow {
   data_source: string;
   created_at: string;
   platforms: { display_label: string } | null;
-  objectives: { display_label: string } | null;
-  verticals: { display_label: string } | null;
-  countries: { display_label: string } | null;
+  objectives: { display_label: string; internal_key: string } | null;
+  verticals: { display_label: string; internal_key: string } | null;
+  countries: { display_label: string; iso_code: string } | null;
   dataset_metric_values: { raw_numeric_value: number; metrics: { internal_key: string } | null }[] | null;
 }
 
@@ -85,9 +88,9 @@ export async function getPendingContributionsQueue(): Promise<{ hasError: boolea
     .select(
       `id, campaign_name, start_date, end_date, original_currency, data_source, created_at,
        platforms(display_label),
-       objectives(display_label),
-       verticals(display_label),
-       countries(display_label),
+       objectives(display_label, internal_key),
+       verticals(display_label, internal_key),
+       countries(display_label, iso_code),
        dataset_metric_values(raw_numeric_value, metrics(internal_key))`
     )
     .eq("validation_status", "pending")
@@ -133,8 +136,11 @@ export async function getPendingContributionsQueue(): Promise<{ hasError: boolea
       campaignName: row.campaign_name,
       platformLabel: row.platforms?.display_label ?? "—",
       objectiveLabel: row.objectives?.display_label ?? "—",
+      objectiveKey: row.objectives?.internal_key ?? null,
       verticalLabel: row.verticals?.display_label ?? "—",
+      verticalKey: row.verticals?.internal_key ?? null,
       countryLabel: row.countries?.display_label ?? "—",
+      countryKey: row.countries?.iso_code ?? null,
       startDate: row.start_date,
       endDate: row.end_date,
       currency: row.original_currency,

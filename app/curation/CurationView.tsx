@@ -5,8 +5,11 @@ import Link from "next/link";
 import { Check, X, Database } from "lucide-react";
 import { AppHeader } from "@/components/dashboard/AppHeader";
 import { DashboardSidebar } from "@/components/dashboard/DashboardSidebar";
+import { useRouter } from "next/navigation";
+import { benchmarkHrefForCohortFilters } from "@/lib/benchmark/prefillQuery";
 import { SearchOverlay } from "@/components/dashboard/SearchOverlay";
 import { useTranslation } from "@/lib/i18n/LanguageContext";
+import { translateTaxonomyLabel } from "@/lib/i18n/taxonomyLabels";
 import type { GovernanceQueue } from "@/lib/media/governanceQueries";
 import { reviewRateCardAction, reviewSnapshotAction, reviewPlatformAction } from "@/lib/media/governanceActions";
 import { REVIEW_METRIC_LABEL_KEYS } from "@/lib/contribute/reviewMetricLabels";
@@ -95,7 +98,7 @@ function SupersedeCandidateRow({
   candidateStartDate: string;
   candidateEndDate: string;
 }) {
-  const { t } = useTranslation();
+  const { t, locale } = useTranslation();
   const [state, setState] = useState<RowState>("idle");
   const [done, setDone] = useState(false);
 
@@ -111,10 +114,10 @@ function SupersedeCandidateRow({
   return (
     <div className="rounded-xl border border-line bg-canvas px-3 py-2.5">
       <p className="text-sm font-medium text-ink-800">
-        {contribution.campaignName ?? t("contributions.unnamedCampaign")} · {contribution.platformLabel} · {contribution.objectiveLabel}
+        {contribution.campaignName ?? t("contributions.unnamedCampaign")} · {contribution.platformLabel} · {translateTaxonomyLabel("objective", contribution.objectiveKey, contribution.objectiveLabel, locale)}
       </p>
       <p className="text-xs text-ink-500">
-        {contribution.verticalLabel} · {contribution.countryLabel} · {contribution.startDate} — {contribution.endDate} · {contribution.currency}
+        {translateTaxonomyLabel("vertical", contribution.verticalKey, contribution.verticalLabel, locale)} · {translateTaxonomyLabel("country", contribution.countryKey, contribution.countryLabel, locale)} · {contribution.startDate} — {contribution.endDate} · {contribution.currency}
       </p>
       <p className="mt-1.5 rounded-lg bg-vanilla-soft px-2 py-1 text-[11px] font-medium text-vanilla">
         {t("curation.supersedeCandidateNote", { start: candidateStartDate, end: candidateEndDate })}
@@ -160,13 +163,14 @@ function Section({ title, count, empty, children }: { title: string; count: numb
 }
 
 export function CurationView({ queue, contributions }: { queue: GovernanceQueue; contributions: PendingContributionsQueue }) {
-  const { t } = useTranslation();
+  const { t, locale } = useTranslation();
   const [searchOpen, setSearchOpen] = useState(false);
+  const router = useRouter();
 
   return (
     <div className="min-h-screen bg-canvas">
       <AppHeader onSearchClick={() => setSearchOpen(true)} />
-      {searchOpen && <SearchOverlay onClose={() => setSearchOpen(false)} onApply={() => {}} />}
+      {searchOpen && <SearchOverlay onClose={() => setSearchOpen(false)} onApply={(filters) => router.push(benchmarkHrefForCohortFilters(filters))} />}
       <DashboardSidebar />
       <div className="md:pl-[var(--sidebar-inset)] transition-[padding-left] duration-150">
         <main className="mx-auto max-w-4xl px-4 py-6 md:px-8">
@@ -219,8 +223,8 @@ export function CurationView({ queue, contributions }: { queue: GovernanceQueue;
               return (
                 <ReviewRow
                   key={c.id}
-                  title={`${c.campaignName ?? t("contributions.unnamedCampaign")} · ${c.platformLabel} · ${c.objectiveLabel}`}
-                  subtitle={`${c.verticalLabel} · ${c.countryLabel} · ${c.startDate} — ${c.endDate} · ${c.currency}`}
+                  title={`${c.campaignName ?? t("contributions.unnamedCampaign")} · ${c.platformLabel} · ${translateTaxonomyLabel("objective", c.objectiveKey, c.objectiveLabel, locale)}`}
+                  subtitle={`${translateTaxonomyLabel("vertical", c.verticalKey, c.verticalLabel, locale)} · ${translateTaxonomyLabel("country", c.countryKey, c.countryLabel, locale)} · ${c.startDate} — ${c.endDate} · ${c.currency}`}
                   meta={`${t("contributions.sourceLabel")}: ${t(`contributions.source.${c.dataSource}`)} · ${t("contributions.importDateLabel")} ${new Date(c.createdAt).toLocaleDateString()} · ${metricsLabel}`}
                   approveLabel={t("curation.approve")}
                   rejectLabel={t("curation.reject")}

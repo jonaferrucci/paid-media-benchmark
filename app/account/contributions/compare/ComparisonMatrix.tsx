@@ -29,6 +29,7 @@ import { formatMetricValue, resolveClassificationLabelKey, type PerformanceLabel
 import { LABEL_STYLE, LABEL_ICON } from "@/app/benchmark/ComparisonDetail";
 import { STATUS_ICON } from "@/app/benchmark/MetricComparisonRow";
 import type { BenchmarkResponse } from "@/lib/benchmark/responseShape";
+import { translateTaxonomyLabel } from "@/lib/i18n/taxonomyLabels";
 
 export interface ComparisonMatrixCampaign {
   id: string;
@@ -37,6 +38,14 @@ export interface ComparisonMatrixCampaign {
   objectiveLabel: string;
   verticalLabel: string;
   countryLabel: string;
+  // AUTHENTICATED JOURNEY + CONTRIBUTION ONBOARDING POLISH (§5):
+  // page.tsx (a Server Component) cannot resolve the viewer's locale —
+  // that's client-only state — so these raw keys travel alongside the
+  // *Label fallback and this component does the actual
+  // translateTaxonomyLabel() resolution where locale is available.
+  objectiveKey: string | null;
+  verticalKey: string | null;
+  countryKey: string | null;
   currency: string;
   validationStatus: string;
   startDate: string;
@@ -58,6 +67,9 @@ interface MarketContextEntry {
   objectiveLabel: string;
   verticalLabel: string;
   countryLabel: string;
+  objectiveKey: string | null;
+  verticalKey: string | null;
+  countryKey: string | null;
   response: BenchmarkResponse;
 }
 
@@ -89,10 +101,12 @@ const STATUS_STYLE: Record<string, string> = {
 function MarketContextChip({
   ctx,
   t,
+  locale,
   showCohortLabel,
 }: {
   ctx: MarketContextEntry;
   t: (key: string, vars?: Record<string, string | number>) => string;
+  locale: "es" | "en";
   showCohortLabel: boolean;
 }) {
   const { response } = ctx;
@@ -110,7 +124,7 @@ function MarketContextChip({
     <span className="inline-flex flex-wrap items-center gap-x-1.5 gap-y-0.5 rounded-full bg-surface2 px-2.5 py-1 text-[11px] text-ink-700">
       {showCohortLabel && (
         <span className="font-medium text-ink-800">
-          {ctx.platformLabel} · {ctx.objectiveLabel} · {ctx.countryLabel}:
+          {ctx.platformLabel} · {translateTaxonomyLabel("objective", ctx.objectiveKey, ctx.objectiveLabel, locale)} · {translateTaxonomyLabel("country", ctx.countryKey, ctx.countryLabel, locale)}:
         </span>
       )}
       <span>
@@ -127,10 +141,12 @@ function MetricRowBlock({
   row,
   campaigns,
   t,
+  locale,
 }: {
   row: ComparisonMatrixRow;
   campaigns: ComparisonMatrixCampaign[];
   t: (key: string, vars?: Record<string, string | number>) => string;
+  locale: "es" | "en";
 }) {
   const label = DERIVED_METRIC_LABELS[row.metric as DerivedMetricKey] ?? row.metric.toUpperCase();
 
@@ -185,7 +201,7 @@ function MetricRowBlock({
       {!row.currencyMixed && row.marketContexts.length > 0 && (
         <div className="mt-2.5 flex flex-wrap gap-1.5 border-t border-line pt-2.5">
           {row.marketContexts.map((ctx) => (
-            <MarketContextChip key={ctx.cohortKey} ctx={ctx} t={t} showCohortLabel={row.multipleCohorts} />
+            <MarketContextChip key={ctx.cohortKey} ctx={ctx} t={t} locale={locale} showCohortLabel={row.multipleCohorts} />
           ))}
         </div>
       )}
@@ -202,7 +218,7 @@ export function ComparisonMatrix({
   rows: ComparisonMatrixRow[];
   ungroupedCampaignIds: string[];
 }) {
-  const { t } = useTranslation();
+  const { t, locale } = useTranslation();
 
   return (
     <div className="min-h-screen bg-canvas">
@@ -241,7 +257,7 @@ export function ComparisonMatrix({
                   </span>
                 </div>
                 <p className="mt-0.5 text-[11px] text-ink-600">
-                  {c.platformLabel} · {c.objectiveLabel} · {c.countryLabel}
+                  {c.platformLabel} · {translateTaxonomyLabel("objective", c.objectiveKey, c.objectiveLabel, locale)} · {translateTaxonomyLabel("country", c.countryKey, c.countryLabel, locale)}
                 </p>
                 <p className="mt-0.5 text-[11px] text-ink-400">
                   {c.startDate} — {c.endDate} · {c.currency}
@@ -258,7 +274,7 @@ export function ComparisonMatrix({
               card listing every selected campaign's value. */}
           <div className="mt-6 space-y-3 md:hidden">
             {rows.map((row) => (
-              <MetricRowBlock key={row.metric} row={row} campaigns={campaigns} t={t} />
+              <MetricRowBlock key={row.metric} row={row} campaigns={campaigns} t={t} locale={locale} />
             ))}
           </div>
 
@@ -324,7 +340,7 @@ export function ComparisonMatrix({
                         ) : row.marketContexts.length > 0 ? (
                           <div className="flex flex-wrap gap-1.5">
                             {row.marketContexts.map((ctx) => (
-                              <MarketContextChip key={ctx.cohortKey} ctx={ctx} t={t} showCohortLabel={row.multipleCohorts} />
+                              <MarketContextChip key={ctx.cohortKey} ctx={ctx} t={t} locale={locale} showCohortLabel={row.multipleCohorts} />
                             ))}
                           </div>
                         ) : (

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Search, Layers, Info } from "lucide-react";
 import { AppHeader } from "@/components/dashboard/AppHeader";
 import { DashboardSidebar } from "@/components/dashboard/DashboardSidebar";
+import { benchmarkHrefForCohortFilters } from "@/lib/benchmark/prefillQuery";
 import { SearchOverlay } from "@/components/dashboard/SearchOverlay";
 import { EntityCard } from "@/components/ui/EntityCard";
 import { EntityAvatar } from "@/components/ui/EntityAvatar";
@@ -14,7 +15,6 @@ import { useTranslation } from "@/lib/i18n/LanguageContext";
 import type { MediaCatalog } from "@/lib/media/catalog";
 import { platformsForCategory, platformsForCountry, searchCatalogAcrossFields, splitPlatformsAndMedia } from "@/lib/media/filter";
 import { translateTaxonomyLabel } from "@/lib/i18n/taxonomyLabels";
-import { benchmarkHrefForCohortFilters } from "@/lib/benchmark/prefillQuery";
 
 // Phase 20C item D: progressive chip filters replace the two dropdown
 // <select>s (a "filter wall") — the same platformsForCategory/
@@ -95,7 +95,10 @@ export function MediaCatalogView({ catalog }: { catalog: MediaCatalog }) {
   // display_label is always English (no locale column — see
   // lib/i18n/taxonomyLabels.ts's header comment); countries resolve the
   // same way. Both now go through the shared helper instead of being
-  // rendered raw.
+  // rendered raw. Media Catalog's rows carry `internal_key`/`iso_code`
+  // alongside `display_label` (see lib/media/catalog.ts's getMediaCatalog
+  // query), so translateTaxonomyLabel resolves off those, matched by
+  // `id` the same way the raw lookup did.
   function categoryLabel(id: string | null): string {
     const category = catalog.categories.find((c) => c.id === id);
     if (!category) return "";

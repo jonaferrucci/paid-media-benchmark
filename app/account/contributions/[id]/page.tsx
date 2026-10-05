@@ -281,6 +281,9 @@ export default async function ContributionDetailPage({ params }: { params: { id:
         objectiveLabel: dataset.objectives?.display_label ?? "—",
         verticalLabel: dataset.verticals?.display_label ?? "—",
         countryLabel: dataset.countries?.display_label ?? "—",
+        objectiveKey: dataset.objectives?.internal_key ?? null,
+        verticalKey: dataset.verticals?.internal_key ?? null,
+        countryKey: dataset.countries?.iso_code ?? null,
       }}
       raw={raw}
       derivedKeys={derivedKeys}

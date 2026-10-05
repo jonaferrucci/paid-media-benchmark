@@ -87,9 +87,18 @@ assertTrue(
 // against the current, Phase-35 structure instead of Phase 27's exact
 // since-superseded literal — nothing about ContributionsList.tsx or
 // ContributionDetail.tsx changed to make this pass.
+//
+// AUTHENTICATED JOURNEY + CONTRIBUTION ONBOARDING POLISH (§5) updated
+// this assertion again: objective/country on this same summary line
+// now resolve through the shared translateTaxonomyLabel() instead of
+// raw display_label (the live-confirmed English "Reach"/"Traffic"
+// leak on My Campaigns cards) — platform is still the one raw proper
+// noun on the line, and all three fields are still shown together.
 assertTrue(
-  contributionsListSource.includes("{d.platforms?.display_label} · {d.objectives?.display_label} · {d.countries?.display_label}"),
-  "platform/objective/country are still shown together on one compact summary line per card (Phase 35's current line, superseding Phase 27's vertical+country+period line)"
+  contributionsListSource.includes('{d.platforms?.display_label}') &&
+    contributionsListSource.includes('translateTaxonomyLabel("objective", d.objectives.internal_key, d.objectives.display_label, locale)') &&
+    contributionsListSource.includes('translateTaxonomyLabel("country", d.countries.iso_code, d.countries.display_label, locale)'),
+  "platform/objective/country are still shown together on one compact summary line per card (Phase 35's layout, with objective/country now locale-translated)"
 );
 assertTrue(
   contributionsListSource.includes("{d.start_date} — {d.end_date}"),

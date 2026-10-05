@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { benchmarkHrefForCohortFilters } from "@/lib/benchmark/prefillQuery";
 import { ArrowLeft, Trash2, Check, ChevronDown, ChevronUp } from "lucide-react";
 import { AppHeader } from "@/components/dashboard/AppHeader";
 import { DashboardSidebar } from "@/components/dashboard/DashboardSidebar";
@@ -19,6 +20,7 @@ import { DERIVED_METRIC_LABELS, type DerivedMetricKey } from "@/lib/contribute/c
 // second, independently-maintained copy in this file.
 import { MetricComparisonRow, type CampaignResultRow } from "@/app/benchmark/MetricComparisonRow";
 import { deleteContributionAction } from "../actions";
+import { translateTaxonomyLabel } from "@/lib/i18n/taxonomyLabels";
 
 const STATUS_STYLE: Record<string, string> = {
   pending: "bg-vanilla-soft text-vanilla",
@@ -125,6 +127,17 @@ export interface ContributionDetailDataset {
   objectiveLabel: string;
   verticalLabel: string;
   countryLabel: string;
+  // AUTHENTICATED JOURNEY + CONTRIBUTION ONBOARDING POLISH (§5):
+  // page.tsx (a Server Component) cannot know the viewer's locale —
+  // that's a client-only concept (useTranslation's localStorage-backed
+  // state) — so it can no longer resolve the final ES/EN label itself.
+  // It now also sends the raw internal_key/iso_code alongside the
+  // *Label fallback; this component (already a client component) does
+  // the actual translateTaxonomyLabel() resolution where locale is
+  // available. *Label stays as the English fallback for an unknown key.
+  objectiveKey: string | null;
+  verticalKey: string | null;
+  countryKey: string | null;
 }
 
 export function ContributionDetail({
@@ -135,9 +148,15 @@ export function ContributionDetail({
   derivedKeys: DerivedMetricKey[];
   benchmarkActivation: BenchmarkActivation;
 }) {
-  const { t } = useTranslation();
+  const { t, locale } = useTranslation();
   const router = useRouter();
   const [searchOpen, setSearchOpen] = useState(false);
+  // AUTHENTICATED JOURNEY + CONTRIBUTION ONBOARDING POLISH (§5): resolved
+  // once, here, where locale is actually available — see the
+  // ContributionDetailDataset interface's own comment above.
+  const objectiveLabel = translateTaxonomyLabel("objective", dataset.objectiveKey, dataset.objectiveLabel, locale);
+  const verticalLabel = translateTaxonomyLabel("vertical", dataset.verticalKey, dataset.verticalLabel, locale);
+  const countryLabel = translateTaxonomyLabel("country", dataset.countryKey, dataset.countryLabel, locale);
   // PHASE 25 (§16): a plain two-step confirm — never a browser
   // confirm() dialog, and never an irreversible action a single
   // misclick can trigger.
@@ -173,7 +192,7 @@ export function ContributionDetail({
   return (
     <div className="min-h-screen bg-canvas">
       <AppHeader onSearchClick={() => setSearchOpen(true)} />
-      {searchOpen && <SearchOverlay onClose={() => setSearchOpen(false)} onApply={() => {}} />}
+      {searchOpen && <SearchOverlay onClose={() => setSearchOpen(false)} onApply={(filters) => router.push(benchmarkHrefForCohortFilters(filters))} />}
       <DashboardSidebar />
       <div className="md:pl-[var(--sidebar-inset)] transition-[padding-left] duration-150">
         <main className="mx-auto max-w-2xl px-4 py-8 md:px-8">
@@ -267,9 +286,9 @@ export function ContributionDetail({
                         expanded={expandedMetric === option.metric}
                         onToggle={() => setExpandedMetric(expandedMetric === option.metric ? null : option.metric)}
                         platformLabel={dataset.platformLabel}
-                        objectiveLabel={dataset.objectiveLabel}
-                        verticalLabel={dataset.verticalLabel}
-                        countryLabel={dataset.countryLabel}
+                        objectiveLabel={objectiveLabel}
+                        verticalLabel={verticalLabel}
+                        countryLabel={countryLabel}
                       />
                       <div className="flex justify-end pt-1">
                         <a
@@ -325,7 +344,7 @@ export function ContributionDetail({
           <div className="mt-4 rounded-2xl border border-line bg-surface p-4">
             <p className="text-xs font-semibold uppercase tracking-wide text-ink-500">{t("contributions.detailContextTitle")}</p>
             <p className="mt-1.5 text-sm text-ink-800">
-              {dataset.platformLabel} · {dataset.objectiveLabel} · {dataset.verticalLabel} · {dataset.countryLabel}
+              {dataset.platformLabel} · {objectiveLabel} · {verticalLabel} · {countryLabel}
               {dataset.campaignTypeLabel ? ` · ${dataset.campaignTypeLabel}` : ""}
             </p>
 

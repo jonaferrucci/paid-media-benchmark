@@ -707,8 +707,8 @@ const es = {
     signInRequired: "Iniciá sesión para aportar datos.",
     contextBannerLabel: "Aportando datos para: {name}",
     topQuestion: "¿Qué información querés aportar?",
-    pathQuickTitle: "Resultados de campaña",
-    pathQuickBody: "Cargá el resultado de una campaña que corriste.",
+    pathQuickTitle: "Cargar resultado manualmente",
+    pathQuickBody: "Un resultado o campaña puntual, sin necesidad de exportar un archivo de la plataforma.",
     pathQuickHint: "Menos de 1 minuto",
     pathUploadTitle: "Archivo CSV / Excel",
     pathUploadBody: "Varias campañas a la vez. Te ayudamos a ordenar las columnas.",
@@ -723,9 +723,9 @@ const es = {
     // now the primary, visually dominant action; these keys describe
     // that primary card, the demoted secondary-paths row, and the
     // template as an explicit fallback rather than a competing option.
-    primaryTitle: "Importar reporte de una plataforma",
-    primaryBody: "Subí el reporte exportado desde la plataforma. Cucurucho detecta y mapea las columnas automáticamente.",
-    primaryCta: "Importar archivo",
+    primaryTitle: "Importar campañas",
+    primaryBody: "Subí un reporte exportado de Meta Ads o Google Ads. Cucurucho detecta las campañas, métricas y contexto automáticamente.",
+    primaryCta: "Importar reporte",
     secondaryTitle: "Otras formas de aportar datos",
     pathTemplateQuestion: "¿Preferís usar una plantilla de Cucurucho?",
     field: {
@@ -1024,7 +1024,7 @@ const es = {
       // CAMPAIGN IMPORT INTELLIGENCE PHASE 1 (§ export guidance): exact
       // column names only, never a speculative alias — see this key
       // group's own comment at its usage site in ContributeLanding.tsx.
-      exportGuidanceDetailsTitle: "Ver columnas exactas verificadas (Meta / Google)",
+      exportGuidanceDetailsTitle: "¿Qué archivo tengo que exportar?",
       exportGuidanceMetaMin: "Nombre de la campaña, Inicio del informe, Fin del informe, Importe gastado.",
       exportGuidanceMetaRecommended: "Recomendadas: Alcance, Impresiones, Frecuencia, Resultados, Indicador de resultado.",
       exportGuidanceGoogleMin: "Campaña, Código de moneda, Costo.",
@@ -1575,12 +1575,15 @@ const es = {
     other: "Otro",
     unknown: "Desconocido / No provisto",
   },
-  // Digital-only subset (lib/media/filter.ts's digitalMediaCategories
-  // excludes print/television/radio/ooh/dooh from every surface this
-  // phase touches) — the 3 already-confirmed-live-buggy ones
-  // (streaming_live/digital_publisher/podcast) use the SAME renamed
-  // display_label semantics supabase/migrations/0016 gave them, not the
-  // original 0012 wording.
+  // Release Polish scopes this to the digital-only subset (lib/media/
+  // filter.ts's digitalMediaCategories excludes print/television/radio/
+  // ooh/dooh from every surface this pass touched) — the 3 already-
+  // confirmed-live-buggy ones (streaming_live/digital_publisher/podcast)
+  // use the SAME renamed display_label semantics supabase/migrations/
+  // 0016 gave them, not the original 0012 wording. A non-digital
+  // media_categories row (print/television/radio/ooh/dooh) falls back
+  // to its real English display_label via translateTaxonomyLabel()'s
+  // dictionary-miss fallback, same as any other out-of-scope key.
   mediaCategories: {
     paid_social: "Redes sociales (pago)",
     search: "Búsqueda",
@@ -2321,8 +2324,8 @@ const en: typeof es = {
     signInRequired: "Sign in to contribute data.",
     contextBannerLabel: "Contributing data for: {name}",
     topQuestion: "What information do you want to contribute?",
-    pathQuickTitle: "Campaign results",
-    pathQuickBody: "Log the results of a campaign you ran.",
+    pathQuickTitle: "Log a result manually",
+    pathQuickBody: "A single campaign or result, no platform export needed.",
     pathQuickHint: "Under 1 minute",
     pathUploadTitle: "CSV / Excel file",
     pathUploadBody: "Several campaigns at once. We'll help you sort the columns.",
@@ -2333,9 +2336,9 @@ const en: typeof es = {
     pathTemplateTitle: "Use a template",
     pathTemplateBody: "Download a ready-to-fill structure.",
     backToOptions: "Back to options",
-    primaryTitle: "Import a report from a platform",
-    primaryBody: "Upload the report exported from the platform. Cucurucho detects and maps the columns automatically.",
-    primaryCta: "Import file",
+    primaryTitle: "Import campaigns",
+    primaryBody: "Upload a report exported from Meta Ads or Google Ads. Cucurucho detects the campaigns, metrics and context automatically.",
+    primaryCta: "Import report",
     secondaryTitle: "Other ways to contribute data",
     pathTemplateQuestion: "Prefer to use a Cucurucho template?",
     field: {
@@ -2554,7 +2557,7 @@ const en: typeof es = {
       // discovery report) — an invented English equivalent would be a
       // guess this task's own brief explicitly forbids, so the English
       // UI still names the real Spanish columns to look for.
-      exportGuidanceDetailsTitle: "See exact verified columns (Meta / Google)",
+      exportGuidanceDetailsTitle: "Which file do I need to export?",
       exportGuidanceMetaMin: "Nombre de la campaña, Inicio del informe, Fin del informe, Importe gastado.",
       exportGuidanceMetaRecommended: "Recommended: Alcance, Impresiones, Frecuencia, Resultados, Indicador de resultado.",
       exportGuidanceGoogleMin: "Campaña, Código de moneda, Costo.",
@@ -3015,6 +3018,11 @@ const en: typeof es = {
     EC: "Ecuador",
     BO: "Bolivia",
   },
+  // EN mirror of the ES verticals/businessModels/mediaCategories blocks
+  // above — same internal_key set, real DB display_label text (EN is
+  // already the DB's own language for these three tables, so the EN
+  // dictionary intentionally matches display_label verbatim rather than
+  // inventing separate EN copy).
   verticals: {
     beauty_personal_care: "Beauty & Personal Care",
     fashion_apparel: "Fashion & Apparel",

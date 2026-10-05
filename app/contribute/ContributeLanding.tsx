@@ -5,8 +5,12 @@ import Link from "next/link";
 import { Edit3, Upload, FileDown, BarChart3, ArrowLeft, Check, AlertTriangle } from "lucide-react";
 import { AppHeader } from "@/components/dashboard/AppHeader";
 import { DashboardSidebar } from "@/components/dashboard/DashboardSidebar";
+import { useRouter } from "next/navigation";
+import { benchmarkHrefForCohortFilters } from "@/lib/benchmark/prefillQuery";
 import { SearchOverlay } from "@/components/dashboard/SearchOverlay";
 import { useTranslation } from "@/lib/i18n/LanguageContext";
+import { translateTaxonomyLabel } from "@/lib/i18n/taxonomyLabels";
+import type { Locale } from "@/lib/i18n/translations";
 import { useSupabaseUser } from "@/lib/supabase/useUser";
 import type { ContributionTaxonomies } from "@/lib/contribute/taxonomies";
 import { ContributeWizard } from "./ContributeWizard";
@@ -67,9 +71,10 @@ function formatIssue(issue: RowIssue, t: (key: string, vars?: Record<string, str
 }
 
 export function ContributeLanding({ taxonomies }: { taxonomies: ContributionTaxonomies }) {
-  const { t } = useTranslation();
+  const { t, locale } = useTranslation();
   const { user, loading: userLoading } = useSupabaseUser();
   const [searchOpen, setSearchOpen] = useState(false);
+  const router = useRouter();
   const [mode, setMode] = useState<Mode>("landing");
 
   // Quick entry delegates entirely to the existing, unmodified,
@@ -79,7 +84,7 @@ export function ContributeLanding({ taxonomies }: { taxonomies: ContributionTaxo
   return (
     <div className="min-h-screen bg-canvas">
       <AppHeader onSearchClick={() => setSearchOpen(true)} />
-      {searchOpen && <SearchOverlay onClose={() => setSearchOpen(false)} onApply={() => {}} />}
+      {searchOpen && <SearchOverlay onClose={() => setSearchOpen(false)} onApply={(filters) => router.push(benchmarkHrefForCohortFilters(filters))} />}
       <DashboardSidebar />
       <div className="md:pl-[var(--sidebar-inset)] transition-[padding-left] duration-150">
         <main className="mx-auto max-w-4xl px-4 py-6 md:px-8">
@@ -94,7 +99,7 @@ export function ContributeLanding({ taxonomies }: { taxonomies: ContributionTaxo
             />
           )}
           {mode === "upload" && (
-            <UploadFlow t={t} taxonomies={taxonomies} onBack={() => setMode("landing")} />
+            <UploadFlow t={t} locale={locale} taxonomies={taxonomies} onBack={() => setMode("landing")} />
           )}
         </main>
       </div>
@@ -185,7 +190,7 @@ function LandingChooser({
             );
           })}
         </div>
-        <p className="mt-1.5 text-[11px] text-ink-500">{t("contribute.platformSupportLegend")}</p>
+        <p className="mt-1.5 text-[11px] text-ink-500">{t("contribute.import.platformSupportLegend")}</p>
         <span className="mt-5 inline-block rounded-full bg-primary px-4 py-2 text-xs font-semibold text-white group-hover:opacity-90">
           {t("contribute.primaryCta")}
         </span>
@@ -219,9 +224,15 @@ function LandingChooser({
         </Link>
       </div>
 
-      {/* Template download is now an explicit fallback, not a fifth
-          competing card. */}
+      {/* Template download is an explicit fallback, not a sixth
+          competing card — §4 (Template Discoverability) only adds the
+          FileDown icon so this callout scans at the same glance level
+          as the secondary cards above it; the templates themselves
+          (generateCsvTemplate/generateXlsxTemplate), their
+          REQUIRED_FIELDS/OPTIONAL_FIELDS validation semantics, and this
+          exact same download mechanism are all untouched. */}
       <div className="mt-3 flex flex-wrap items-center gap-2 rounded-xl border border-dashed border-line bg-surface2/40 px-4 py-3 text-xs text-ink-600">
+        <FileDown size={14} className="text-ink-400" aria-hidden="true" />
         <span>{t("contribute.pathTemplateQuestion")}</span>
         <button onClick={downloadCsv} className="rounded-full border border-line bg-surface px-3 py-1 font-medium text-ink-700 hover:border-primary hover:text-primary">CSV</button>
         <button onClick={downloadXlsx} className="rounded-full border border-line bg-surface px-3 py-1 font-medium text-ink-700 hover:border-primary hover:text-primary">XLSX</button>
@@ -242,9 +253,10 @@ function triggerDownload(blob: Blob, filename: string) {
 }
 
 function UploadFlow({
-  t, taxonomies, onBack,
+  t, locale, taxonomies, onBack,
 }: {
   t: (key: string, vars?: Record<string, string | number>) => string;
+  locale: Locale;
   taxonomies: ContributionTaxonomies;
   onBack: () => void;
 }) {
@@ -833,17 +845,17 @@ function UploadFlow({
       )
     : null;
   const suggestedObjectiveLabel = objectiveSuggestion
-    ? taxonomies.objectives.find((o) => o.internal_key === objectiveSuggestion.internalKey)?.display_label ?? objectiveSuggestion.internalKey
+    ? translateTaxonomyLabel("objective", objectiveSuggestion.internalKey, taxonomies.objectives.find((o) => o.internal_key === objectiveSuggestion.internalKey)?.display_label ?? objectiveSuggestion.internalKey, locale)
     : null;
   // CAMPAIGN IMPORT INTELLIGENCE PHASE 1: the chosen report-context
   // objective's own display label, used only by the bulk-override
   // confirmation copy below — never a new resolution mechanism.
   const contextObjectiveLabel = contextObjective
-    ? taxonomies.objectives.find((o) => o.internal_key === contextObjective)?.display_label ?? contextObjective
+    ? translateTaxonomyLabel("objective", contextObjective, taxonomies.objectives.find((o) => o.internal_key === contextObjective)?.display_label ?? contextObjective, locale)
     : null;
   function objectiveDisplayLabel(internalKey: string | null): string {
     if (!internalKey) return "—";
-    return taxonomies.objectives.find((o) => o.internal_key === internalKey)?.display_label ?? internalKey;
+    return translateTaxonomyLabel("objective", internalKey, taxonomies.objectives.find((o) => o.internal_key === internalKey)?.display_label ?? internalKey, locale);
   }
 
   // §9: a plain-language explanation for a per-row "Resultado
@@ -1112,7 +1124,7 @@ function UploadFlow({
                 >
                   <option value="">{t("contribute.import.selectField")}</option>
                   {taxonomies.objectives.map((o) => (
-                    <option key={o.internal_key} value={o.internal_key}>{o.display_label}</option>
+                    <option key={o.internal_key} value={o.internal_key}>{translateTaxonomyLabel("objective", o.internal_key, o.display_label, locale)}</option>
                   ))}
                 </select>
                 {/* §B: a suggested objective is always labeled "Sugerido"
@@ -1149,7 +1161,7 @@ function UploadFlow({
                 >
                   <option value="">{t("contribute.import.selectField")}</option>
                   {taxonomies.verticals.map((v) => (
-                    <option key={v.internal_key} value={v.internal_key}>{v.display_label}</option>
+                    <option key={v.internal_key} value={v.internal_key}>{translateTaxonomyLabel("vertical", v.internal_key, v.display_label, locale)}</option>
                   ))}
                 </select>
               </label>
@@ -1162,7 +1174,7 @@ function UploadFlow({
                 >
                   <option value="">{t("contribute.import.selectField")}</option>
                   {taxonomies.countries.map((c) => (
-                    <option key={c.iso_code} value={c.iso_code}>{c.display_label}</option>
+                    <option key={c.iso_code} value={c.iso_code}>{translateTaxonomyLabel("country", c.iso_code, c.display_label, locale)}</option>
                   ))}
                 </select>
               </label>
@@ -1179,7 +1191,7 @@ function UploadFlow({
                 >
                   <option value="">{t("contribute.import.selectField")}</option>
                   {taxonomies.businessModels.map((b) => (
-                    <option key={b.internal_key} value={b.internal_key}>{b.display_label}</option>
+                    <option key={b.internal_key} value={b.internal_key}>{translateTaxonomyLabel("businessModel", b.internal_key, b.display_label, locale)}</option>
                   ))}
                 </select>
               </label>
@@ -1192,7 +1204,7 @@ function UploadFlow({
                 >
                   <option value="">{t("contribute.import.selectField")}</option>
                   {taxonomies.audienceStrategies.map((a) => (
-                    <option key={a.internal_key} value={a.internal_key}>{a.display_label}</option>
+                    <option key={a.internal_key} value={a.internal_key}>{translateTaxonomyLabel("audienceStrategy", a.internal_key, a.display_label, locale)}</option>
                   ))}
                 </select>
               </label>
@@ -1205,7 +1217,7 @@ function UploadFlow({
                 >
                   <option value="">{t("contribute.import.selectField")}</option>
                   {taxonomies.funnelStages.map((f) => (
-                    <option key={f.internal_key} value={f.internal_key}>{f.display_label}</option>
+                    <option key={f.internal_key} value={f.internal_key}>{translateTaxonomyLabel("funnelStage", f.internal_key, f.display_label, locale)}</option>
                   ))}
                 </select>
               </label>
@@ -1448,7 +1460,7 @@ function UploadFlow({
                         >
                           <option value="" disabled>{t("contribute.import.selectField")}</option>
                           {taxonomies.objectives.map((o) => (
-                            <option key={o.internal_key} value={o.internal_key}>{o.display_label}</option>
+                            <option key={o.internal_key} value={o.internal_key}>{translateTaxonomyLabel("objective", o.internal_key, o.display_label, locale)}</option>
                           ))}
                         </select>
                       ) : (
@@ -1545,7 +1557,7 @@ function UploadFlow({
                         >
                           <option value="" disabled>{t("contribute.import.selectField")}</option>
                           {taxonomies.objectives.map((o) => (
-                            <option key={o.internal_key} value={o.internal_key}>{o.display_label}</option>
+                            <option key={o.internal_key} value={o.internal_key}>{translateTaxonomyLabel("objective", o.internal_key, o.display_label, locale)}</option>
                           ))}
                         </select>
                       ) : (

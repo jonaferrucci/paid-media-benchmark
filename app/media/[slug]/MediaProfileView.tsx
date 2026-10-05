@@ -6,15 +6,15 @@ import { ArrowLeft, Info, TrendingUp, Tag, BarChart3, ChevronDown, ChevronUp, Co
 import { useRouter } from "next/navigation";
 import { AppHeader } from "@/components/dashboard/AppHeader";
 import { DashboardSidebar } from "@/components/dashboard/DashboardSidebar";
+import { benchmarkHrefForCohortFilters } from "@/lib/benchmark/prefillQuery";
 import { SearchOverlay } from "@/components/dashboard/SearchOverlay";
 import { useTranslation } from "@/lib/i18n/LanguageContext";
 import type { MediaProfile } from "@/lib/media/catalog";
 import { AddMetricSnapshotForm, AddRateCardForm } from "./ContributionForms";
 import { freshnessLabel } from "@/lib/media/trend";
+import { translateTaxonomyLabel } from "@/lib/i18n/taxonomyLabels";
 import { plannerHrefForMedia, contributeRateCardHref, contributePublicDataHref } from "@/lib/media/contextLinks";
 import { resolveMediaCompleteness, resolveMediaNextAction, describeRateCardChange } from "@/lib/intelligence/mediaIntelligence";
-import { translateTaxonomyLabel } from "@/lib/i18n/taxonomyLabels";
-import { benchmarkHrefForCohortFilters } from "@/lib/benchmark/prefillQuery";
 
 function formatPrice(price: number, currency: string): string {
   return `${currency} ${new Intl.NumberFormat("es-AR").format(price)}`;
@@ -159,11 +159,14 @@ export function MediaProfileView({ profile }: { profile: MediaProfile }) {
                 <span className="rounded-full bg-vanilla-soft px-2 py-0.5 text-[10px] font-medium text-vanilla">{t("media.statusPending")}</span>
               )}
             </div>
-            {/* RELEASE POLISH (Section 1 — taxonomy localization):
-                category/countries are always-English taxonomy rows,
-                resolved through the shared helper instead of rendered
-                raw. platform.display_label (the outlet's own name,
-                just above) is a real entity name and stays untranslated. */}
+            {/* RELEASE POLISH (Section 1 — taxonomy localization) /
+                AUTHENTICATED JOURNEY + CONTRIBUTION ONBOARDING POLISH
+                (§5): category/countries are always-English taxonomy
+                rows, resolved through the shared translateTaxonomyLabel()
+                helper instead of rendered raw — same root cause as Media
+                Catalog's chips/cards. platform.display_label (the
+                outlet's own name, just above) is a real entity name and
+                stays untranslated, as do format labels. */}
             <p className="mt-1 text-sm text-ink-600">
               {category ? translateTaxonomyLabel("mediaCategory", category.internal_key, category.display_label, locale) : "—"}
             </p>

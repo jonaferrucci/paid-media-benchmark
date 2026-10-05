@@ -5,8 +5,11 @@ import Link from "next/link";
 import { Upload, ArrowLeft, Check, AlertTriangle, FileDown, Database } from "lucide-react";
 import { AppHeader } from "@/components/dashboard/AppHeader";
 import { DashboardSidebar } from "@/components/dashboard/DashboardSidebar";
+import { useRouter } from "next/navigation";
+import { benchmarkHrefForCohortFilters } from "@/lib/benchmark/prefillQuery";
 import { SearchOverlay } from "@/components/dashboard/SearchOverlay";
 import { useTranslation } from "@/lib/i18n/LanguageContext";
+import { translateTaxonomyLabel } from "@/lib/i18n/taxonomyLabels";
 import { parseCsv, parseXlsxBuffer, IMPORT_LIMITS } from "@/lib/import/parse";
 import {
   detectCatalogMapping,
@@ -59,8 +62,9 @@ export function CatalogImportFlow({
   knownCountries: { iso_code: string; display_label: string }[];
   knownPlatforms: { internal_key: string; display_label: string }[];
 }) {
-  const { t } = useTranslation();
+  const { t, locale } = useTranslation();
   const [searchOpen, setSearchOpen] = useState(false);
+  const router = useRouter();
   const [step, setStep] = useState<Step>("file");
   const [fileName, setFileName] = useState("");
   const [fileError, setFileError] = useState<string | null>(null);
@@ -151,7 +155,7 @@ export function CatalogImportFlow({
   return (
     <div className="min-h-screen bg-canvas">
       <AppHeader onSearchClick={() => setSearchOpen(true)} />
-      {searchOpen && <SearchOverlay onClose={() => setSearchOpen(false)} onApply={() => {}} />}
+      {searchOpen && <SearchOverlay onClose={() => setSearchOpen(false)} onApply={(filters) => router.push(benchmarkHrefForCohortFilters(filters))} />}
       <DashboardSidebar />
       <div className="md:pl-[var(--sidebar-inset)] transition-[padding-left] duration-150">
         <main className="mx-auto max-w-4xl px-4 py-6 md:px-8">
@@ -287,7 +291,7 @@ export function CatalogImportFlow({
                       <tr key={row.rowNumber} className="border-t border-line">
                         <td className="px-3 py-2 text-ink-500">{row.rowNumber}</td>
                         <td className="px-3 py-2 text-ink-800">{row.displayName || "—"}</td>
-                        <td className="px-3 py-2 text-ink-800">{row.mediaCategoryKey ? categoryByKey.get(row.mediaCategoryKey)?.display_label : "—"}</td>
+                        <td className="px-3 py-2 text-ink-800">{row.mediaCategoryKey ? translateTaxonomyLabel("mediaCategory", row.mediaCategoryKey, categoryByKey.get(row.mediaCategoryKey)?.display_label ?? "—", locale) : "—"}</td>
                         <td className="px-3 py-2 text-ink-800">{row.countryIso ?? "—"}</td>
                         <td className="px-3 py-2">
                           {row.status_ === "valid" ? (

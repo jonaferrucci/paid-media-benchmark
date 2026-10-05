@@ -4,6 +4,7 @@ import { useTranslation } from "@/lib/i18n/LanguageContext";
 import type { CohortQueryStatus } from "@/lib/benchmark/resultStatus";
 import type { CoverageTaxonomyOption } from "@/lib/benchmark/coverage";
 import { COVERAGE_STATUS_STYLE } from "./statusStyle";
+import { translateTaxonomyLabel } from "@/lib/i18n/taxonomyLabels";
 
 // CUCURUCHO INTELLIGENCE 4 — COVERAGE MAP V1 (CUCURUCHO INTELLIGENCE 4.1
 // — COVERAGE MAP UX POLISH updated this file's cell rendering; see the
@@ -65,7 +66,16 @@ export function CoverageGrid({
   selectedCell: SelectedCoverageCellKey | null;
   onSelectCell: (cell: CoverageCellData | null) => void;
 }) {
-  const { t } = useTranslation();
+  const { t, locale } = useTranslation();
+
+  // AUTHENTICATED JOURNEY + CONTRIBUTION ONBOARDING POLISH (§5): verticals
+  // here carry the same {value: internal_key, label: raw display_label}
+  // shape as everywhere else in Coverage — this is a second, previously
+  // unflagged render path for the same leak CoverageExplorer.tsx's own
+  // labelFor() fixes for the cell-detail panel.
+  function verticalLabel(v: CoverageTaxonomyOption): string {
+    return translateTaxonomyLabel("vertical", v.value, v.label, locale);
+  }
 
   const cellByKey = new Map<string, CohortQueryStatus>();
   for (const cell of cells) cellByKey.set(`${cell.vertical}::${cell.metric}`, cell.status);
@@ -94,7 +104,7 @@ export function CoverageGrid({
           <tbody>
             {verticals.map((vertical) => (
               <tr key={vertical.value} className="border-b border-line last:border-b-0">
-                <td className="sticky left-0 z-10 bg-canvas px-3 py-2.5 text-sm font-medium text-ink-900">{vertical.label}</td>
+                <td className="sticky left-0 z-10 bg-canvas px-3 py-2.5 text-sm font-medium text-ink-900">{verticalLabel(vertical)}</td>
                 {visibleMetrics.map((metric) => {
                   const status = cellByKey.get(`${vertical.value}::${metric}`);
                   if (!status) return <td key={metric} className="px-3 py-2.5" />;
@@ -125,7 +135,7 @@ export function CoverageGrid({
       <div className="space-y-3 md:hidden">
         {verticals.map((vertical) => (
           <div key={vertical.value} className="rounded-2xl border border-line bg-surface p-3.5 shadow-sm">
-            <p className="font-display text-sm font-semibold text-ink-900">{vertical.label}</p>
+            <p className="font-display text-sm font-semibold text-ink-900">{verticalLabel(vertical)}</p>
             <div className="mt-2 space-y-2">
               {visibleMetrics.map((metric) => {
                 const status = cellByKey.get(`${vertical.value}::${metric}`);

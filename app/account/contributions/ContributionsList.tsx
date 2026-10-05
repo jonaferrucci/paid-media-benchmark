@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { benchmarkHrefForCohortFilters } from "@/lib/benchmark/prefillQuery";
 import { AlertTriangle, ArrowRight } from "lucide-react";
 import { AppHeader } from "@/components/dashboard/AppHeader";
 import { DashboardSidebar } from "@/components/dashboard/DashboardSidebar";
@@ -14,6 +15,7 @@ import { flagSuspectedDuplicates } from "@/lib/contribute/dataQuality";
 import { EXPORT_PROFILE_LABEL_KEYS, type ExportProfileId } from "@/lib/import/platformExports";
 import { computeImportBatchStatus, IMPORT_BATCH_STATUS_STYLE, tallyRealCampaignCountByBatch, resolveBatchDisplayCount } from "@/lib/contribute/importBatchStatus";
 import { MIN_COMPARISON_CAMPAIGNS, MAX_COMPARISON_CAMPAIGNS } from "@/lib/benchmark/campaignComparison";
+import { translateTaxonomyLabel } from "@/lib/i18n/taxonomyLabels";
 
 interface ContributionRow {
   id: string;
@@ -82,7 +84,7 @@ function rawInputsFor(row: ContributionRow): RawMetricInputs {
 }
 
 export function ContributionsList({ datasets, batches = [] }: { datasets: ContributionRow[]; batches?: ImportBatchRow[] }) {
-  const { t } = useTranslation();
+  const { t, locale } = useTranslation();
   const router = useRouter();
   const [searchOpen, setSearchOpen] = useState(false);
   // CUCURUCHO INTELLIGENCE 3 — Multi-Campaign Comparison selection.
@@ -136,7 +138,7 @@ export function ContributionsList({ datasets, batches = [] }: { datasets: Contri
   return (
     <div className="min-h-screen bg-canvas">
       <AppHeader onSearchClick={() => setSearchOpen(true)} />
-      {searchOpen && <SearchOverlay onClose={() => setSearchOpen(false)} onApply={() => {}} />}
+      {searchOpen && <SearchOverlay onClose={() => setSearchOpen(false)} onApply={(filters) => router.push(benchmarkHrefForCohortFilters(filters))} />}
       <DashboardSidebar />
       <div className="md:pl-[var(--sidebar-inset)] transition-[padding-left] duration-150">
         <main className="mx-auto max-w-2xl px-4 py-8 md:px-8">
@@ -230,8 +232,18 @@ export function ContributionsList({ datasets, batches = [] }: { datasets: Contri
                             to the detail page's own context/details
                             sections rather than shown here, so this list
                             stays a fast scan instead of a metadata dump. */}
+                        {/* AUTHENTICATED JOURNEY + CONTRIBUTION ONBOARDING
+                            POLISH (§5): objective/country now resolve
+                            through the one shared translateTaxonomyLabel()
+                            — root cause of the live-confirmed English
+                            "Reach"/"Traffic" on My Campaigns cards.
+                            Platform stays a raw proper noun, unchanged. */}
                         <p className="mt-0.5 text-xs text-ink-600">
-                          {d.platforms?.display_label} · {d.objectives?.display_label} · {d.countries?.display_label}
+                          {d.platforms?.display_label}
+                          {" · "}
+                          {d.objectives ? translateTaxonomyLabel("objective", d.objectives.internal_key, d.objectives.display_label, locale) : ""}
+                          {" · "}
+                          {d.countries ? translateTaxonomyLabel("country", d.countries.iso_code, d.countries.display_label, locale) : ""}
                         </p>
                         <p className="mt-0.5 text-xs text-ink-400">
                           {d.start_date} — {d.end_date}

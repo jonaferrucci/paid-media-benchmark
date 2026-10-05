@@ -28,7 +28,7 @@ interface BatchCampaignRow {
   campaign_name: string | null;
   start_date: string;
   end_date: string;
-  objectives: { display_label: string } | null;
+  objectives: { display_label: string; internal_key: string } | null;
 }
 
 export default async function ImportBatchDetailPage({ params }: { params: { id: string } }) {
@@ -47,7 +47,7 @@ export default async function ImportBatchDetailPage({ params }: { params: { id: 
     // here, same as the per-campaign detail page's own pattern.
     supabase
       .from("performance_datasets")
-      .select("id, campaign_name, start_date, end_date, objectives(display_label)")
+      .select("id, campaign_name, start_date, end_date, objectives(display_label, internal_key)")
       .eq("import_batch_id", params.id)
       .order("created_at", { ascending: true }),
   ]);
@@ -80,6 +80,7 @@ export default async function ImportBatchDetailPage({ params }: { params: { id: 
         startDate: c.start_date,
         endDate: c.end_date,
         objectiveLabel: c.objectives?.display_label ?? "—",
+        objectiveKey: c.objectives?.internal_key ?? null,
       }))}
     />
   );

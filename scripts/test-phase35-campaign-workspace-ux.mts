@@ -88,8 +88,14 @@ assertTrue(
 // -----------------------------------------------------------------------
 assertTrue(translationsSource.includes('myContributions: "Mis campañas"'), "the contributions page heading uses the preferred term \"Mis campañas\" (ES), not \"Mis aportes\"");
 assertTrue(translationsSource.includes('myContributions: "My campaigns"'), "the contributions page heading uses \"My campaigns\" (EN)");
+// AUTHENTICATED JOURNEY + CONTRIBUTION ONBOARDING POLISH (§5) updated
+// this assertion: objective/country now resolve through the shared
+// translateTaxonomyLabel() instead of raw display_label — the card
+// line is still platform · objective · country, just locale-correct.
 assertTrue(
-  contributionsListSource.includes("d.platforms?.display_label} · {d.objectives?.display_label} · {d.countries?.display_label}"),
+  contributionsListSource.includes('{d.platforms?.display_label}') &&
+    contributionsListSource.includes('translateTaxonomyLabel("objective", d.objectives.internal_key, d.objectives.display_label, locale)') &&
+    contributionsListSource.includes('translateTaxonomyLabel("country", d.countries.iso_code, d.countries.display_label, locale)'),
   "the compact card line is platform · objective · country — vertical/campaign type/source moved to the detail page"
 );
 assertTrue(

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { AlertCircle } from "lucide-react";
 import { AppHeader } from "@/components/dashboard/AppHeader";
 import { DashboardSidebar } from "@/components/dashboard/DashboardSidebar";
+import { benchmarkHrefForCohortFilters } from "@/lib/benchmark/prefillQuery";
 import { SearchOverlay } from "@/components/dashboard/SearchOverlay";
 import { useTranslation } from "@/lib/i18n/LanguageContext";
 import { Select } from "@/app/benchmark/Select";
@@ -16,7 +17,6 @@ import { CoverageMetricVisibilityControl } from "./CoverageMetricVisibilityContr
 import { CoverageCellPanel } from "./CoverageCellPanel";
 import { CoverageEmptyState } from "./CoverageEmptyState";
 import { translateTaxonomyLabel, type TaxonomyKind } from "@/lib/i18n/taxonomyLabels";
-import { benchmarkHrefForCohortFilters } from "@/lib/benchmark/prefillQuery";
 import type { Locale } from "@/lib/i18n/translations";
 
 // CUCURUCHO INTELLIGENCE 4 — COVERAGE MAP V1 (CUCURUCHO INTELLIGENCE 4.1
@@ -49,8 +49,18 @@ import type { Locale } from "@/lib/i18n/translations";
 // query.
 const DEFAULT_VISIBLE_METRIC_KEYS = ["cpm", "ctr", "cpc", "cpa"];
 
-function labelFor(options: CoverageTaxonomyOption[], value: string): string {
-  return options.find((o) => o.value === value)?.label ?? value;
+// AUTHENTICATED JOURNEY + CONTRIBUTION ONBOARDING POLISH (§5): the
+// {value, label} shape coming from getCoverageTaxonomies() already
+// carries the taxonomy row's internal_key as `value` and its raw
+// (always-English) display_label as `label` — translateTaxonomyLabel
+// can resolve straight off that pair, no server-side reshaping needed.
+// Objective/vertical/country go through it; `kind` is omitted for
+// platform (a proper noun, never translated — same convention as
+// every other surface).
+function labelFor(options: CoverageTaxonomyOption[], value: string, kind?: TaxonomyKind, locale?: "es" | "en"): string {
+  const option = options.find((o) => o.value === value);
+  if (!option) return value;
+  return kind && locale ? translateTaxonomyLabel(kind, option.value, option.label, locale) : option.label;
 }
 
 // RELEASE POLISH (Section 1 — taxonomy localization): same labelFor

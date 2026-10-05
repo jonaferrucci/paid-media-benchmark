@@ -2,11 +2,13 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { benchmarkHrefForCohortFilters } from "@/lib/benchmark/prefillQuery";
 import { ChevronDown, Check } from "lucide-react";
 import { AppHeader } from "@/components/dashboard/AppHeader";
 import { DashboardSidebar } from "@/components/dashboard/DashboardSidebar";
 import { SearchOverlay } from "@/components/dashboard/SearchOverlay";
 import { useTranslation } from "@/lib/i18n/LanguageContext";
+import { translateTaxonomyLabel } from "@/lib/i18n/taxonomyLabels";
 import type { ContributionTaxonomies } from "@/lib/contribute/taxonomies";
 import { submitContributionAction } from "./actions";
 import { SUPPORTED_CURRENCIES, isSupportedCurrencyCode } from "@/lib/config/currencies";
@@ -122,7 +124,7 @@ function Select({
 }
 
 export function ContributeWizard({ taxonomies }: { taxonomies: ContributionTaxonomies }) {
-  const { t } = useTranslation();
+  const { t, locale } = useTranslation();
   const router = useRouter();
   const [step, setStep] = useState(0);
   const [draft, setDraft] = useState<Draft>(DEFAULT_DRAFT);
@@ -320,13 +322,24 @@ export function ContributeWizard({ taxonomies }: { taxonomies: ContributionTaxon
     setSubmitted(true);
   }
 
+  // §5 (Taxonomy Localization — Global Audit): every one of these
+  // review-summary labels used to render the raw (English-only)
+  // display_label directly — now routed through the one shared
+  // translateTaxonomyLabel(). Platform stays untranslated (proper
+  // noun), exactly like every other surface this phase fixed.
   const platformLabel = platformOptions.find((p) => p.uiId === draft.platformUiId)?.label;
-  const objectiveLabel = taxonomies.objectives.find((o) => o.id === draft.objectiveId)?.display_label;
-  const verticalLabel = taxonomies.verticals.find((v) => v.id === draft.verticalId)?.display_label;
-  const countryLabel = taxonomies.countries.find((c) => c.id === draft.countryId)?.display_label;
-  const businessModelLabel = taxonomies.businessModels.find((b) => b.id === draft.businessModelId)?.display_label;
-  const audienceLabel = taxonomies.audienceStrategies.find((a) => a.id === draft.audienceStrategyId)?.display_label;
-  const funnelLabel = taxonomies.funnelStages.find((f) => f.id === draft.funnelStageId)?.display_label;
+  const objectiveRow = taxonomies.objectives.find((o) => o.id === draft.objectiveId);
+  const objectiveLabel = objectiveRow ? translateTaxonomyLabel("objective", objectiveRow.internal_key, objectiveRow.display_label, locale) : undefined;
+  const verticalRow = taxonomies.verticals.find((v) => v.id === draft.verticalId);
+  const verticalLabel = verticalRow ? translateTaxonomyLabel("vertical", verticalRow.internal_key, verticalRow.display_label, locale) : undefined;
+  const countryRow = taxonomies.countries.find((c) => c.id === draft.countryId);
+  const countryLabel = countryRow ? translateTaxonomyLabel("country", countryRow.iso_code, countryRow.display_label, locale) : undefined;
+  const businessModelRow = taxonomies.businessModels.find((b) => b.id === draft.businessModelId);
+  const businessModelLabel = businessModelRow ? translateTaxonomyLabel("businessModel", businessModelRow.internal_key, businessModelRow.display_label, locale) : undefined;
+  const audienceRow = taxonomies.audienceStrategies.find((a) => a.id === draft.audienceStrategyId);
+  const audienceLabel = audienceRow ? translateTaxonomyLabel("audienceStrategy", audienceRow.internal_key, audienceRow.display_label, locale) : undefined;
+  const funnelRow = taxonomies.funnelStages.find((f) => f.id === draft.funnelStageId);
+  const funnelLabel = funnelRow ? translateTaxonomyLabel("funnelStage", funnelRow.internal_key, funnelRow.display_label, locale) : undefined;
 
   const canProceedContext = draft.platformId && draft.objectiveId && draft.verticalId && draft.countryId;
 
@@ -411,7 +424,7 @@ export function ContributeWizard({ taxonomies }: { taxonomies: ContributionTaxon
                 allowEmpty
                 emptyLabel={t("contribute.allMediaCategories")}
                 onChange={selectMediaCategory}
-                options={taxonomies.mediaCategories.map((c) => ({ value: c.id, label: c.display_label }))}
+                options={taxonomies.mediaCategories.map((c) => ({ value: c.id, label: translateTaxonomyLabel("mediaCategory", c.internal_key, c.display_label, locale) }))}
               />
             </Field>
             <Field label={t("contribute.country")}>
@@ -420,7 +433,7 @@ export function ContributeWizard({ taxonomies }: { taxonomies: ContributionTaxon
                 allowEmpty
                 emptyLabel="—"
                 onChange={selectCountry}
-                options={taxonomies.countries.map((c) => ({ value: c.id, label: c.display_label }))}
+                options={taxonomies.countries.map((c) => ({ value: c.id, label: translateTaxonomyLabel("country", c.iso_code, c.display_label, locale) }))}
               />
             </Field>
             <Field label={t("contribute.platform")}>
@@ -449,7 +462,7 @@ export function ContributeWizard({ taxonomies }: { taxonomies: ContributionTaxon
                 allowEmpty
                 emptyLabel="—"
                 onChange={(v) => update("objectiveId", v)}
-                options={taxonomies.objectives.map((o) => ({ value: o.id, label: o.display_label }))}
+                options={taxonomies.objectives.map((o) => ({ value: o.id, label: translateTaxonomyLabel("objective", o.internal_key, o.display_label, locale) }))}
               />
             </Field>
             <Field label={t("contribute.vertical")}>
@@ -458,7 +471,7 @@ export function ContributeWizard({ taxonomies }: { taxonomies: ContributionTaxon
                 allowEmpty
                 emptyLabel="—"
                 onChange={(v) => update("verticalId", v)}
-                options={taxonomies.verticals.map((v) => ({ value: v.id, label: v.display_label }))}
+                options={taxonomies.verticals.map((v) => ({ value: v.id, label: translateTaxonomyLabel("vertical", v.internal_key, v.display_label, locale) }))}
               />
             </Field>
             <Field label={`${t("contribute.businessModel")} (${t("contribute.optional")})`}>
@@ -467,7 +480,7 @@ export function ContributeWizard({ taxonomies }: { taxonomies: ContributionTaxon
                 allowEmpty
                 emptyLabel="—"
                 onChange={(v) => update("businessModelId", v || null)}
-                options={taxonomies.businessModels.map((b) => ({ value: b.id, label: b.display_label }))}
+                options={taxonomies.businessModels.map((b) => ({ value: b.id, label: translateTaxonomyLabel("businessModel", b.internal_key, b.display_label, locale) }))}
               />
             </Field>
             <Field label={t("contribute.performanceScope")}>
@@ -497,7 +510,7 @@ export function ContributeWizard({ taxonomies }: { taxonomies: ContributionTaxon
                 allowEmpty
                 emptyLabel="—"
                 onChange={(v) => update("audienceStrategyId", v || null)}
-                options={taxonomies.audienceStrategies.map((a) => ({ value: a.id, label: a.display_label }))}
+                options={taxonomies.audienceStrategies.map((a) => ({ value: a.id, label: translateTaxonomyLabel("audienceStrategy", a.internal_key, a.display_label, locale) }))}
               />
             </Field>
             <Field label={`${t("contribute.funnelStage")} (${t("contribute.optional")})`}>
@@ -506,7 +519,7 @@ export function ContributeWizard({ taxonomies }: { taxonomies: ContributionTaxon
                 allowEmpty
                 emptyLabel="—"
                 onChange={(v) => update("funnelStageId", v || null)}
-                options={taxonomies.funnelStages.map((f) => ({ value: f.id, label: f.display_label }))}
+                options={taxonomies.funnelStages.map((f) => ({ value: f.id, label: translateTaxonomyLabel("funnelStage", f.internal_key, f.display_label, locale) }))}
               />
             </Field>
             <div className="grid grid-cols-2 gap-3">
@@ -730,10 +743,11 @@ function Shell({
   searchOpen: boolean;
   setSearchOpen: (v: boolean) => void;
 }) {
+  const router = useRouter();
   return (
     <div className="min-h-screen bg-canvas">
       <AppHeader onSearchClick={() => setSearchOpen(true)} />
-      {searchOpen && <SearchOverlay onClose={() => setSearchOpen(false)} onApply={() => {}} />}
+      {searchOpen && <SearchOverlay onClose={() => setSearchOpen(false)} onApply={(filters) => router.push(benchmarkHrefForCohortFilters(filters))} />}
       <DashboardSidebar />
       <div className="md:pl-[var(--sidebar-inset)] transition-[padding-left] duration-150">
         <main className="px-4 py-8 md:px-8">{children}</main>

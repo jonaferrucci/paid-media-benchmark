@@ -262,6 +262,9 @@ export default async function ComparePage({ searchParams }: { searchParams: { id
     objectiveLabel: c.objectiveLabel,
     verticalLabel: c.verticalLabel,
     countryLabel: c.countryLabel,
+    objectiveKey: c.objectiveKey,
+    verticalKey: c.verticalKey,
+    countryKey: c.countryKey,
     currency: c.currency,
     validationStatus: c.validationStatus,
     startDate: c.startDate,
@@ -339,6 +342,9 @@ export default async function ComparePage({ searchParams }: { searchParams: { id
               objectiveLabel: anyMember?.objectiveLabel ?? g.objectiveKey,
               verticalLabel: anyMember?.verticalLabel ?? g.verticalKey,
               countryLabel: anyMember?.countryLabel ?? g.countryKey,
+              objectiveKey: g.objectiveKey,
+              verticalKey: g.verticalKey,
+              countryKey: g.countryKey,
               response: perGroupResponses!.get(g.key)!,
             };
           });

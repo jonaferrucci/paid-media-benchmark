@@ -3,11 +3,13 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { benchmarkHrefForCohortFilters } from "@/lib/benchmark/prefillQuery";
 import { MoreVertical, Pencil, Copy, Trash2, ExternalLink, Search, Bookmark, FolderOpen } from "lucide-react";
 import { AppHeader } from "@/components/dashboard/AppHeader";
 import { DashboardSidebar } from "@/components/dashboard/DashboardSidebar";
 import { SearchOverlay } from "@/components/dashboard/SearchOverlay";
 import { useTranslation } from "@/lib/i18n/LanguageContext";
+import { translateTaxonomyLabel } from "@/lib/i18n/taxonomyLabels";
 import { useSupabaseUser } from "@/lib/supabase/useUser";
 import type { ContributionTaxonomies } from "@/lib/contribute/taxonomies";
 import {
@@ -69,12 +71,19 @@ export function SavedComparisonsList({
     };
   }, [openMenuId]);
 
+  // §5 (Taxonomy Localization — Global Audit): this is the "My
+  // Comparisons" leak confirmed live ("Awareness", "Beauty & Personal
+  // Care" rendering unchanged under the Spanish UI) — labelFor()
+  // returned the raw (English-only, no locale column) display_label
+  // directly. Platform stays untranslated (proper noun, per the
+  // shared translator's own documented exclusion); objective/vertical/
+  // country now route through the one shared translateTaxonomyLabel().
   function contextLabel(c: SavedComparison): string {
     const parts = [
       labelFor(taxonomies.platforms, c.platform),
-      labelFor(taxonomies.objectives, c.objective),
-      labelFor(taxonomies.verticals, c.vertical),
-      labelFor(taxonomies.countries, c.country),
+      translateTaxonomyLabel("objective", c.objective, labelFor(taxonomies.objectives, c.objective), locale),
+      translateTaxonomyLabel("vertical", c.vertical, labelFor(taxonomies.verticals, c.vertical), locale),
+      translateTaxonomyLabel("country", c.country, labelFor(taxonomies.countries, c.country), locale),
     ];
     return parts.join(" · ");
   }
@@ -122,7 +131,7 @@ export function SavedComparisonsList({
   return (
     <div className="min-h-screen bg-canvas">
       <AppHeader onSearchClick={() => setSearchOpen(true)} />
-      {searchOpen && <SearchOverlay onClose={() => setSearchOpen(false)} onApply={() => {}} />}
+      {searchOpen && <SearchOverlay onClose={() => setSearchOpen(false)} onApply={(filters) => router.push(benchmarkHrefForCohortFilters(filters))} />}
 
       <DashboardSidebar />
       <div className="md:pl-[var(--sidebar-inset)] transition-[padding-left] duration-150">

@@ -148,7 +148,7 @@ assertTrue(
   "the /contribute platform pill list distinguishes verified platforms from honestly-pending ones"
 );
 assertTrue(
-  contributeLandingSource.includes('t("contribute.platformSupportLegend")'),
+  contributeLandingSource.includes('t("contribute.import.platformSupportLegend")'),
   "a visible legend explains the checkmark, not just a hover-only title attribute"
 );
 

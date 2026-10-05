@@ -4,9 +4,9 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { DashboardSidebar } from "@/components/dashboard/DashboardSidebar";
 import { AppHeader } from "@/components/dashboard/AppHeader";
+import { benchmarkHrefForCohortFilters } from "@/lib/benchmark/prefillQuery";
 import { SearchOverlay } from "@/components/dashboard/SearchOverlay";
 import { useTranslation } from "@/lib/i18n/LanguageContext";
-import { benchmarkHrefForCohortFilters } from "@/lib/benchmark/prefillQuery";
 
 interface PlaceholderPageProps {
   title: string;
