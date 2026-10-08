@@ -12,7 +12,7 @@ import { translateTaxonomyLabel } from "@/lib/i18n/taxonomyLabels";
 import type { ContributionTaxonomies } from "@/lib/contribute/taxonomies";
 import { submitContributionAction } from "./actions";
 import { SUPPORTED_CURRENCIES, isSupportedCurrencyCode } from "@/lib/config/currencies";
-import { platformsForCategory, platformsForCountry, formatsForCategory, metricsForCategory } from "@/lib/media/filter";
+import { platformsForCategory, platformsForCountry, formatsForCategory, metricsForCategory, digitalMediaCategories, digitalMediaPlatforms } from "@/lib/media/filter";
 import { resolveContributionSuccessActions } from "@/lib/intelligence/contributionIntelligence";
 
 interface Draft {
@@ -145,6 +145,19 @@ export function ContributeWizard({ taxonomies }: { taxonomies: ContributionTaxon
     (c) => c.internal_key === "video_youtube" && c.platform_id === googleAds?.id
   );
 
+  // Media Experience & Governance phase, item A: the wizard's "Tipo de
+  // medio"/"Medio" options are scoped to Cucurucho's current digital-
+  // first product (television/radio/print/ooh/dooh stay out), reusing
+  // the SAME helpers Catalog/Planner already apply (lib/media/filter.ts)
+  // rather than a second, parallel scoping rule. Non-digital taxonomy
+  // rows/platforms are untouched in the database — this only narrows
+  // what this form offers.
+  const digitalCategories = useMemo(() => digitalMediaCategories(taxonomies.mediaCategories), [taxonomies.mediaCategories]);
+  const digitalPlatforms = useMemo(
+    () => digitalMediaPlatforms(taxonomies.platforms, taxonomies.mediaCategories),
+    [taxonomies.platforms, taxonomies.mediaCategories]
+  );
+
   // Phase 19B item 2 — category-aware "Medio" list. Reuses the SAME
   // pure filters already proven by the media catalog/profile pages
   // (lib/media/filter.ts) rather than a second parallel filtering
@@ -155,9 +168,9 @@ export function ContributeWizard({ taxonomies }: { taxonomies: ContributionTaxon
   // publisher outlets), so this applies uniformly — no special-casing
   // "old" vs "new" platforms.
   const categoryFilteredPlatforms = useMemo(() => {
-    const byCategory = platformsForCategory(taxonomies.platforms, draft.mediaCategoryId);
+    const byCategory = platformsForCategory(digitalPlatforms, draft.mediaCategoryId);
     return platformsForCountry(byCategory, taxonomies.platformCountries, draft.countryId);
-  }, [taxonomies.platforms, taxonomies.platformCountries, draft.mediaCategoryId, draft.countryId]);
+  }, [digitalPlatforms, taxonomies.platformCountries, draft.mediaCategoryId, draft.countryId]);
 
   const showsYoutubeOption =
     !!googleAds && !!youtubeCampaignType && categoryFilteredPlatforms.some((p) => p.id === googleAds.id);
@@ -424,7 +437,7 @@ export function ContributeWizard({ taxonomies }: { taxonomies: ContributionTaxon
                 allowEmpty
                 emptyLabel={t("contribute.allMediaCategories")}
                 onChange={selectMediaCategory}
-                options={taxonomies.mediaCategories.map((c) => ({ value: c.id, label: translateTaxonomyLabel("mediaCategory", c.internal_key, c.display_label, locale) }))}
+                options={digitalCategories.map((c) => ({ value: c.id, label: translateTaxonomyLabel("mediaCategory", c.internal_key, c.display_label, locale) }))}
               />
             </Field>
             <Field label={t("contribute.country")}>

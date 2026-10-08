@@ -530,6 +530,13 @@ const es = {
     allCategories: "Todas las categorías",
     countryLabel: "País",
     allCountries: "Todos los países",
+    // Media Experience & Governance phase, item D: entity-type filter
+    // on /platforms — combines with the existing category/country/
+    // search filters, never a separate query path.
+    entityTypeLabel: "Tipo de entidad",
+    entityTypeAll: "Todos",
+    entityTypeAdPlatforms: "Plataformas publicitarias",
+    entityTypeDigitalMedia: "Medios digitales",
     emptyResults: "No encontramos medios digitales con estos filtros.",
     clearFiltersCta: "Limpiar filtros",
     changeCountryCta: "Cambiar país",
@@ -678,6 +685,10 @@ const es = {
       unknownCountry: "No reconocemos este país. Verificá que ya exista en Cucurucho.",
       unknownMediaCategory: "No reconocemos esta categoría de medio.",
       unknownCatalogStatus: "El estado debe ser active, pending o inactive.",
+      // Media Experience & Governance phase, item A: distinct from
+      // "unknownMediaCategory" — the category IS recognized, it's just
+      // outside Cucurucho's current digital-first scope.
+      nonDigitalMediaCategory: "Esta categoría todavía no está disponible — está fuera del alcance digital actual de Cucurucho.",
     },
   },
 
@@ -1133,6 +1144,25 @@ const es = {
     reject: "Rechazar",
     deactivate: "No publicar",
     actionError: "No pudimos guardar esta decisión. Probá de nuevo.",
+    // Media Experience & Governance phase, item B: entity-type/category/
+    // geography context on the pending-media card — derived via the
+    // same platform/media classification helper Catalog/Planner use,
+    // never a new column.
+    platformEntityTypeAdPlatform: "Plataforma publicitaria",
+    platformEntityTypeMedia: "Medio digital",
+    platformEntityTypeUnknown: "Tipo sin determinar",
+    platformMissingCategory: "Sin categoría",
+    platformMissingCountry: "Sin país asignado",
+    // Item C: structural pre-approval validation reasons — shown on the
+    // card only when an approval attempt is blocked, itemizing exactly
+    // what's missing rather than a generic failure message.
+    platformValidation: {
+      missingName: "Falta el nombre del medio.",
+      missingInternalKey: "Falta la clave interna del medio.",
+      missingCategory: "Falta asignar una categoría de medio.",
+      nonDigitalCategory: "La categoría asignada está fuera del alcance digital actual de Cucurucho.",
+      missingGeography: "Este medio no es global y no tiene ningún país asociado.",
+    },
     // CUCURUCHO DATA INTEGRITY 1 (§16/§17): shown only when a pending
     // contribution's fingerprint already matches a valid one — never a
     // hard block, since a match is advisory (see the audit report's
@@ -2165,6 +2195,10 @@ const en: typeof es = {
     allCategories: "All categories",
     countryLabel: "Country",
     allCountries: "All countries",
+    entityTypeLabel: "Entity type",
+    entityTypeAll: "All",
+    entityTypeAdPlatforms: "Advertising platforms",
+    entityTypeDigitalMedia: "Digital media",
     emptyResults: "We couldn't find digital media matching these filters.",
     clearFiltersCta: "Clear filters",
     changeCountryCta: "Change country",
@@ -2295,6 +2329,7 @@ const en: typeof es = {
       unknownCountry: "We don't recognize this country. Check that it already exists in Cucurucho.",
       unknownMediaCategory: "We don't recognize this media category.",
       unknownCatalogStatus: "Status must be active, pending, or inactive.",
+      nonDigitalMediaCategory: "This category isn't available yet — it's outside Cucurucho's current digital scope.",
     },
   },
 
@@ -2663,6 +2698,18 @@ const en: typeof es = {
     reject: "Reject",
     deactivate: "Keep unpublished",
     actionError: "We couldn't save this decision. Try again.",
+    platformEntityTypeAdPlatform: "Advertising platform",
+    platformEntityTypeMedia: "Digital media outlet",
+    platformEntityTypeUnknown: "Type undetermined",
+    platformMissingCategory: "No category",
+    platformMissingCountry: "No country assigned",
+    platformValidation: {
+      missingName: "Missing media name.",
+      missingInternalKey: "Missing internal key.",
+      missingCategory: "Missing media category.",
+      nonDigitalCategory: "The assigned category is outside Cucurucho's current digital scope.",
+      missingGeography: "This media outlet isn't global and has no associated country.",
+    },
     supersedeCandidateNote: "This looks like an update to an already-approved campaign ({start} — {end}).",
     supersedeAction: "Replace existing campaign",
     approveIndependentAction: "Approve as independent",

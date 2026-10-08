@@ -85,8 +85,30 @@ export function PlannerView({ catalog, initialScenarios }: PlannerViewProps) {
   // Runs once, only when arriving with real navigation context — a
   // plain visit to /planner still starts from the friendly empty state
   // (§F), never an automatic query nobody asked for.
+  //
+  // Media Experience & Governance phase, item E: when arriving from a
+  // media profile's "Planificar" action, the initial search is also
+  // narrowed to that EXACT entity (platformId) — never the whole
+  // category — so what loads is genuinely "this outlet's planning
+  // opportunities", not just a category pre-filter the user still has
+  // to search within by hand. Only this one, first call carries the
+  // platformId narrowing; a later manual search (runSearch() with no
+  // override) is never silently restricted to it.
   useEffect(() => {
-    if (hasSearched) runSearch();
+    if (hasSearched) {
+      runSearch({ platformId: mediaContext?.id ?? null }).then((data) => {
+        // Preselect only when the entity resolves to exactly ONE
+        // opportunity (unambiguous identity: one format, one property).
+        // Never auto-select when multiple formats/properties exist —
+        // the user picks explicitly from the (already narrowed) grid
+        // below, same as any other discovery result. Never fabricates
+        // a default, never adds an opportunity beyond what the real
+        // query returned.
+        if (mediaContext && data && data.opportunities.length === 1) {
+          setSelectedKeys([opportunityKey(data.opportunities[0])]);
+        }
+      });
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -106,7 +128,7 @@ export function PlannerView({ catalog, initialScenarios }: PlannerViewProps) {
 
   const formatsForFilter = categoryId ? catalog.formats.filter((f) => f.media_category_id === categoryId) : catalog.formats;
 
-  async function runSearch(overrides?: { categoryId?: string }) {
+  async function runSearch(overrides?: { categoryId?: string; platformId?: string | null }) {
     setLoading(true);
     setHasSearched(true);
     try {
@@ -114,8 +136,15 @@ export function PlannerView({ catalog, initialScenarios }: PlannerViewProps) {
         categoryId: (overrides?.categoryId ?? categoryId) || null,
         countryId: countryId || null,
         mediaFormatId: mediaFormatId || null,
+        // Item E: platformId is only ever set by the one-time initial
+        // call below when arriving with media-profile context — a
+        // manual re-search (quickExplore, the "Buscar" button, a filter
+        // change) never passes it, so it never lingers as an invisible
+        // filter the user didn't choose.
+        platformId: overrides?.platformId ?? null,
       });
       setResult(data);
+      return data;
     } finally {
       setLoading(false);
     }

@@ -1,4 +1,5 @@
 import type { RawTable } from "@/lib/import/types";
+import { isDigitalMediaCategory } from "./filter";
 
 // Phase 21 items 13/14/15/18/19 — curator-safe bulk CATALOG import
 // (media_outlet identity rows, never a rate card or an audience metric
@@ -129,10 +130,17 @@ export function validateCatalogRow(
   );
   if (!country) errors.push("import.issue.unknownCountry");
 
+  // Media Experience & Governance phase, item A: a category that does
+  // match a real taxonomy row but falls outside Cucurucho's current
+  // digital-first scope (television/radio/print/ooh/dooh) gets its own,
+  // more honest message than "unknown" — the row IS recognized, it's
+  // just not supported for catalog import yet. Never silently treated
+  // as valid, and never a reason to widen NON_DIGITAL_CATEGORY_KEYS.
   const category = knownCategories.find(
     (c) => c.internal_key === row.mediaCategory.trim() || c.display_label.toLowerCase() === row.mediaCategory.trim().toLowerCase()
   );
   if (!category) errors.push("import.issue.unknownMediaCategory");
+  else if (!isDigitalMediaCategory(category)) errors.push("import.issue.nonDigitalMediaCategory");
 
   const statusRaw = row.status.trim().toLowerCase();
   const status = VALID_STATUSES.has(statusRaw) ? (statusRaw as "active" | "pending" | "inactive") : null;

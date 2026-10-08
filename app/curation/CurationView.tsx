@@ -12,6 +12,7 @@ import { useTranslation } from "@/lib/i18n/LanguageContext";
 import { translateTaxonomyLabel } from "@/lib/i18n/taxonomyLabels";
 import type { GovernanceQueue } from "@/lib/media/governanceQueries";
 import { reviewRateCardAction, reviewSnapshotAction, reviewPlatformAction } from "@/lib/media/governanceActions";
+import type { PlatformCompletenessReason } from "@/lib/media/governanceRules";
 import { REVIEW_METRIC_LABEL_KEYS } from "@/lib/contribute/reviewMetricLabels";
 import type { PendingContributionsQueue, PendingContributionRow } from "@/lib/contribute/reviewQueries";
 import { reviewContributionAction, approveSupersedingContributionAction } from "@/lib/contribute/reviewActions";
@@ -150,6 +151,89 @@ function SupersedeCandidateRow({
   );
 }
 
+// Media Experience & Governance phase, item B/C — a dedicated card for
+// the pending-platforms queue (never the generic ReviewRow above): it
+// needs richer, entity-specific context (type/category/geography/
+// website) and a structured "needs correction" outcome ReviewRow's
+// plain title/subtitle/meta strings can't carry. Every other queue on
+// this page keeps using the unchanged ReviewRow.
+function PlatformReviewRow({ platform }: { platform: GovernanceQueue["platforms"][number] }) {
+  const { t, locale } = useTranslation();
+  const [state, setState] = useState<RowState>("idle");
+  const [done, setDone] = useState(false);
+  const [missingReasons, setMissingReasons] = useState<PlatformCompletenessReason[] | null>(null);
+
+  if (done) return null;
+
+  async function handle(decision: "active" | "inactive") {
+    setState("saving");
+    setMissingReasons(null);
+    const result = await reviewPlatformAction(platform.id, decision);
+    if (result.ok) {
+      setDone(true);
+      return;
+    }
+    if (result.error === "incomplete_entity" && result.reasons) {
+      setMissingReasons(result.reasons);
+    }
+    setState("error");
+  }
+
+  const categoryLabel = platform.category
+    ? translateTaxonomyLabel("mediaCategory", platform.category.internal_key, platform.category.display_label, locale)
+    : null;
+  const entityTypeLabel = platform.category
+    ? t(platform.isAdPlatform ? "curation.platformEntityTypeAdPlatform" : "curation.platformEntityTypeMedia")
+    : t("curation.platformEntityTypeUnknown");
+  const geographyLabel = platform.is_global
+    ? t("media.globalAvailability")
+    : platform.countries.length > 0
+    ? platform.countries.map((c) => translateTaxonomyLabel("country", c.iso_code, c.display_label, locale)).join(", ")
+    : t("curation.platformMissingCountry");
+
+  return (
+    <div className="rounded-xl border border-line bg-canvas px-3 py-2.5">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-sm font-medium text-ink-800">{platform.display_label}</p>
+          <p className="text-xs text-ink-500">
+            {entityTypeLabel} · {categoryLabel ?? t("curation.platformMissingCategory")}
+          </p>
+          <p className="mt-0.5 text-xs text-ink-500">
+            {geographyLabel}
+            {platform.website_domain ? ` · ${platform.website_domain}` : ""}
+          </p>
+          <p className="mt-0.5 text-[10px] text-ink-400">{platform.internal_key}</p>
+          {missingReasons && (
+            <ul className="mt-1.5 space-y-0.5 text-xs text-caution">
+              {missingReasons.map((reason) => (
+                <li key={reason}>• {t(`curation.platformValidation.${reason}`)}</li>
+              ))}
+            </ul>
+          )}
+          {state === "error" && !missingReasons && <p className="mt-1 text-xs text-caution">{t("curation.actionError")}</p>}
+        </div>
+        <div className="flex shrink-0 gap-2">
+          <button
+            onClick={() => handle("active")}
+            disabled={state === "saving"}
+            className="inline-flex items-center gap-1 rounded-full bg-pistachio-soft px-3 py-1.5 text-xs font-semibold text-pistachio disabled:opacity-50"
+          >
+            <Check size={12} aria-hidden="true" /> {t("curation.approve")}
+          </button>
+          <button
+            onClick={() => handle("inactive")}
+            disabled={state === "saving"}
+            className="inline-flex items-center gap-1 rounded-full bg-destructive-soft px-3 py-1.5 text-xs font-semibold text-destructive disabled:opacity-50"
+          >
+            <X size={12} aria-hidden="true" /> {t("curation.deactivate")}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function Section({ title, count, empty, children }: { title: string; count: number; empty: string; children: React.ReactNode }) {
   return (
     <section className="mt-4 rounded-2xl border border-line bg-surface p-5 shadow-sm">
@@ -267,16 +351,7 @@ export function CurationView({ queue, contributions }: { queue: GovernanceQueue;
 
           <Section title={t("curation.platformsTitle")} count={queue.platforms.length} empty={t("curation.platformsEmpty")}>
             {queue.platforms.map((p) => (
-              <ReviewRow
-                key={p.id}
-                title={p.display_label}
-                subtitle={p.internal_key}
-                meta=""
-                approveLabel={t("curation.approve")}
-                rejectLabel={t("curation.deactivate")}
-                onApprove={() => reviewPlatformAction(p.id, "active")}
-                onReject={() => reviewPlatformAction(p.id, "inactive")}
-              />
+              <PlatformReviewRow key={p.id} platform={p} />
             ))}
           </Section>
         </main>

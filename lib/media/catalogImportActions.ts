@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { authorizeGovernanceAction } from "./governanceRules";
+import { digitalMediaCategories } from "./filter";
 
 // Phase 21 item 16 — catalog mutation is governance-sensitive, so this
 // reuses the EXACT SAME three-layer shape lib/media/governanceActions.ts
@@ -70,6 +71,17 @@ export async function bulkSubmitCatalogAction(rows: CatalogImportRow[]): Promise
   const existingSlugs = new Set((existingPlatformsRes.data ?? []).map((p) => p.internal_key));
   const existingNames = new Set((existingPlatformsRes.data ?? []).map((p) => p.display_label.toLowerCase()));
 
+  // Media Experience & Governance phase, item A: never trust the
+  // client's own "valid" filtering alone — re-derive which category
+  // keys are actually digital-eligible from a freshly-read taxonomy,
+  // using the SAME helper every other digital-scoped surface already
+  // uses (lib/media/filter.ts), and reject any row whose category falls
+  // outside it. A row is rejected outright (never partially inserted)
+  // using the exact same "lookup failed -> failed++" bucket this action
+  // already had for an unknown category/country — no new partial-
+  // import policy introduced here.
+  const digitalCategoryKeys = new Set(digitalMediaCategories(categoriesRes.data ?? []).map((c) => c.internal_key));
+
   let created = 0;
   let skippedExisting = 0;
   let failed = 0;
@@ -81,7 +93,7 @@ export async function bulkSubmitCatalogAction(rows: CatalogImportRow[]): Promise
     }
     const categoryId = categoryIdByKey.get(row.mediaCategoryKey);
     const countryId = countryIdByIso.get(row.countryIso);
-    if (!categoryId || !countryId) {
+    if (!categoryId || !countryId || !digitalCategoryKeys.has(row.mediaCategoryKey)) {
       failed++;
       continue;
     }

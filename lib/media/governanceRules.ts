@@ -1,3 +1,5 @@
+import { isDigitalMediaCategory } from "./filter";
+
 // Phase 19B item 3 — pure, DB-free governance/authorization rules.
 // Deliberately separated from lib/media/governanceActions.ts (the
 // Supabase-touching server actions) so the decision logic itself is
@@ -44,4 +46,52 @@ export function isValidSnapshotTransition(currentStatus: string, decision: Snaps
 // a rejected submission the way a specific price/metric value is.
 export function isValidPlatformStatusTransition(currentStatus: string, decision: PlatformReviewDecision): boolean {
   return currentStatus === "pending" && (decision === "active" || decision === "inactive");
+}
+
+// Media Experience & Governance phase, item C — pure, DB-free pre-
+// approval STRUCTURAL completeness check. Deliberately narrow: this is
+// never a quality score, never a check on editorial judgment, and
+// never automatic repair — just the minimum a catalog entity needs
+// before it can honestly be presented as active (never blocking the
+// "inactive"/deactivate path, which stays always available). Reuses
+// isDigitalMediaCategory from lib/media/filter.ts rather than a second
+// digital-scope rule; website_domain is intentionally NOT checked here
+// (§6: "treat website_domain as optional... a missing website must not
+// automatically block approval").
+export type PlatformCompletenessReason =
+  | "missingName"
+  | "missingInternalKey"
+  | "missingCategory"
+  | "nonDigitalCategory"
+  | "missingGeography";
+
+export interface PlatformCompletenessInput {
+  displayLabel: string | null | undefined;
+  internalKey: string | null | undefined;
+  mediaCategoryInternalKey: string | null;
+  isGlobal: boolean;
+  countryCount: number;
+}
+
+export function validatePlatformCompleteness(
+  input: PlatformCompletenessInput
+): { ok: true } | { ok: false; reasons: PlatformCompletenessReason[] } {
+  const reasons: PlatformCompletenessReason[] = [];
+
+  if (!input.displayLabel || input.displayLabel.trim() === "") reasons.push("missingName");
+  if (!input.internalKey || input.internalKey.trim() === "") reasons.push("missingInternalKey");
+
+  if (!input.mediaCategoryInternalKey) {
+    reasons.push("missingCategory");
+  } else if (!isDigitalMediaCategory({ internal_key: input.mediaCategoryInternalKey })) {
+    reasons.push("nonDigitalCategory");
+  }
+
+  // A global entity (is_global) never needs an explicit country
+  // association (same rule platformsForCountry already relies on,
+  // lib/media/filter.ts) — only a non-global entity with zero country
+  // rows is incomplete.
+  if (!input.isGlobal && input.countryCount === 0) reasons.push("missingGeography");
+
+  return reasons.length > 0 ? { ok: false, reasons } : { ok: true };
 }

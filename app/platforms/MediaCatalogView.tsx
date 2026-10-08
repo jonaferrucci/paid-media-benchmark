@@ -57,6 +57,8 @@ function FilterChip({ label, active, onClick }: { label: string; active: boolean
   );
 }
 
+type EntityTypeFilter = "all" | "adPlatforms" | "media";
+
 export function MediaCatalogView({ catalog }: { catalog: MediaCatalog }) {
   const { t, locale } = useTranslation();
   const router = useRouter();
@@ -64,6 +66,10 @@ export function MediaCatalogView({ catalog }: { catalog: MediaCatalog }) {
   const [categoryId, setCategoryId] = useState<string | null>(null);
   const [countryId, setCountryId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
+  // Item D: Todos | Plataformas publicitarias | Medios digitales —
+  // combines deterministically with search/country/category below,
+  // never a separate query path.
+  const [entityType, setEntityType] = useState<EntityTypeFilter>("all");
 
   const filtered = useMemo(() => {
     let result = catalog.platforms;
@@ -79,6 +85,13 @@ export function MediaCatalogView({ catalog }: { catalog: MediaCatalog }) {
     () => splitPlatformsAndMedia(filtered, catalog.categories),
     [filtered, catalog.categories]
   );
+
+  // Item D: the entity-type control narrows which of the two already-
+  // split sections render — it never changes splitPlatformsAndMedia's
+  // own category-based line, it only hides one side or the other.
+  const showAdPlatforms = entityType !== "media";
+  const showMedia = entityType !== "adPlatforms";
+  const hasVisibleResults = (showAdPlatforms && adPlatforms.length > 0) || (showMedia && media.length > 0);
 
   // Phase 21B item B10: country chips should not prominently show a
   // country with zero digital entities in the catalog. Computed against
@@ -129,6 +142,7 @@ export function MediaCatalogView({ catalog }: { catalog: MediaCatalog }) {
     setCategoryId(null);
     setCountryId(null);
     setQuery("");
+    setEntityType("all");
   }
 
   return (
@@ -175,6 +189,21 @@ export function MediaCatalogView({ catalog }: { catalog: MediaCatalog }) {
             </div>
           </div>
 
+          {/* Item D: entity-type filter — combines deterministically
+              with search/category/country below (never a separate
+              query path). Same FilterChip control already used for
+              category/country, just one more group. */}
+          <div className="mt-4">
+            <p id="catalog-entity-type-label" className="text-[11px] font-semibold uppercase tracking-wide text-ink-400">
+              {t("media.entityTypeLabel")}
+            </p>
+            <div className="mt-1.5 flex flex-wrap gap-1.5" role="group" aria-labelledby="catalog-entity-type-label">
+              <FilterChip label={t("media.entityTypeAll")} active={entityType === "all"} onClick={() => setEntityType("all")} />
+              <FilterChip label={t("media.entityTypeAdPlatforms")} active={entityType === "adPlatforms"} onClick={() => setEntityType("adPlatforms")} />
+              <FilterChip label={t("media.entityTypeDigitalMedia")} active={entityType === "media"} onClick={() => setEntityType("media")} />
+            </div>
+          </div>
+
           {/* Phase 21B item A: wrapping chip groups replace the old
               horizontal-scroll-row pattern (edge-bleed margins plus a
               scrolling overflow axis) — every option is visible at
@@ -216,7 +245,7 @@ export function MediaCatalogView({ catalog }: { catalog: MediaCatalog }) {
             </div>
           </div>
 
-          {filtered.length === 0 ? (
+          {!hasVisibleResults ? (
             <div className="mt-8 rounded-2xl border border-dashed border-line bg-surface p-8 text-center">
               <Info size={20} className="mx-auto text-ink-400" aria-hidden="true" />
               <p className="mt-3 text-sm text-ink-700">{t("media.emptyResults")}</p>
@@ -228,6 +257,15 @@ export function MediaCatalogView({ catalog }: { catalog: MediaCatalog }) {
                 >
                   {t("media.clearFiltersCta")}
                 </button>
+                {entityType !== "all" && (
+                  <button
+                    type="button"
+                    onClick={() => setEntityType("all")}
+                    className="rounded-full border border-line bg-surface px-4 py-2 text-xs font-semibold text-ink-700 hover:border-primary/50"
+                  >
+                    {t("media.entityTypeAll")}
+                  </button>
+                )}
                 {countryId !== null && (
                   <button
                     type="button"
@@ -244,9 +282,11 @@ export function MediaCatalogView({ catalog }: { catalog: MediaCatalog }) {
             </div>
           ) : (
             <>
-              <p className="mt-4 text-xs text-ink-500">{t("media.filteredCount", { n: filtered.length })}</p>
+              <p className="mt-4 text-xs text-ink-500">
+                {t("media.filteredCount", { n: (showAdPlatforms ? adPlatforms.length : 0) + (showMedia ? media.length : 0) })}
+              </p>
 
-              {adPlatforms.length > 0 && (
+              {showAdPlatforms && adPlatforms.length > 0 && (
                 <section className="mt-3">
                   <h2 className="font-display text-sm font-semibold text-ink-900">{t("media.platformsSectionTitle")}</h2>
                   <p className="text-xs text-ink-500">{t("media.platformsSectionSubtitle")}</p>
@@ -280,7 +320,7 @@ export function MediaCatalogView({ catalog }: { catalog: MediaCatalog }) {
                 </section>
               )}
 
-              {media.length > 0 && (
+              {showMedia && media.length > 0 && (
                 <section className="mt-6">
                   <h2 className="font-display text-sm font-semibold text-ink-900">{t("media.mediaSectionTitle")}</h2>
                   <p className="text-xs text-ink-500">{t("media.mediaSectionSubtitle")}</p>
